@@ -510,7 +510,7 @@ export class Service {
     const [rows, count] = await Promise.all([
       this.all(
         `SELECT c.id,c.kind,c.label,c.suffix,c.active,c.created_at,
-          p.id person_id,p.name person_name,p.document,p.department,p.kind person_kind,p.status person_status,
+          p.id person_id,p.name person_name,p.phone,p.document,p.department,p.kind person_kind,p.status person_status,
           p.expires,p.membership_managed,p.sessions_remaining,p.photo_path,(c.kind='qr' AND c.active=1 AND c.code_cipher IS NOT NULL) downloadable
          FROM credentials c JOIN ${effectivePeopleSql(today)} p ON p.id=c.person_id${where}
          ORDER BY c.active DESC,c.created_at DESC LIMIT ? OFFSET ?`,

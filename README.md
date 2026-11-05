@@ -21,6 +21,12 @@ node scripts/platform-admin.ts bootstrap --data /ruta/absoluta/a/los/datos
 
 La utilidad pide las credenciales en la terminal. No hay una contraseña predeterminada.
 
+## Compartir la credencial por WhatsApp
+
+El administrador puede pulsar **Enviar por WhatsApp** en **Credenciales QR** o en las credenciales de la ficha del socio. El sistema prepara la imagen PNG del QR activo que ya tiene; no emite ni reemplaza su credencial.
+
+En un teléfono compatible, **Compartir PNG** abre el menú del sistema para elegir WhatsApp y el contacto. Si el equipo no permite compartir archivos, **Descargar PNG** guarda la tarjeta y **Abrir WhatsApp** abre el chat del número registrado; hay que adjuntar la imagen manualmente. Cancelar el menú no envía la tarjeta.
+
 ## Despliegue automático desde GitHub
 
 El workflow `.github/workflows/verify.yml` instala las dependencias y comprueba el arranque, la interfaz, la protección de origen y la recuperación de bases anteriores. Los cambios de `main` se pueden desplegar por SSH tras superar esas comprobaciones.

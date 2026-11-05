@@ -14,8 +14,72 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { startPlatform } from "../server/platform.ts";
 import { TenantManager } from "../server/tenant-manager.ts";
+import { Service } from "../lib/service.ts";
 
 const root = resolve(import.meta.dirname, "..");
+
+test("compartir recupera el QR activo y el teléfono del socio sin emitir otra credencial", async (t) => {
+  const directory = temporary(t),
+    manager = new TenantManager(directory);
+  const gym = { id: randomUUID(), name: "Gimnasio de prueba" };
+  try {
+    manager.provision(gym);
+    await manager.withTenant(gym, async (context) => {
+      const service = new Service(
+        context.db,
+        {
+          id: gym.id,
+          email: "admin@example.test",
+          name: "Admin",
+          role: "admin",
+        },
+        context.codec,
+      );
+      const person = await service.savePerson({
+        name: "Socio de prueba",
+        document: "CI-QR",
+        phone: "+591 71234567",
+        kind: "member",
+        status: "active",
+      });
+      const issued = await service.issueCredential(person.id, {
+        kind: "qr",
+        label: "Principal",
+      });
+      const card = await service.credentialCard(issued.id);
+      assert.equal(card.code, issued.code);
+      const row = (
+        await service.credentialList(new URLSearchParams())
+      ).rows.find((item) => item.id === issued.id);
+      assert.equal(row.phone, "59171234567");
+      assert.equal(
+        context.db.raw
+          .prepare("SELECT COUNT(*) n FROM credentials WHERE person_id=?")
+          .get(person.id).n,
+        1,
+      );
+      const operator = new Service(
+        context.db,
+        {
+          id: "operator",
+          email: "operator@example.test",
+          name: "Cajero",
+          role: "operator",
+        },
+        context.codec,
+      );
+      await assert.rejects(() => operator.credentialCard(issued.id), {
+        status: 403,
+      });
+      await service.revokeCredential(issued.id);
+      await assert.rejects(() => service.credentialCard(issued.id), {
+        status: 409,
+      });
+    });
+  } finally {
+    await manager.close();
+  }
+});
 function temporary(t) {
   const directory = mkdtempSync(join(tmpdir(), "gympass-ci-"));
   t.after(() => {
