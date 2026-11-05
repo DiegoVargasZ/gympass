@@ -1,0 +1,3 @@
+ALTER TABLE people ADD COLUMN photo_path TEXT;
+ALTER TABLE settings ADD COLUMN logo_path TEXT;
+ALTER TABLE settings ADD COLUMN brand_color TEXT NOT NULL DEFAULT '#1b654b';

@@ -1,0 +1,1 @@
+ALTER TABLE settings ADD COLUMN recovery_hash TEXT NOT NULL DEFAULT '';
