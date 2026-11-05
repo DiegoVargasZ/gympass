@@ -115,12 +115,15 @@ export async function startPlatform(options: Options) {
         const operationalWrite =
           writing && path[0] !== 'auth' && !(method === 'POST' && path.length === 1 && path[0] === 'backups');
         const token = requestToken(req);
-        if (path[0] === 'device-access' && method === 'POST') {
+        if (
+          path.length === 1 &&
+          ((path[0] === 'device-access' && method === 'POST') || (path[0] === 'device-check' && method === 'GET'))
+        ) {
           const gym = store.getGym(gymId);
           if (!gym || gym.status !== 'active') throw new ApiError(403, 'Gimnasio no disponible.');
           const deviceToken = req.headers.authorization?.match(/^Bearer ([A-Za-z\d_-]+)$/)?.[1];
           if (!deviceToken) throw new ApiError(401, 'Falta la clave del lector.');
-          const body = await readJson(req);
+          const body = method === 'POST' ? await readJson(req) : undefined;
           return await tenants.withTenant(gym, async (ctx) => {
             if (store.getGym(gymId)?.status !== 'active') throw new ApiError(403, 'Gimnasio no disponible.');
             const device = await ctx.db
@@ -128,6 +131,17 @@ export async function startPlatform(options: Options) {
               .bind(await hash(deviceToken))
               .first<Record<string, any>>();
             if (!device) throw new ApiError(401, 'Lector no autorizado.');
+            if (path[0] === 'device-check')
+              return json(res, {
+                ok: true,
+                device: {
+                  id: device.id,
+                  name: device.name,
+                  kind: device.kind,
+                  direction: device.direction,
+                  zone_id: device.zone_id,
+                },
+              });
             const reauthorizeDevice = () => {
               if (store.getGym(gymId)?.status !== 'active') throw new ApiError(403, 'Gimnasio no disponible.');
               if (

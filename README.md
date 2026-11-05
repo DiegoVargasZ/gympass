@@ -39,6 +39,57 @@ El cajero puede registrar un socio activo dentro de este cobro, con acceso gener
 
 Las pantallas antiguas de eventos, invitaciones y asistencia laboral se retiraron de la interfaz. Se conservan las bases, las migraciones y los datos históricos, así como los informes actuales de visitas y horas en el gimnasio.
 
+## Conectar lectores
+
+Entra como administrador en **Configuración → Lectores**. Puedes preparar las conexiones antes de tener el equipo. Hay dos formas de usar un lector:
+
+### USB que funciona como teclado
+
+1. Conecta el lector QR o de tarjeta a la computadora e instala el controlador que indique su fabricante.
+2. En la configuración del lector selecciona **teclado USB / HID** y añade **Enter** al final de cada lectura.
+3. Pulsa **Abrir Recepción con lector** y deja enfocado el campo **Código de credencial**. El lector escribe el código y Enter confirma el movimiento.
+4. Prueba la credencial de un socio y comprueba su nombre y el resultado. Para una tarjeta NFC, vincula primero el identificador exacto a ese socio.
+
+Este modo utiliza la sesión del recepcionista y no necesita una clave de equipo. Un USB que sólo funciona mediante el SDK del fabricante necesita un conector; conectar su cable no lo convierte en teclado.
+
+### Equipo por red o programa del fabricante
+
+1. En Lectores, elige **Equipo por red o programa externo**.
+2. Indica nombre, tipo (QR, NFC o biometría), movimiento (entrada, salida o alternar) y zona. Pulsa **Crear conexión**.
+3. Guarda el archivo JSON con **Guardar configuración**. Incluye las direcciones del gimnasio y la clave del equipo; esa clave no se recupera de la lista después de cerrar. **Ver conexión** permite volver a consultar las direcciones y pegar una clave guardada. Si la pierdes, revoca esa conexión y crea otra.
+4. **Comprobar conexión** valida la clave y el servidor. No registra entradas ni salidas y no actualiza **Última lectura**. Después hay que probar una lectura real desde el equipo.
+5. Configura el lector o su programa para enviar las solicitudes descritas abajo. Si el equipo sólo se comunica con un SDK propio, el instalador debe adaptar ese SDK a esta API. El archivo JSON reúne los datos de conexión; no instala un controlador ni configura automáticamente cualquier modelo.
+
+Para NFC: en **Socios → Credencial QR**, elige **Tarjeta NFC** y guarda exactamente el identificador leído. Para huella: registra la huella con el equipo o software del fabricante, anota el identificador que devuelve al reconocer al usuario y guárdalo en la credencial **Identificador biométrico externo** del socio. El identificador admite entre 4 y 200 caracteres; si el SDK usa números más cortos, el conector puede usar un prefijo, por ejemplo `bio:42`, tanto al vincularlo como al enviarlo. GymPASS recibe ese identificador, no captura ni compara huellas. El QR mensual y la credencial biométrica son independientes.
+
+### Datos para el instalador
+
+Las direcciones exactas aparecen en pantalla y en el JSON descargado. En la plataforma son:
+
+```text
+GET  https://gympass.site/api/gyms/ID_DEL_GIMNASIO/device-check
+POST https://gympass.site/api/gyms/ID_DEL_GIMNASIO/device-access
+Authorization: Bearer CLAVE_DEL_LECTOR
+Content-Type: application/json
+```
+
+El GET de comprobación devuelve `ok: true` y los datos del lector autorizado. No requiere una sesión de usuario. Una clave inválida, revocada o de otro gimnasio se rechaza. Un gimnasio suspendido tampoco acepta la comprobación ni las lecturas.
+
+Cada lectura envía un JSON como este (el programa genera un UUID distinto para cada lectura):
+
+```json
+{
+  "code": "bio:42",
+  "request_id": "f5617cb2-9854-4d50-b9e2-c7ba46e1a40d"
+}
+```
+
+El valor `code` es el QR completo o el identificador NFC/biométrico vinculado al socio. Reintentar la misma lectura debe conservar su `request_id` para no duplicar el movimiento. La zona, el método y la dirección se toman del lector registrado.
+
+La respuesta indica `allowed`, `reason`, `message`, `event_id` y `person_name`. Sólo `allowed: true` autoriza el acceso: un HTTP 200 también puede devolver una denegación por plan vencido, socio suspendido u otra regla. El equipo o conector gestiona la apertura física del torniquete; la comprobación de conexión no lo acciona. Antes de usar la apertura real, comprueba lecturas permitidas, denegadas y errores de red con el equipo concreto.
+
+En una instalación local se utilizan las mismas rutas sin `/gyms/ID_DEL_GIMNASIO`, bajo la dirección de ese servidor. Un lector que envía al dominio necesita salida a Internet. Un equipo que sólo está en la red local necesita su programa o conector en esa red para enviar las solicitudes al dominio.
+
 ## Despliegue automático desde GitHub
 
 El workflow `.github/workflows/verify.yml` instala las dependencias y comprueba el arranque, la interfaz, la protección de origen y la recuperación de bases anteriores. Los cambios de `main` se pueden desplegar por SSH tras superar esas comprobaciones.

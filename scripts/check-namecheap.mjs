@@ -246,6 +246,109 @@ test("WhatsApp obligatorio y QR mensual atómico e idempotente", async (t) => {
 
 const root = resolve(import.meta.dirname, "..");
 
+test("lectores: comprobar la clave no registra accesos y respeta gimnasio y revocación", async (t) => {
+  const app = await startPlatform({
+    dataDirectory: temporary(t),
+    host: "127.0.0.1",
+    port: 0,
+    allowHttp: true,
+  });
+  try {
+    await app.store.bootstrap({
+      name: "Owner",
+      email: "reader@example.test",
+      password: "Reader-Test-430",
+    });
+    const owner = await app.store.login({
+      email: "reader@example.test",
+      password: "Reader-Test-430",
+    });
+    const gyms = ["a", "b"].map((suffix) => {
+      const gym = app.store.createGym(owner.session.user, {
+        name: "Lector " + suffix,
+        slug: "reader-" + suffix,
+      });
+      app.tenants.provision(gym);
+      app.store.markGymProvisioned(gym.id);
+      return gym;
+    });
+    for (const [index, gym] of gyms.entries()) {
+      const invitation = app.store.invite(owner.session.user, gym.id, {
+        email: "reader-admin-" + index + "@example.test",
+        name: "Admin",
+        role: "admin",
+      });
+      await app.store.acceptInvitation({
+        token: invitation.token,
+        name: "Admin",
+        password: "Reader-Test-430",
+      });
+    }
+    let device;
+    await app.tenants.withTenant(gyms[0], async (ctx) => {
+      const service = new Service(
+        ctx.db,
+        {
+          id: owner.session.user.id,
+          email: "reader@example.test",
+          name: "Owner",
+          role: "admin",
+        },
+        ctx.codec,
+      );
+      device = await service.createDevice({
+        name: "Huella recepción",
+        kind: "biometric",
+        direction: "entry",
+      });
+    });
+    const check = (gym, token = device.token) =>
+      fetch(app.url + "/api/gyms/" + gym.id + "/device-check", {
+        headers: { Authorization: "Bearer " + token },
+      });
+    const response = await check(gyms[0]);
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.ok, true);
+    assert.equal(result.device.id, device.id);
+    assert.equal(result.device.kind, "biometric");
+    assert.ok(!JSON.stringify(result).includes(device.token));
+    assert.equal((await check(gyms[0], "wrong_key")).status, 401);
+    assert.equal((await check(gyms[1])).status, 401);
+    app.store.updateGym(owner.session.user, gyms[0].id, {
+      status: "suspended",
+    });
+    assert.equal((await check(gyms[0])).status, 403);
+    app.store.updateGym(owner.session.user, gyms[0].id, { status: "active" });
+    await app.tenants.withTenant(gyms[0], async (ctx) => {
+      assert.equal(
+        ctx.db.raw.prepare("SELECT COUNT(*) n FROM events").get().n,
+        0,
+      );
+      assert.equal(
+        ctx.db.raw
+          .prepare("SELECT last_seen FROM devices WHERE id=?")
+          .get(device.id).last_seen,
+        null,
+      );
+      const service = new Service(
+        ctx.db,
+        {
+          id: owner.session.user.id,
+          email: "reader@example.test",
+          name: "Owner",
+          role: "admin",
+        },
+        ctx.codec,
+      );
+      await service.revokeDevice(device.id);
+    });
+    assert.equal((await check(gyms[0])).status, 401);
+  } finally {
+    await app.close();
+  }
+});
+
 test("compartir recupera el QR activo y el teléfono del socio sin emitir otra credencial", async (t) => {
   const directory = temporary(t),
     manager = new TenantManager(directory);
