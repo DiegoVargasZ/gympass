@@ -87,7 +87,12 @@ export type PosSale = {
   void_at: number | null;
   void_by: string | null;
 };
-export type PosSaleDetail = PosSale & { lines: PosSaleLine[]; memberships: PosMembership[]; warnings: string[] };
+export type PosSaleDetail = PosSale & {
+  lines: PosSaleLine[];
+  memberships: PosMembership[];
+  warnings: string[];
+  credential?: { id: string; active: number; phone: string } | null;
+};
 export type PosMembership = {
   id: string;
   sale_id: string;

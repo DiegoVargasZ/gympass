@@ -15,6 +15,162 @@ import { randomUUID } from "node:crypto";
 import { startPlatform } from "../server/platform.ts";
 import { TenantManager } from "../server/tenant-manager.ts";
 import { Service } from "../lib/service.ts";
+import { PosService } from "../lib/pos.ts";
+
+test("WhatsApp obligatorio y QR mensual atómico e idempotente", async (t) => {
+  const directory = temporary(t),
+    manager = new TenantManager(directory);
+  const gym = { id: randomUUID(), name: "Cobro mensual" };
+  try {
+    manager.provision(gym);
+    await manager.withTenant(gym, async (ctx) => {
+      const s = new Service(
+        ctx.db,
+        {
+          id: gym.id,
+          email: "admin@example.test",
+          name: "Admin",
+          role: "admin",
+        },
+        ctx.codec,
+      );
+      await assert.rejects(
+        () =>
+          s.savePerson({
+            name: "Sin teléfono",
+            document: "NO",
+            kind: "member",
+            status: "active",
+          }),
+        /WhatsApp/,
+      );
+      const person = await s.savePerson({
+        name: "Socio",
+        document: "MONTH",
+        kind: "member",
+        status: "active",
+        phone: "59171234567",
+      });
+      const old = await s.issueCredential(person.id, {
+        kind: "qr",
+        label: "Anterior",
+      });
+      const pos = new PosService(s),
+        plan = await pos.savePlan({
+          name: "Mes",
+          unit: "months",
+          duration: 1,
+          price_cents: 10000,
+        });
+      const body = {
+        request_id: randomUUID(),
+        person_id: person.id,
+        payment_method: "cash",
+        lines: [{ kind: "plan", id: plan.id, quantity: 1 }],
+      };
+      const [a, b] = await Promise.all([
+        pos.checkout(body),
+        pos.checkout(body),
+      ]);
+      assert.equal(a.credential.id, b.credential.id);
+      assert.notEqual(a.credential.id, old.id);
+      assert.notEqual((await s.credentialCard(a.credential.id)).code, old.code);
+      assert.equal(
+        ctx.db.raw
+          .prepare("SELECT active FROM credentials WHERE id=?")
+          .get(old.id).active,
+        0,
+      );
+      assert.equal(
+        ctx.db.raw.prepare("SELECT COUNT(*) n FROM credentials").get().n,
+        2,
+      );
+      const operator = new Service(
+        ctx.db,
+        {
+          id: "cashier",
+          email: "cashier@example.test",
+          name: "Caja",
+          role: "operator",
+        },
+        ctx.codec,
+      );
+      assert.equal(
+        (await operator.credentialCard(a.credential.id)).id,
+        a.credential.id,
+      );
+      ctx.db.raw
+        .prepare("UPDATE people SET phone='' WHERE id=?")
+        .run(person.id);
+      await assert.rejects(
+        () => pos.checkout({ ...body, request_id: randomUUID() }),
+        /WhatsApp/,
+      );
+      ctx.db.raw
+        .prepare("UPDATE people SET phone=? WHERE id=?")
+        .run("59171234567", person.id);
+      const product = await pos.saveProduct({
+        name: "Sin stock",
+        price_cents: 500,
+        stock: 0,
+        track_stock: 1,
+        active: 1,
+      });
+      await assert.rejects(() =>
+        pos.checkout({
+          ...body,
+          request_id: randomUUID(),
+          replace_active: { reason: "Intento de renovación" },
+          lines: [
+            ...body.lines,
+            { kind: "product", id: product.id, quantity: 1 },
+          ],
+        }),
+      );
+      assert.equal(
+        (await s.credentialCard(a.credential.id)).id,
+        a.credential.id,
+      );
+      assert.equal(
+        ctx.db.raw.prepare("SELECT COUNT(*) n FROM pos_sales").get().n,
+        1,
+      );
+      await assert.rejects(
+        () =>
+          pos.checkout({
+            ...body,
+            request_id: randomUUID(),
+            expected_total_cents: 1,
+          }),
+        /plan|precio|curso/i,
+      );
+      assert.equal(
+        ctx.db.raw.prepare("SELECT COUNT(*) n FROM credentials").get().n,
+        2,
+      );
+      const renewal = await pos.checkout({
+        ...body,
+        request_id: randomUUID(),
+      });
+      assert.notEqual(renewal.credential.id, a.credential.id);
+      assert.equal((await pos.sale(a.id)).credential.active, 0);
+      assert.equal((await pos.sale(renewal.id)).credential.active, 1);
+      assert.equal((await pos.checkout(body)).credential.id, a.credential.id);
+      assert.equal(
+        ctx.db.raw.prepare("SELECT COUNT(*) n FROM credentials").get().n,
+        3,
+      );
+      await pos.voidSale(renewal.id, { reason: "Renovación cancelada" });
+      assert.equal(
+        (await operator.credentialCard(renewal.credential.id)).id,
+        renewal.credential.id,
+      );
+      await assert.rejects(() => operator.credentialCard(a.credential.id), /QR activa/i);
+    });
+  } finally {
+    await manager.close();
+  }
+});
 
 const root = resolve(import.meta.dirname, "..");
 

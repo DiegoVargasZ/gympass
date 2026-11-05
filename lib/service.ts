@@ -320,6 +320,8 @@ export class Service {
   async preparePerson(body: unknown, id?: string) {
     this.require('admin');
     const p = personSchema.parse(body);
+    if (p.kind === 'member' && !/^[1-9]\d{8,14}$/.test(p.phone))
+      throw new ApiError(400, 'El número de WhatsApp del socio es obligatorio, con código de país.');
     const personId = id || crypto.randomUUID();
     if (id) {
       const current = await this.one('SELECT deleted_at FROM people WHERE id=?', id);
@@ -580,7 +582,12 @@ export class Service {
     return { ok: true };
   }
   async credentialCard(id: string) {
-    this.require('admin');
+    this.require('operator');
+    if (
+      this.actor.role !== 'admin' &&
+      !(await this.one('SELECT id FROM pos_sales WHERE credential_id=?', id))
+    )
+      throw new ApiError(403, 'Solo puedes recuperar las credenciales generadas por pagos mensuales.');
     const settings = await this.one('SELECT timezone FROM settings WHERE id=1');
     const today = localParts(new Date(), settings!.timezone).date;
     const row = await this.one(

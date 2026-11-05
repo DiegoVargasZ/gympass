@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ApiError, hash, personSchema, type Service } from './service.ts';
+import { ApiError, hash, personSchema, randomToken, type Service } from './service.ts';
 import { localParts, nextDate } from './domain.ts';
 import {
   planEndDate,
@@ -277,6 +277,8 @@ export class PosService {
       // Una ficha recién registrada nunca está de baja; solo hay que mirar las que vienen de la base.
       if ('deleted_at' in person && person.deleted_at)
         throw new ApiError(409, 'Esta ficha está dada de baja. Restáurala antes de venderle un plan.');
+      if (person.kind === 'member' && !/^[1-9]\d{8,14}$/.test(String(person.phone || '')))
+        throw new ApiError(400, 'Registra el WhatsApp del socio antes de cobrar su plan.');
     }
     const planLines = p.lines.filter((line) => line.kind === 'plan');
     if (planLines.length > 1 || planLines.some((line) => line.quantity > 1))
@@ -311,12 +313,14 @@ export class PosService {
       throw new ApiError(409, 'El precio cambió. Actualiza el catálogo y revisa el total antes de confirmar.');
     if (!Number.isSafeInteger(total) || total > 100000000000)
       throw new ApiError(400, 'El importe de venta es demasiado alto.');
+    const monthly = items.some((line) => line.kind === 'plan' && line.item.unit === 'months');
+    const credentialId = monthly ? crypto.randomUUID() : null;
     const id = crypto.randomUUID(),
       now = Date.now();
     const statements = [
       ...(registration?.statements || []),
       this.service.stmt(
-        'INSERT INTO pos_sales(id,request_id,payload_hash,person_id,person_name,actor,created_at,local_date,start_date,payment_method,total_cents,replace_reason) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO pos_sales(id,request_id,payload_hash,person_id,person_name,actor,created_at,local_date,start_date,payment_method,total_cents,replace_reason,credential_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
         id,
         p.request_id,
         payloadHash,
@@ -329,6 +333,7 @@ export class PosService {
         p.payment_method,
         total,
         replacing ? p.replace_active!.reason : null,
+        credentialId,
       ),
       ...(replacing
         ? [
@@ -381,6 +386,27 @@ export class PosService {
             ),
           );
     }
+    if (credentialId) {
+      const code = randomToken('GYM');
+      statements.push(
+        this.service.stmt(
+          "UPDATE credentials SET active=0 WHERE person_id=? AND kind='qr' AND active=1 AND NOT EXISTS(SELECT 1 FROM visits WHERE credential_id=credentials.id)",
+          personId,
+        ),
+        this.service.stmt(
+          'INSERT INTO credentials(id,person_id,kind,label,hash,suffix,created_at,code_cipher) VALUES(?,?,?,?,?,?,?,?)',
+          credentialId,
+          personId,
+          'qr',
+          'Pago mensual',
+          await hash(code),
+          code.slice(-6),
+          now,
+          this.service.codec?.seal(code, credentialId) || null,
+        ),
+        this.service.audit('credential.monthly', credentialId),
+      );
+    }
     statements.push(this.service.audit('pos.sale.created', id));
     try {
       await this.atomic(statements);
@@ -410,7 +436,13 @@ export class PosService {
         break;
       }
     }
-    return { ...sale, lines, memberships, warnings } as PosSaleDetail;
+    const credential = sale.credential_id
+      ? await this.service.one(
+          'SELECT c.id,c.active,p.phone FROM credentials c JOIN people p ON p.id=c.person_id WHERE c.id=?',
+          sale.credential_id,
+        )
+      : null;
+    return { ...sale, lines, memberships, warnings, credential } as PosSaleDetail;
   }
   async sales(params: URLSearchParams): Promise<PosSales> {
     const conditions: string[] = [],

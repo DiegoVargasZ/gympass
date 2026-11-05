@@ -25,7 +25,11 @@ La utilidad pide las credenciales en la terminal. No hay una contraseña predete
 
 El administrador puede pulsar **Enviar por WhatsApp** en **Credenciales QR** o en las credenciales de la ficha del socio. El sistema prepara la imagen PNG del QR activo que ya tiene; no emite ni reemplaza su credencial.
 
-En un teléfono compatible, **Compartir PNG** abre el menú del sistema para elegir WhatsApp y el contacto. Si el equipo no permite compartir archivos, **Descargar PNG** guarda la tarjeta y **Abrir WhatsApp** abre el chat del número registrado; hay que adjuntar la imagen manualmente. Cancelar el menú no envía la tarjeta.
+**Descargar PNG y abrir WhatsApp** guarda la tarjeta y abre directamente el chat del número registrado del socio. Adjunta la imagen descargada y confirma el envío en WhatsApp. No hay que elegir el contacto desde un menú del teléfono. El envío automático de una imagen requiere una integración adicional con WhatsApp Business API.
+
+El WhatsApp con código de país es obligatorio al registrar o editar socios y al cobrarles un plan. Las fichas anteriores se conservan; si falta el número, hay que completarlo antes del cobro.
+
+Cada pago de un plan mensual genera automáticamente una nueva credencial QR y anula el QR anterior del socio. La credencial y la venta se guardan juntas: un reintento del mismo cobro no genera otra clave ni duplica el pago. El comprobante permite preparar la tarjeta y abrir su WhatsApp. Se conservan las credenciales NFC y las invitaciones.
 
 ## Despliegue automático desde GitHub
 
