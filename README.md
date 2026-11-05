@@ -33,7 +33,7 @@ Cada pago de un plan mensual genera automáticamente una nueva credencial QR y a
 
 ## Registrar un socio desde Caja
 
-Al seleccionar un plan sin socio, Caja abre el formulario de registro con nombre, documento y WhatsApp obligatorio. **Continuar con el cobro** conserva esos datos y el carrito; el socio, el pago, el plan y su QR se guardan juntos al confirmar el cobro. Cancelar el formulario conserva el carrito y permite seleccionar un socio existente. También puedes abrirlo con **Crear socio para este cobro**.
+Selecciona el plan y busca al socio por nombre o documento en Caja. Si la búsqueda termina sin coincidencias, aparece **Crear socio para este cobro**, que abre el formulario con nombre, documento y WhatsApp obligatorio. Elegir un plan no abre el formulario. **Continuar con el cobro** conserva esos datos y el carrito; el socio, el pago, el plan y su QR se guardan juntos al confirmar el cobro. Cancelar el formulario conserva el carrito y la búsqueda para poder seleccionar un socio existente.
 
 El cajero puede registrar un socio activo dentro de este cobro, con acceso general. Editar fichas o registrar personal y permisos especiales sigue reservado al administrador. Si se pierde la respuesta del pago, reintenta la misma confirmación para recuperar el resultado sin duplicarlo.
 
