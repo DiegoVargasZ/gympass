@@ -215,13 +215,13 @@ export class TenantManager {
     return summary;
   }
 
-  async maintain(gyms: Tenant[]) {
+  async maintain(gyms: Tenant[], at = new Date()) {
     for (const gym of gyms) {
       if (this.closed) break;
       await this.withTenant(gym, async (ctx) => {
         const service = new Service(ctx.db, { id: 'system', email: 'system', name: 'Sistema', role: 'admin' });
-        await service.closeStaleSessions(new Date());
-        await service.closeExpiredVisits(new Date());
+        await service.closeStaleSessions(at);
+        await service.closeExpiredVisits(at);
         ctx.backups.check();
       }).catch((error) => console.error('Mantenimiento de gimnasio:', gym.id, error.message));
     }

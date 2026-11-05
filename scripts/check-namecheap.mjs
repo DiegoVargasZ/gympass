@@ -483,6 +483,71 @@ test("la plataforma inicia, sirve la interfaz y conserva la protección de orige
   }
 });
 
+test("el cierre diario respeta zonas horarias y mantiene aislados los gimnasios", async (t) => {
+  const manager = new TenantManager(temporary(t));
+  const gyms = [
+    { id: randomUUID(), name: "Bolivia", timezone: "America/La_Paz" },
+    { id: randomUUID(), name: "Tokio", timezone: "Asia/Tokyo" },
+  ];
+  try {
+    for (const gym of gyms) {
+      manager.provision(gym);
+      await manager.withTenant(gym, async (ctx) => {
+        const service = new Service(ctx.db, {
+          id: gym.id,
+          email: "admin@example.test",
+          name: "Admin",
+          role: "admin",
+        });
+        await service.updateSettings({
+          timezone: gym.timezone,
+          closing_time: "23:00",
+          auto_close_hours: 0,
+        });
+        const person = await service.savePerson({
+          name: "Socio",
+          document: gym.name,
+          kind: "employee",
+          status: "active",
+          zone_ids: ["general"],
+        });
+        await service.access(
+          {
+            person_id: person.id,
+            reason: "Registro de prueba",
+            zone_id: "general",
+            direction: "auto",
+            request_id: randomUUID(),
+          },
+          undefined,
+          new Date("2026-11-05T10:00:00Z"),
+        );
+      });
+    }
+    await manager.maintain(gyms, new Date("2026-11-05T15:00:00Z"));
+    for (const [index, gym] of gyms.entries()) {
+      await manager.withTenant(gym, async (ctx) => {
+        const rows = ctx.db.raw
+          .prepare("SELECT * FROM events WHERE reason='AUTO_CLOSE'")
+          .all();
+        assert.equal(rows.length, index === 0 ? 0 : 1);
+        if (rows.length)
+          assert.equal(rows[0].occurred_at, Date.parse("2026-11-05T14:00:00Z"));
+      });
+    }
+    await manager.maintain(gyms, new Date("2026-11-06T03:00:00Z"));
+    await manager.withTenant(gyms[0], async (ctx) => {
+      const row = ctx.db.raw
+        .prepare("SELECT * FROM events WHERE reason='AUTO_CLOSE'")
+        .get();
+      assert.equal(row.occurred_at, Date.parse("2026-11-06T03:00:00Z"));
+      assert.equal(row.local_date, "2026-11-05");
+    });
+  } finally {
+    await manager.close();
+  }
+});
+
 test("una base anterior vuelve a abrir sin perder registros y queda conservada para recuperación", async (t) => {
   const directory = temporary(t),
     manager = new TenantManager(directory);

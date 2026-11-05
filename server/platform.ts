@@ -11,7 +11,7 @@ import { ApiError, Service, hash } from '../lib/service.ts';
 import { reasons } from '../lib/domain.ts';
 import { json, cookieValue, requestToken, readJson } from './platform-http.ts';
 import { acquirePlatformLock } from './platform-lock.ts';
-import { revalidation, staticAsset } from './static-files.ts';
+import { staticAsset } from './static-files.ts';
 import { authorizedDatabase } from './authorized-database.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -255,7 +255,7 @@ export async function startPlatform(options: Options) {
   }
   const address = server.address();
   const url = `http://${host.includes(':') ? '[' + host + ']' : host}:${typeof address === 'object' && address ? address.port : options.port}`;
-  const timer = setInterval(() => {
+  const maintain = () => {
     if (maintenanceWork) return;
     maintenanceWork = tenants
       .maintain(store.listAllGyms().filter((g) => g.status !== 'provisioning' && !g.deleted))
@@ -264,8 +264,10 @@ export async function startPlatform(options: Options) {
       .finally(() => {
         maintenanceWork = null;
       });
-  }, 60000);
+  };
+  const timer = setInterval(maintain, 60000);
   timer.unref();
+  maintain();
   return {
     server,
     store,

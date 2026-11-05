@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { remainingDays, renewalMessage } from './renewals.ts';
+import { closingInstant } from './closing-time.ts';
 import type { Database } from './database.ts';
 import {
   generalAccessId,
@@ -158,7 +159,7 @@ export class Service {
   async bootstrap() {
     const installation = await this.one('SELECT owner FROM settings WHERE id=1');
     const [settings, zones, schedules, events, presence] = await Promise.all([
-      this.one('SELECT name,timezone,logo_path,brand_color,auto_close_hours FROM settings WHERE id=1'),
+      this.one('SELECT name,timezone,logo_path,brand_color,auto_close_hours,closing_time FROM settings WHERE id=1'),
       this.all(
         `SELECT z.*, (SELECT COUNT(*) FROM (${presenceSql}) p WHERE p.zone_id=z.id) inside FROM zones z ORDER BY z.name`,
       ),
@@ -807,7 +808,15 @@ export class Service {
       if (!target) throw new ApiError(404, 'Registro no encontrado.');
       if (target.deleted_at) throw new ApiError(409, 'Esta ficha está dada de baja y no puede registrar accesos.');
     }
-    const settings = await this.one('SELECT timezone FROM settings WHERE id=1');
+    const settings = await this.one('SELECT timezone,closing_time FROM settings WHERE id=1');
+    if (settings?.closing_time) {
+      const system = new Service(
+        this.db,
+        { id: 'system', email: 'system', name: 'Sistema', role: 'admin' },
+        this.codec,
+      );
+      await system.closeStaleSessions(at);
+    }
     const local = localParts(at, settings!.timezone);
     const codeHash = await hash(p.code || '');
     const payloadHash = await hash(JSON.stringify([codeHash, p.person_id || null, zoneId, direction, p.reason || '']));
@@ -1860,10 +1869,21 @@ export class Service {
 
   async closeStaleSessions(at = new Date()) {
     this.require('admin');
-    const settings = await this.one('SELECT timezone,auto_close_hours FROM settings WHERE id=1');
-    if (!settings?.auto_close_hours) return { closed: 0 };
-    const duration = settings.auto_close_hours * 3600000,
-      cutoff = at.getTime() - duration;
+    const settings = await this.one('SELECT timezone,auto_close_hours,closing_time FROM settings WHERE id=1');
+    if (!settings || (!settings.closing_time && !settings.auto_close_hours)) return { closed: 0 };
+    const closing = settings.closing_time || null;
+    const duration = settings.auto_close_hours * 3600000;
+    const times = new Map<string, number>();
+    const daily = (date: string) => {
+      if (!times.has(date)) times.set(date, closingInstant(date, closing!, settings.timezone));
+      return times.get(date)!;
+    };
+    const today = localParts(at, settings.timezone).date;
+    const cutoff = closing
+      ? daily(today) <= at.getTime()
+        ? daily(today)
+        : daily(nextDate(today, -1))
+      : at.getTime() - duration;
     let closed = 0;
     for (;;) {
       const entries = await this.all(
@@ -1873,22 +1893,30 @@ export class Service {
       if (!entries.length) break;
       const statements = await Promise.all(
         entries.map(async (entry) => {
-          const exitAt = entry.occurred_at + duration;
+          const date = localParts(new Date(entry.occurred_at), settings.timezone).date;
+          const exitAt = closing
+            ? daily(date) > entry.occurred_at
+              ? daily(date)
+              : daily(nextDate(date))
+            : entry.occurred_at + duration;
           return this.stmt(
             `INSERT INTO events(request_key,payload_hash,person_id,person_name,zone_id,zone_name,direction,method,allowed,reason,detail,actor,device_id,occurred_at,local_date)
           SELECT ?,?,e.person_id,e.person_name,e.zone_id,e.zone_name,'exit','system',1,'AUTO_CLOSE',?,'system',NULL,?,?
           FROM events e WHERE e.id=? AND e.allowed=1 AND e.direction='entry'
           AND NOT EXISTS(SELECT 1 FROM events later WHERE later.person_id=e.person_id AND later.zone_id=e.zone_id AND later.allowed=1 AND later.id>e.id)
-          AND EXISTS(SELECT 1 FROM settings WHERE id=1 AND auto_close_hours=? AND timezone=?)
+          AND EXISTS(SELECT 1 FROM settings WHERE id=1 AND auto_close_hours=? AND timezone=? AND closing_time IS ?)
           ON CONFLICT(request_key) DO NOTHING`,
             'auto-close:' + entry.id,
             await hash(JSON.stringify(['AUTO_CLOSE', entry.id, exitAt])),
-            `Salida estimada tras ${settings.auto_close_hours} horas sin salida registrada.`,
+            closing
+              ? `Salida automática estimada al cierre de las ${closing} (${settings.timezone}).`
+              : `Salida estimada tras ${settings.auto_close_hours} horas sin salida registrada.`,
             exitAt,
             localParts(new Date(exitAt), settings.timezone).date,
             entry.id,
             settings.auto_close_hours,
             settings.timezone,
+            closing,
           );
         }),
       );
@@ -1910,6 +1938,11 @@ export class Service {
         name: text.optional(),
         timezone: text.optional(),
         auto_close_hours: z.number().int().min(0).max(720).optional(),
+        closing_time: z
+          .string()
+          .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+          .nullable()
+          .optional(),
         /** Aforo del gimnasio: 0 no limita. Se aplica al área general, que es la que usa la recepción. */
         capacity: z.number().int().min(0).max(100000).optional(),
         brand_color: z
@@ -1934,6 +1967,9 @@ export class Service {
         : []),
       ...(p.auto_close_hours !== undefined
         ? [this.stmt('UPDATE settings SET auto_close_hours=? WHERE id=1', p.auto_close_hours)]
+        : []),
+      ...(p.closing_time !== undefined
+        ? [this.stmt('UPDATE settings SET closing_time=? WHERE id=1', p.closing_time)]
         : []),
       ...(p.capacity !== undefined
         ? [this.stmt('UPDATE zones SET capacity=? WHERE id=?', p.capacity, generalAccessId)]

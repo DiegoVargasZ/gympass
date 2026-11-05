@@ -285,6 +285,7 @@ export type Settings = {
   logo_path: string | null;
   brand_color: string;
   auto_close_hours: number;
+  closing_time?: string | null;
 };
 export type Bootstrap = {
   platform?: { gym_id: string; gym_name: string; support: boolean; superadmin: boolean; read_only: boolean };

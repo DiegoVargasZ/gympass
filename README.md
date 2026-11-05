@@ -39,6 +39,14 @@ El cajero puede registrar un socio activo dentro de este cobro, con acceso gener
 
 Las pantallas antiguas de eventos, invitaciones y asistencia laboral se retiraron de la interfaz. Se conservan las bases, las migraciones y los datos históricos, así como los informes actuales de visitas y horas en el gimnasio.
 
+## Cierre diario y acceso automático
+
+En **Configuración → Datos del gimnasio → Cierre automático**, selecciona **A la hora de cierre del gimnasio**, indica la hora y guarda. Se utiliza la **Zona horaria** de ese gimnasio: para cerrar a las 23:00 en Bolivia, elige **Bolivia (La Paz)** y **23:00**. La hora no se activa por defecto en otros gimnasios.
+
+El sistema revisa los cierres cada minuto y registra las salidas pendientes con la hora de cierre configurada. Los informes las muestran como **Salida estimada**. Si el servidor estuvo detenido, al volver recupera el primer cierre que correspondía a cada visita. Una entrada registrada exactamente en el límite o después corresponde al siguiente cierre. Las salidas reales anteriores se conservan y los reintentos no duplican movimientos. También puedes conservar el cierre por horas o desactivarlo.
+
+En Recepción, **Acceso automático** abre la pantalla para cámara o lector USB. Cada lectura alterna entrada y salida según si la persona está dentro; ya no hay que elegir el movimiento. Los lectores USB deben enviar **Enter** al terminar el código. Se conservan las configuraciones de los equipos externos con entradas o salidas dedicadas.
+
 ## Conectar lectores
 
 Entra como administrador en **Configuración → Lectores**. Puedes preparar las conexiones antes de tener el equipo. Hay dos formas de usar un lector:
