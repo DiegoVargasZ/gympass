@@ -165,7 +165,79 @@ test("WhatsApp obligatorio y QR mensual atómico e idempotente", async (t) => {
         (await operator.credentialCard(renewal.credential.id)).id,
         renewal.credential.id,
       );
-      await assert.rejects(() => operator.credentialCard(a.credential.id), /QR activa/i);
+      await assert.rejects(
+        () => operator.credentialCard(a.credential.id),
+        /QR activa/i,
+      );
+      const cashierPos = new PosService(operator);
+      const registration = {
+        request_id: randomUUID(),
+        new_member: {
+          name: "Alta desde Caja",
+          document: "CAJA-NEW",
+          phone: "59171234567",
+          kind: "member",
+          status: "active",
+        },
+        payment_method: "cash",
+        lines: [{ kind: "plan", id: plan.id, quantity: 1 }],
+      };
+      await assert.rejects(() => operator.savePerson(registration.new_member), {
+        status: 403,
+      });
+      await assert.rejects(
+        () =>
+          cashierPos.checkout({
+            ...registration,
+            new_member: { ...registration.new_member, kind: "employee" },
+          }),
+        { status: 403 },
+      );
+      await assert.rejects(
+        () =>
+          cashierPos.checkout({
+            ...registration,
+            new_member: {
+              ...registration.new_member,
+              zone_ids: ["restricted"],
+            },
+          }),
+        { status: 403 },
+      );
+      await assert.rejects(() =>
+        cashierPos.checkout({
+          ...registration,
+          lines: [
+            ...registration.lines,
+            { kind: "product", id: product.id, quantity: 1 },
+          ],
+        }),
+      );
+      assert.equal(
+        ctx.db.raw
+          .prepare("SELECT COUNT(*) n FROM people WHERE document='CAJA-NEW'")
+          .get().n,
+        0,
+      );
+      assert.equal(
+        ctx.db.raw.prepare("SELECT COUNT(*) n FROM credentials").get().n,
+        3,
+      );
+      const registeredSale = await cashierPos.checkout(registration);
+      assert.equal(
+        (await cashierPos.checkout(registration)).id,
+        registeredSale.id,
+      );
+      assert.equal(
+        (await operator.credentialCard(registeredSale.credential.id)).person_id,
+        registeredSale.person_id,
+      );
+      assert.equal(
+        ctx.db.raw
+          .prepare("SELECT COUNT(*) n FROM people WHERE document='CAJA-NEW'")
+          .get().n,
+        1,
+      );
     });
   } finally {
     await manager.close();

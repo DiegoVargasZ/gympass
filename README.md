@@ -31,6 +31,14 @@ El WhatsApp con código de país es obligatorio al registrar o editar socios y a
 
 Cada pago de un plan mensual genera automáticamente una nueva credencial QR y anula el QR anterior del socio. La credencial y la venta se guardan juntas: un reintento del mismo cobro no genera otra clave ni duplica el pago. El comprobante permite preparar la tarjeta y abrir su WhatsApp. Se conservan las credenciales NFC y las invitaciones.
 
+## Registrar un socio desde Caja
+
+Al seleccionar un plan sin socio, Caja abre el formulario de registro con nombre, documento y WhatsApp obligatorio. **Continuar con el cobro** conserva esos datos y el carrito; el socio, el pago, el plan y su QR se guardan juntos al confirmar el cobro. Cancelar el formulario conserva el carrito y permite seleccionar un socio existente. También puedes abrirlo con **Crear socio para este cobro**.
+
+El cajero puede registrar un socio activo dentro de este cobro, con acceso general. Editar fichas o registrar personal y permisos especiales sigue reservado al administrador. Si se pierde la respuesta del pago, reintenta la misma confirmación para recuperar el resultado sin duplicarlo.
+
+Las pantallas antiguas de eventos, invitaciones y asistencia laboral se retiraron de la interfaz. Se conservan las bases, las migraciones y los datos históricos, así como los informes actuales de visitas y horas en el gimnasio.
+
 ## Despliegue automático desde GitHub
 
 El workflow `.github/workflows/verify.yml` instala las dependencias y comprueba el arranque, la interfaz, la protección de origen y la recuperación de bases anteriores. Los cambios de `main` se pueden desplegar por SSH tras superar esas comprobaciones.

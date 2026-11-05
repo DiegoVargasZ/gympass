@@ -242,7 +242,6 @@ export class PosService {
     const today = await this.today();
     let start = p.new_member ? today : p.start_date || today;
     if (p.new_member) {
-      this.service.require('admin');
       if (p.person_id || p.start_date || !p.lines.some((line) => line.kind === 'plan'))
         throw new ApiError(400, 'El alta requiere un socio nuevo y un plan que comience hoy.');
     }
@@ -265,7 +264,7 @@ export class PosService {
     };
     const previous = await retry();
     if (previous) return previous;
-    const registration = p.new_member ? await this.service.preparePerson(p.new_member) : null;
+    const registration = p.new_member ? await this.service.prepareCheckoutMember(p.new_member) : null;
     const personId = registration?.id || p.person_id;
     const person =
       registration?.person || (personId ? await this.service.one('SELECT * FROM people WHERE id=?', personId) : null);
