@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ApiError, hash, personSchema, randomToken, type Service } from './service.ts';
+import { ApiError, hash, personalQrIdSql, personSchema, type Service } from './service.ts';
 import { localParts, nextDate } from './domain.ts';
 import {
   planEndDate,
@@ -312,14 +312,15 @@ export class PosService {
       throw new ApiError(409, 'El precio cambió. Actualiza el catálogo y revisa el total antes de confirmar.');
     if (!Number.isSafeInteger(total) || total > 100000000000)
       throw new ApiError(400, 'El importe de venta es demasiado alto.');
-    const monthly = items.some((line) => line.kind === 'plan' && line.item.unit === 'months');
-    const credentialId = monthly ? crypto.randomUUID() : null;
+    const qr = planLines.length ? await this.service.preparePersonalQr(personId!) : null;
     const id = crypto.randomUUID(),
       now = Date.now();
     const statements = [
       ...(registration?.statements || []),
+      ...(qr?.statements || []),
       this.service.stmt(
-        'INSERT INTO pos_sales(id,request_id,payload_hash,person_id,person_name,actor,created_at,local_date,start_date,payment_method,total_cents,replace_reason,credential_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        `INSERT INTO pos_sales(id,request_id,payload_hash,person_id,person_name,actor,created_at,local_date,start_date,payment_method,total_cents,replace_reason,credential_id)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,CASE WHEN ?=1 THEN (${personalQrIdSql}) END)`,
         id,
         p.request_id,
         payloadHash,
@@ -332,7 +333,8 @@ export class PosService {
         p.payment_method,
         total,
         replacing ? p.replace_active!.reason : null,
-        credentialId,
+        qr ? 1 : 0,
+        personId || null,
       ),
       ...(replacing
         ? [
@@ -384,27 +386,6 @@ export class PosService {
               now,
             ),
           );
-    }
-    if (credentialId) {
-      const code = randomToken('GYM');
-      statements.push(
-        this.service.stmt(
-          "UPDATE credentials SET active=0 WHERE person_id=? AND kind='qr' AND active=1 AND NOT EXISTS(SELECT 1 FROM visits WHERE credential_id=credentials.id)",
-          personId,
-        ),
-        this.service.stmt(
-          'INSERT INTO credentials(id,person_id,kind,label,hash,suffix,created_at,code_cipher) VALUES(?,?,?,?,?,?,?,?)',
-          credentialId,
-          personId,
-          'qr',
-          'Pago mensual',
-          await hash(code),
-          code.slice(-6),
-          now,
-          this.service.codec?.seal(code, credentialId) || null,
-        ),
-        this.service.audit('credential.monthly', credentialId),
-      );
     }
     statements.push(this.service.audit('pos.sale.created', id));
     try {

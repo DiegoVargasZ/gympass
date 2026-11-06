@@ -128,6 +128,9 @@ export async function hash(value: string) {
     b.toString(16).padStart(2, '0'),
   ).join('');
 }
+/** El QR personal no incluye invitaciones ni se reemplaza al renovar planes. */
+export const personalQrIdSql = `SELECT c.id FROM credentials c WHERE c.person_id=? AND c.kind='qr' AND c.active=1
+  AND NOT EXISTS(SELECT 1 FROM visits v WHERE v.credential_id=c.id) ORDER BY c.created_at DESC,c.id DESC LIMIT 1`;
 export class Service {
   db: Database;
   actor: Actor;
@@ -551,11 +554,39 @@ export class Service {
     ]);
     return { rows, total: count!.total as number, page: query.page, pageSize: limit };
   }
-  /**
-   * Emite una credencial. Cada persona mantiene como mucho una credencial activa por
-   * método, así que la anterior del mismo tipo se revoca y las de los demás métodos
-   * siguen funcionando: un QR y una biometría conviven sin pisarse.
-   */
+  /** Se ejecuta dentro de la transacción del cobro: crea un QR solo si no existe uno activo. */
+  async preparePersonalQr(personId: string, label = 'Credencial permanente') {
+    const id = crypto.randomUUID(),
+      code = randomToken('GYM'),
+      now = Date.now();
+    return {
+      id,
+      code,
+      statements: [
+        this.stmt(
+          `INSERT INTO credentials(id,person_id,kind,label,hash,suffix,created_at,code_cipher)
+           SELECT ?,?,'qr',?,?,?,?,? WHERE NOT EXISTS(${personalQrIdSql})`,
+          id,
+          personId,
+          label,
+          await hash(code),
+          code.slice(-6),
+          now,
+          this.codec?.seal(code, id) || null,
+          personId,
+        ),
+        this.stmt(
+          `INSERT INTO audit(actor,action,entity_id,occurred_at)
+           SELECT ?,'credential.issued',?,? WHERE EXISTS(SELECT 1 FROM credentials WHERE id=?)`,
+          this.actor.email,
+          id,
+          now,
+          id,
+        ),
+      ],
+    };
+  }
+  /** Conserva el QR existente; NFC y biometría cambian solo al vincular otro identificador. */
   async issueCredential(personId: string, body: unknown) {
     this.require('admin');
     const person = await this.one('SELECT deleted_at FROM people WHERE id=?', personId);
@@ -570,7 +601,20 @@ export class Service {
       })
       .parse(body);
     if (p.kind !== 'qr' && !p.code) throw new ApiError(400, 'Indica el identificador leído por el equipo.');
-    const code = p.kind === 'qr' ? randomToken('UMB') : p.code!;
+    if (p.kind === 'qr') {
+      const prepared = await this.preparePersonalQr(personId, p.label);
+      await this.db.batch(prepared.statements);
+      const current = await this.one(`SELECT id,code_cipher FROM credentials WHERE id=(${personalQrIdSql})`, personId);
+      if (!current) throw new ApiError(409, 'No hay un QR activo. Vuelve a intentarlo.');
+      if (current.id === prepared.id) return { id: current.id, code: prepared.code, kind: 'qr' };
+      if (!current.code_cipher || !this.codec)
+        throw new ApiError(
+          409,
+          'Este socio conserva su QR anterior, pero no se puede recuperar su imagen. Puede seguir usando su tarjeta existente.',
+        );
+      return { id: current.id, code: this.codec.open(current.code_cipher, current.id), kind: 'qr' };
+    }
+    const code = p.code!;
     const id = crypto.randomUUID();
     const statements = [
       this.stmt(
@@ -589,7 +633,7 @@ export class Service {
         await hash(code),
         code.slice(-6),
         Date.now(),
-        p.kind === 'qr' && this.codec ? this.codec.seal(code, id) : null,
+        null,
       ),
       this.audit('credential.issued', id),
     );
@@ -608,7 +652,7 @@ export class Service {
   async credentialCard(id: string) {
     this.require('operator');
     if (this.actor.role !== 'admin' && !(await this.one('SELECT id FROM pos_sales WHERE credential_id=?', id)))
-      throw new ApiError(403, 'Solo puedes recuperar las credenciales generadas por pagos mensuales.');
+      throw new ApiError(403, 'Solo puedes recuperar las credenciales asociadas a cobros de planes.');
     const settings = await this.one('SELECT timezone FROM settings WHERE id=1');
     const today = localParts(new Date(), settings!.timezone).date;
     const row = await this.one(
@@ -621,7 +665,7 @@ export class Service {
     if (!row.code_cipher || !this.codec)
       throw new ApiError(
         409,
-        'Esta credencial antigua no permite recuperar el QR. Emite una tarjeta nueva una vez para habilitar sus descargas.',
+        'Esta credencial antigua no permite recuperar la imagen. Conserva su tarjeta existente; solo anúlala si deseas reemplazarla expresamente.',
       );
     const code = this.codec.open(row.code_cipher, row.id);
     const { code_cipher, active, ...card } = row;

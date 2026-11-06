@@ -37,7 +37,7 @@ test("el documento exacto aparece primero aunque haya más de una página de coi
   }
 });
 
-test("WhatsApp obligatorio y QR mensual atómico e idempotente", async (t) => {
+test("WhatsApp obligatorio y QR permanente atómico e idempotente", async (t) => {
   const directory = temporary(t),
     manager = new TenantManager(directory);
   const gym = { id: randomUUID(), name: "Cobro mensual" };
@@ -93,17 +93,17 @@ test("WhatsApp obligatorio y QR mensual atómico e idempotente", async (t) => {
         pos.checkout(body),
       ]);
       assert.equal(a.credential.id, b.credential.id);
-      assert.notEqual(a.credential.id, old.id);
-      assert.notEqual((await s.credentialCard(a.credential.id)).code, old.code);
+      assert.equal(a.credential.id, old.id);
+      assert.equal((await s.credentialCard(a.credential.id)).code, old.code);
       assert.equal(
         ctx.db.raw
           .prepare("SELECT active FROM credentials WHERE id=?")
           .get(old.id).active,
-        0,
+        1,
       );
       assert.equal(
         ctx.db.raw.prepare("SELECT COUNT(*) n FROM credentials").get().n,
-        2,
+        1,
       );
       const operator = new Service(
         ctx.db,
@@ -166,29 +166,26 @@ test("WhatsApp obligatorio y QR mensual atómico e idempotente", async (t) => {
       );
       assert.equal(
         ctx.db.raw.prepare("SELECT COUNT(*) n FROM credentials").get().n,
-        2,
+        1,
       );
       const renewal = await pos.checkout({
         ...body,
         request_id: randomUUID(),
       });
-      assert.notEqual(renewal.credential.id, a.credential.id);
-      assert.equal((await pos.sale(a.id)).credential.active, 0);
+      assert.equal(renewal.credential.id, a.credential.id);
+      assert.equal((await pos.sale(a.id)).credential.active, 1);
       assert.equal((await pos.sale(renewal.id)).credential.active, 1);
       assert.equal((await pos.checkout(body)).credential.id, a.credential.id);
       assert.equal(
         ctx.db.raw.prepare("SELECT COUNT(*) n FROM credentials").get().n,
-        3,
+        1,
       );
       await pos.voidSale(renewal.id, { reason: "Renovación cancelada" });
       assert.equal(
         (await operator.credentialCard(renewal.credential.id)).id,
         renewal.credential.id,
       );
-      await assert.rejects(
-        () => operator.credentialCard(a.credential.id),
-        /QR activa/i,
-      );
+      assert.equal((await operator.credentialCard(a.credential.id)).id, old.id);
       const cashierPos = new PosService(operator);
       const registration = {
         request_id: randomUUID(),
@@ -241,7 +238,7 @@ test("WhatsApp obligatorio y QR mensual atómico e idempotente", async (t) => {
       );
       assert.equal(
         ctx.db.raw.prepare("SELECT COUNT(*) n FROM credentials").get().n,
-        3,
+        1,
       );
       const registeredSale = await cashierPos.checkout(registration);
       assert.equal(

@@ -29,7 +29,7 @@ El administrador puede pulsar **Enviar por WhatsApp** en **Credenciales QR** o e
 
 El WhatsApp con código de país es obligatorio al registrar o editar socios y al cobrarles un plan. Las fichas anteriores se conservan; si falta el número, hay que completarlo antes del cobro.
 
-Cada pago de un plan mensual genera automáticamente una nueva credencial QR y anula el QR anterior del socio. La credencial y la venta se guardan juntas: un reintento del mismo cobro no genera otra clave ni duplica el pago. El comprobante permite preparar la tarjeta y abrir su WhatsApp. Se conservan las credenciales NFC y las invitaciones.
+Cada socio conserva su QR al renovar o cambiar de plan, incluso si paga semanas después del vencimiento. El QR identifica al socio; el servidor autoriza la entrada según las fechas de inicio y fin de sus planes vigentes o las sesiones disponibles. Fuera de vigencia no permite entrar, y vuelve a funcionar al comenzar el plan pagado. Si todavía no tiene QR, se crea uno al cobrar su primer plan, junto con la venta en una sola transacción. Reintentar el mismo cobro no duplica pagos ni credenciales. El comprobante permite descargar o compartir la misma tarjeta. Solo una anulación expresa de la credencial obliga a emitir otra; no se reactivan códigos anulados. Se conservan las credenciales NFC y las invitaciones.
 
 ## Registrar un socio desde Caja
 
