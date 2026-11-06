@@ -33,11 +33,17 @@ Cada pago de un plan mensual genera automáticamente una nueva credencial QR y a
 
 ## Registrar un socio desde Caja
 
+Al escribir el documento completo de un socio existente, Caja lo selecciona automáticamente y rellena **Nombre del socio**. Las coincidencias parciales o por nombre se eligen en la lista. Cambiar o borrar la búsqueda quita la selección anterior; los socios suspendidos no se seleccionan automáticamente.
+
 Selecciona el plan y busca al socio por nombre o documento en Caja. Si la búsqueda termina sin coincidencias, aparece **Crear socio para este cobro**, que abre el formulario con nombre, documento y WhatsApp obligatorio. Elegir un plan no abre el formulario. **Continuar con el cobro** conserva esos datos y el carrito; el socio, el pago, el plan y su QR se guardan juntos al confirmar el cobro. Cancelar el formulario conserva el carrito y la búsqueda para poder seleccionar un socio existente.
 
 El cajero puede registrar un socio activo dentro de este cobro, con acceso general. Editar fichas o registrar personal y permisos especiales sigue reservado al administrador. Si se pierde la respuesta del pago, reintenta la misma confirmación para recuperar el resultado sin duplicarlo.
 
 Las pantallas antiguas de eventos, invitaciones y asistencia laboral se retiraron de la interfaz. Se conservan las bases, las migraciones y los datos históricos, así como los informes actuales de visitas y horas en el gimnasio.
+
+## Encuadrar la foto de un socio
+
+Al cargar una imagen o capturar una foto, arrástrala dentro de la vista previa con el ratón o el dedo para ajustar el encuadre. Usa **Acercar** para ampliar; las barras de posición también permiten ajustar con el teclado. El recorte respeta los bordes de la imagen y se guarda como una copia cuadrada de 512 × 512 px.
 
 ## Cierre diario y acceso automático
 

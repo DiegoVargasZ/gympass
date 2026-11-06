@@ -292,8 +292,9 @@ export class Service {
     const countWhere = deleted ? where : where ? where + ' AND p.deleted_at IS NULL' : ' WHERE p.deleted_at IS NULL';
     const [rows, count] = await Promise.all([
       this.all(
-        `${peopleSummarySql(today, deleted)}${where} ORDER BY p.name,p.id LIMIT ? OFFSET ?`,
+        `${peopleSummarySql(today, deleted)}${where} ORDER BY CASE WHEN p.document=? COLLATE NOCASE THEN 0 ELSE 1 END,p.name,p.id LIMIT ? OFFSET ?`,
         ...args,
+        query.q,
         query.limit,
         (query.page - 1) * query.limit,
       ),

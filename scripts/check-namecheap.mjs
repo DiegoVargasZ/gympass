@@ -17,6 +17,26 @@ import { TenantManager } from "../server/tenant-manager.ts";
 import { Service } from "../lib/service.ts";
 import { PosService } from "../lib/pos.ts";
 
+test("el documento exacto aparece primero aunque haya más de una página de coincidencias", async (t) => {
+  const manager = new TenantManager(temporary(t));
+  const gym = { id: randomUUID(), name: "Búsqueda por documento" };
+  try {
+    manager.provision(gym);
+    await manager.withTenant(gym, async (ctx) => {
+      const service = new Service(ctx.db, { id: gym.id, email: "admin@example.test", name: "Admin", role: "admin" }, ctx.codec);
+      for (let index = 0; index < 25; index++)
+        await service.savePerson({ name: "Ana " + index, document: "CI-123-" + index, phone: "59171234567", kind: "member", status: "active" });
+      const exact = await service.savePerson({ name: "Zulema", document: "CI-123", phone: "59171234567", kind: "member", status: "active" });
+      const page = await service.peopleList(new URLSearchParams({ q: " ci-123 ", kind: "member", limit: "20" }));
+      assert.equal(page.total, 26);
+      assert.equal(page.rows.length, 20);
+      assert.equal(page.rows[0].id, exact.id);
+    });
+  } finally {
+    await manager.close();
+  }
+});
+
 test("WhatsApp obligatorio y QR mensual atómico e idempotente", async (t) => {
   const directory = temporary(t),
     manager = new TenantManager(directory);
