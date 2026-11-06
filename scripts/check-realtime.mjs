@@ -9,6 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { WebSocket } from 'ws';
 import { startPlatform } from '../server/platform.ts';
 import { staticAsset, staticBytes } from '../server/static-files.ts';
+import { matchesApplication } from './restart-namecheap.mjs';
 
 function temporary(t, beforeRemove = async () => {}) {
   const directory = mkdtempSync(join(tmpdir(), 'gympass-realtime-'));
@@ -147,6 +148,7 @@ test('Inicio compacto conserva estadísticas y omite las series usadas solo en i
       insert.run(randomUUID(), 'hash', zone, direction, allowed, Date.now(), today);
   });
   const full = await (await request(a.id, 'bootstrap')).json();
+  assert.equal((await fetch(app.url + '/api/health')).headers.get('x-gympass-realtime'), '1');
   const compact = await (await request(a.id, 'bootstrap?compact=1')).json();
   for (const key of ['installation_id', 'settings', 'stats', 'zones', 'schedules', 'events', 'today'])
     assert.deepEqual(compact[key], full[key], key);
@@ -168,4 +170,14 @@ test('caché de archivos públicos respeta la versión y nunca reutiliza conteni
   writeFileSync(join(directory, 'photo.png'), 'uno');
   const photo = await staticAsset(directory, '/photo.png');
   assert.notStrictEqual(await staticBytes(photo), await staticBytes(photo));
+});
+
+test('el reinicio selecciona únicamente lsnode de la misma cuenta y raíz exacta', () => {
+  const appRoot = '/home/test/gympass';
+  const candidate = { pid: 123, uid: 1001, cwd: appRoot, command: 'lsnode:' + appRoot + '/\0' };
+  assert.equal(matchesApplication(candidate, appRoot, 1001, 999), true);
+  assert.equal(matchesApplication({ ...candidate, uid: 1002 }, appRoot, 1001, 999), false);
+  assert.equal(matchesApplication({ ...candidate, cwd: appRoot + '-other' }, appRoot, 1001, 999), false);
+  assert.equal(matchesApplication({ ...candidate, command: 'node\0scripts/deploy.mjs\0' }, appRoot, 1001, 999), false);
+  assert.equal(matchesApplication(candidate, appRoot, 1001, 123), false);
 });

@@ -95,8 +95,10 @@ export async function startPlatform(options: Options) {
           }
           if (++value.count > 30) throw new ApiError(429, 'Demasiados intentos. Espera unos minutos.');
         }
-        if (url.pathname === '/api/health' && method === 'GET')
+        if (url.pathname === '/api/health' && method === 'GET') {
+          res.setHeader('X-GymPASS-Realtime', '1');
           return json(res, { ok: true, mode: 'platform', protocol: 1 });
+        }
         if (url.pathname === '/api/platform/backups' && method === 'POST') {
           const requestSession = requestToken(req);
           const session = await store.requireWebSession(requestSession);

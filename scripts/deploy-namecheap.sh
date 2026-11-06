@@ -53,6 +53,7 @@ npm install --omit=dev --ignore-scripts --no-audit --no-fund
 mkdir -p tmp
 printf '%s\n' "$revision" > tmp/deployed-commit
 touch tmp/restart.txt
+node scripts/restart-namecheap.mjs "$app_root"
 printf 'Código actualizado al commit %s. Reinicio solicitado a Passenger.\n' "$revision"
 if [[ "$staging" == "$HOME/.gympass-release."* ]]; then rm -rf -- "$staging"; fi
 rm -f -- "$archive"

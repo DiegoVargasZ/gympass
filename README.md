@@ -129,7 +129,7 @@ Configura estos secretos en **Settings → Secrets and variables → Actions** d
 
 En **Variables**, `NAMECHEAP_PORT` indica el puerto SSH (predeterminado: 21098). La variable `NAMECHEAP_DEPLOY_ENABLED` controla el despliegue: con `false` se ejecutan las comprobaciones; con `true`, los siguientes cambios de `main` se publican automáticamente. También se puede ejecutar **Actions → Verificar y desplegar Namecheap → Run workflow** sobre `main`.
 
-El script conserva una copia del código anterior en `~/gympass-code-backups`, actualiza los archivos sin eliminar datos ni configuración de cPanel, instala las dependencias dentro del entorno Node.js y solicita el reinicio con `tmp/restart.txt`. Al terminar comprueba `https://gympass.site/api/health`. Las bases, las fotos y las claves de los gimnasios permanecen en su directorio persistente.
+El script conserva una copia del código anterior en `~/gympass-code-backups`, actualiza los archivos sin eliminar datos ni configuración de cPanel, instala las dependencias dentro del entorno Node.js y solicita el reinicio con `tmp/restart.txt`. En LiteSpeed también cierra mediante SIGTERM únicamente los procesos `lsnode` de la misma cuenta cuya carpeta de trabajo coincida exactamente con esta aplicación. Al terminar comprueba `https://gympass.site/api/health` y su encabezado de capacidad de tiempo real para detectar servidores que sigan ejecutando código anterior. Las bases, las fotos y las claves de los gimnasios permanecen en su directorio persistente.
 
 La carpeta `dist/` contiene una interfaz ya compilada. Para cambiarla, prepara la nueva compilación del proyecto local y actualiza sus archivos antes de subir a `main`; GitHub no necesita instalar Electron ni compilar Android.
 
