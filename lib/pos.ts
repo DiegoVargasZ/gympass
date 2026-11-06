@@ -616,7 +616,22 @@ export class PosService {
       end_date: string | null;
       sessions_remaining: number | null;
     }[];
-    if (!rows.length) return { state: 'free' };
+    if (!rows.length) {
+      const legacy = await this.service.one(
+        `SELECT p.expires FROM people p WHERE p.id=? AND p.expires>=?
+         AND NOT EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id AND m.start_date<=?)`,
+        personId,
+        today,
+        today,
+      );
+      if (legacy?.expires)
+        return {
+          state: 'renewal',
+          start_date: nextDate(String(legacy.expires), 1),
+          message: `Su acceso actual sigue vigente hasta el ${legacy.expires}. El pago anticipado comenzará el ${nextDate(String(legacy.expires), 1)}, sin perder los días restantes.`,
+        };
+      return { state: 'free' };
+    }
     const sessions = rows.find((row) => row.unit === 'sessions');
     if (sessions)
       return {
@@ -634,7 +649,7 @@ export class PosService {
     return {
       state: 'renewal',
       start_date: current.end_date!,
-      message: `Tiene «${current.name}» hasta el ${nextDate(current.end_date!, -1)}. El plan nuevo empezará el ${current.end_date}.`,
+      message: `Mantiene «${current.name}» hasta el ${nextDate(current.end_date!, -1)}. El pago anticipado comenzará el ${current.end_date}, sin perder los días restantes.`,
     };
   }
   async memberships(id: string): Promise<MembershipSummary> {
@@ -648,7 +663,8 @@ export class PosService {
     const active = memberships.filter((m) => m.status === 'active' && m.start_date <= today);
     const temporal = active.filter((m) => m.end_date && m.end_date > today);
     const sessions = active.reduce((sum, m) => sum + (m.sessions_remaining || 0), 0);
-    const managed = memberships.length > 0;
+    const legacyValid = person.expires && person.expires >= today && !memberships.some((m) => m.start_date <= today);
+    const managed = memberships.length > 0 && !legacyValid;
     return {
       plan_gate: await this.planGate(id, today),
       managed,

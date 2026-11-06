@@ -91,15 +91,21 @@ const emptyTotals = (): AttendanceTotals => ({
   overtime_minutes: 0,
   open: 0,
 });
+/** Conserva la vigencia de una ficha antigua hasta que empiece su primer plan comprado. */
+export function legacyCoverageSql(today: string) {
+  date.parse(today);
+  return `(p.expires IS NOT NULL AND p.expires>='${today}' AND NOT EXISTS(
+    SELECT 1 FROM pos_memberships old WHERE old.person_id=p.id AND old.start_date<='${today}'))`;
+}
 /** The people table with membership-aware `expires`. Fichas dadas de baja quedan fuera salvo que se pidan. */
 function effectivePeopleSql(today: string, includeDeleted = false) {
   date.parse(today);
   return `(SELECT p.id,p.name,p.document,p.email,p.phone,p.department,p.kind,p.status,p.schedule_id,p.notes,p.created_at,p.photo_path,p.deleted_at,
     p.expires legacy_expires,
-    CASE WHEN p.kind='member' AND EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id) THEN 1 ELSE 0 END membership_managed,
+    CASE WHEN p.kind='member' AND NOT ${legacyCoverageSql(today)} AND EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id) THEN 1 ELSE 0 END membership_managed,
     COALESCE((SELECT SUM(m.sessions_remaining) FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.unit='sessions' AND m.start_date<='${today}'),0) sessions_remaining,
     (SELECT MAX(date(m.end_date,'-1 day')) FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.unit<>'sessions' AND m.start_date<='${today}' AND m.end_date>'${today}') valid_until,
-    CASE WHEN p.kind='member' AND EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id) THEN
+    CASE WHEN p.kind='member' AND NOT ${legacyCoverageSql(today)} AND EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id) THEN
       CASE WHEN EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.unit='sessions' AND m.start_date<='${today}' AND m.sessions_remaining>0) THEN NULL
       ELSE COALESCE((SELECT MAX(date(m.end_date,'-1 day')) FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.unit<>'sessions' AND m.start_date<='${today}'),date('${today}','-1 day')) END
     ELSE p.expires END expires
@@ -833,7 +839,7 @@ export class Service {
         (SELECT direction FROM events WHERE person_id=p.id AND zone_id=z.id AND allowed=1 ORDER BY id DESC LIMIT 1) last_direction,
         (SELECT COUNT(*) FROM (${presenceSql}) occupancy WHERE occupancy.zone_id=z.id) inside,
         EXISTS(SELECT 1 FROM person_zones pz WHERE pz.person_id=p.id AND pz.zone_id=z.id) has_zone,
-        EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id) pos_managed,
+        (EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id) AND NOT ${legacyCoverageSql(local.date)}) pos_managed,
         EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.start_date<=?
           AND ((m.unit<>'sessions' AND m.end_date>?) OR (m.unit='sessions' AND m.sessions_remaining>0))) pos_valid,
         EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.unit='sessions' AND m.start_date<=?) pos_sessions

@@ -7,7 +7,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "check": "node --test scripts/check-namecheap.mjs",
+    "check": "node --test scripts/check-namecheap.mjs scripts/check-renewals.mjs",
     "start": "node app.js"
   },
   "dependencies": {

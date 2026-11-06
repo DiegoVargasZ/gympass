@@ -39,6 +39,8 @@ Selecciona el plan y busca al socio por nombre o documento en Caja. Si la búsqu
 
 El cajero puede registrar un socio activo dentro de este cobro, con acceso general. Editar fichas o registrar personal y permisos especiales sigue reservado al administrador. Si se pierde la respuesta del pago, reintenta la misma confirmación para recuperar el resultado sin duplicarlo.
 
+Si el socio todavía tiene un plan vigente, Caja muestra **Renovación anticipada** y programa el plan pagado para el día siguiente al último día cubierto. Los días que quedan se conservan: si vence el 10 de noviembre y paga otro mes el día 6, mantiene su acceso hasta el 10 y el nuevo mes comienza el 11. También se respeta el vencimiento de las fichas antiguas y se aplica la misma programación al añadir un plan desde la ficha. No selecciones el reemplazo administrativo si quieres conservar el plan actual; esa opción cancela los días restantes.
+
 Las pantallas antiguas de eventos, invitaciones y asistencia laboral se retiraron de la interfaz. Se conservan las bases, las migraciones y los datos históricos, así como los informes actuales de visitas y horas en el gimnasio.
 
 ## Encuadrar la foto de un socio
