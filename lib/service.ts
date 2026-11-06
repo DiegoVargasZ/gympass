@@ -165,7 +165,7 @@ export class Service {
   async exists(table: string, id: string) {
     if (!(await this.one(`SELECT id FROM ${table} WHERE id=?`, id))) throw new ApiError(404, 'Registro no encontrado.');
   }
-  async bootstrap() {
+  async bootstrap(options: { compact?: boolean } = {}) {
     const installation = await this.one('SELECT owner FROM settings WHERE id=1');
     const [settings, zones, schedules, events, presence] = await Promise.all([
       this.one('SELECT name,timezone,logo_path,brand_color,auto_close_hours,closing_time FROM settings WHERE id=1'),
@@ -183,6 +183,34 @@ export class Service {
       `SELECT COUNT(*) total FROM ${effectivePeopleSql(today)} WHERE status='active' AND (expires IS NULL OR expires>=?)`,
       today,
     );
+    if (options.compact) {
+      const counts = await this.one(
+        `SELECT COALESCE(SUM(allowed=1 AND direction='entry'),0) entries,
+         COALESCE(SUM(allowed=1 AND direction='exit'),0) exits,
+         COALESCE(SUM(allowed=0),0) denied FROM events WHERE local_date=?`,
+        today,
+      );
+      return {
+        installation_id: await hash(installation!.owner),
+        owner: installation!.owner === this.actor.id,
+        user: { id: this.actor.id, name: this.actor.name, email: this.actor.email, role: this.actor.role },
+        settings,
+        zones,
+        schedules,
+        events,
+        today,
+        hourly: [],
+        visits: [],
+        charts: { occupancy: [], zones: [], denied: [], heatmap: [] },
+        stats: {
+          entries: counts!.entries,
+          exits: counts!.exits,
+          denied: counts!.denied,
+          inside: presence!.total,
+          activePeople: activePeople!.total,
+        },
+      };
+    }
     const dayEvents = await this.all('SELECT direction,allowed,occurred_at FROM events WHERE local_date=?', today);
     const hourly = Array.from({ length: 24 }, (_, hour) => ({ hour, entries: 0, exits: 0 }));
     for (const e of dayEvents)

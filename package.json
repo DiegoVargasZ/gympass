@@ -7,10 +7,12 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "check": "node --test scripts/check-namecheap.mjs scripts/check-renewals.mjs scripts/check-permanent-qr.mjs",
+    "check": "node --test scripts/check-namecheap.mjs scripts/check-renewals.mjs scripts/check-permanent-qr.mjs scripts/check-realtime.mjs",
+    "check:realtime-host": "node scripts/check-realtime-host.mjs",
     "start": "node app.js"
   },
   "dependencies": {
+    "ws": "8.22.1",
     "zod": "4.6.7"
   }
 }

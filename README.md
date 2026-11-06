@@ -108,6 +108,12 @@ En una instalación local se utilizan las mismas rutas sin `/gyms/ID_DEL_GIMNASI
 
 ## Despliegue automático desde GitHub
 
+La interfaz carga las pantallas bajo demanda. Inicio solicita `bootstrap?compact=1`, que conserva sus estadísticas y evita calcular gráficos históricos que no se muestran allí. Los archivos públicos compilados conservan Brotli/gzip, caché del navegador y una caché de memoria limitada a 16 MB en el servidor.
+
+Las sesiones abiertas reciben avisos por WebSocket en `wss://gympass.site/api/gyms/ID_DEL_GIMNASIO/realtime`. El canal utiliza la cookie de sesión, comprueba origen y permisos y solo comunica qué datos cambiaron en ese gimnasio; los cobros y las lecturas mantienen sus rutas HTTP e identificadores de reintento. Agrupa ráfagas, reconecta tras cortes y pausa al ocultar la pestaña. Mientras está conectado reemplaza el sondeo de 30 segundos; si el proxy no permite WebSocket, conserva ese sondeo como respaldo. Una revisión cada cinco minutos contempla vencimientos por fecha sin movimientos.
+
+Después de publicar, `npm run check:realtime-host` comprueba, sin credenciales y sin modificar datos, que el hosting entrega el encabezado Upgrade a Node.js. El resultado correcto es un rechazo 401 identificado por `X-GymPASS-Realtime: websocket`. Si falla, el proveedor debe habilitar el proxy WebSocket hacia la aplicación Node.js para esta ruta, conservar `Origin`, cookies y `Sec-WebSocket-Protocol`, y permitir conexiones persistentes. En LiteSpeed/cPanel esto puede requerir configuración del virtual host por parte del proveedor: [documentación oficial](https://docs.litespeedtech.com/lsws/cp/cpanel/websocket-proxy/).
+
 El workflow `.github/workflows/verify.yml` instala las dependencias y comprueba el arranque, la interfaz, la protección de origen y la recuperación de bases anteriores. Los cambios de `main` se pueden desplegar por SSH tras superar esas comprobaciones.
 
 Configura estos secretos en **Settings → Secrets and variables → Actions** del repositorio:

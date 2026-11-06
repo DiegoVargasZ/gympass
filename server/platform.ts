@@ -1,5 +1,4 @@
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ZodError } from 'zod';
@@ -11,8 +10,9 @@ import { ApiError, Service, hash } from '../lib/service.ts';
 import { reasons } from '../lib/domain.ts';
 import { json, cookieValue, requestToken, readJson } from './platform-http.ts';
 import { acquirePlatformLock } from './platform-lock.ts';
-import { staticAsset } from './static-files.ts';
+import { staticAsset, staticBytes } from './static-files.ts';
 import { authorizedDatabase } from './authorized-database.ts';
+import { createRealtime, changeTopics } from './realtime.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 type Options = {
@@ -42,14 +42,33 @@ export async function startPlatform(options: Options) {
   });
   const limits = new Map<string, { count: number; until: number }>();
   let maintenanceWork: Promise<void> | null = null;
+  let realtime: ReturnType<typeof createRealtime> | undefined;
   const server = createServer(async (req, res) => {
+    res.once('finish', () => {
+      if (res.statusCode >= 400 || ['GET', 'HEAD'].includes(req.method || 'GET')) return;
+      let route: string;
+      try {
+        route = new URL(req.url || '/', 'http://localhost').pathname;
+      } catch {
+        return;
+      }
+      const gym = /^\/api\/gyms\/([a-f\d-]{36})\/([^/]+)/.exec(route);
+      if (gym && gym[2] !== 'auth' && (gym[2] !== 'backups' || route.endsWith('/restore')))
+        realtime?.publish(gym[1], changeTopics(gym[2]));
+      if (gym?.[2] === 'auth') realtime?.revalidate();
+      if (route.startsWith('/api/platform/')) {
+        realtime?.revalidate();
+        const changed = /^\/api\/platform\/gyms\/([a-f\d-]{36})/.exec(route);
+        if (changed) realtime?.publish(changed[1], ['settings', 'people', 'pos', 'access', 'alerts']);
+      }
+    });
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Permissions-Policy', 'camera=(self), microphone=()');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${origin ? origin.replace(/^https:/, 'wss:') : `ws://${req.headers.host}`}; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
     );
     if (origin) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     try {
@@ -218,9 +237,14 @@ export async function startPlatform(options: Options) {
         res.end();
         return;
       }
-      const content = await readFile(asset.filename);
+      if (method === 'HEAD') {
+        res.writeHead(200, asset.headers);
+        res.end();
+        return;
+      }
+      const content = await staticBytes(asset);
       res.writeHead(200, asset.headers);
-      res.end(method === 'HEAD' ? undefined : content);
+      res.end(content);
     } catch (error) {
       if (res.headersSent) {
         res.end();
@@ -240,6 +264,7 @@ export async function startPlatform(options: Options) {
       return json(res, { error: 'No se pudo completar la operación.' }, 500);
     }
   });
+  realtime = createRealtime(server, store, origin);
   server.requestTimeout = 120000;
   server.headersTimeout = 15000;
   try {
@@ -248,6 +273,7 @@ export async function startPlatform(options: Options) {
       server.listen(options.port ?? 3000, host, done);
     });
   } catch (error) {
+    realtime.close();
     await tenants.close();
     store.close();
     unlock();
@@ -258,7 +284,11 @@ export async function startPlatform(options: Options) {
   const maintain = () => {
     if (maintenanceWork) return;
     maintenanceWork = tenants
-      .maintain(store.listAllGyms().filter((g) => g.status !== 'provisioning' && !g.deleted))
+      .maintain(
+        store.listAllGyms().filter((g) => g.status !== 'provisioning' && !g.deleted),
+        new Date(),
+        (gym) => realtime?.publish(gym, ['access', 'alerts']),
+      )
       .then(() => tenants.automaticPlatformBackup(store.raw))
       .catch((error) => console.error('Respaldo de plataforma:', error.message))
       .finally(() => {
@@ -275,6 +305,7 @@ export async function startPlatform(options: Options) {
     url,
     async close() {
       clearInterval(timer);
+      realtime?.close();
       await new Promise<void>((done) => {
         server.close(() => done());
         server.closeIdleConnections();

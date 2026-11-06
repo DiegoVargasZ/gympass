@@ -215,14 +215,16 @@ export class TenantManager {
     return summary;
   }
 
-  async maintain(gyms: Tenant[], at = new Date()) {
+  async maintain(gyms: Tenant[], at = new Date(), onChanged?: (gymId: string) => void) {
     for (const gym of gyms) {
       if (this.closed) break;
       await this.withTenant(gym, async (ctx) => {
+        const before = ctx.db.raw.prepare('SELECT total_changes() n').get()!.n;
         const service = new Service(ctx.db, { id: 'system', email: 'system', name: 'Sistema', role: 'admin' });
         await service.closeStaleSessions(at);
         await service.closeExpiredVisits(at);
         ctx.backups.check();
+        if (ctx.db.raw.prepare('SELECT total_changes() n').get()!.n !== before) onChanged?.(gym.id);
       }).catch((error) => console.error('Mantenimiento de gimnasio:', gym.id, error.message));
     }
   }

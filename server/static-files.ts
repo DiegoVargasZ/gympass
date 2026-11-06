@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises';
+import { stat, readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 
 const mime: Record<string, string> = {
@@ -22,6 +22,33 @@ const variants = [
   { encoding: 'br', suffix: '.br' },
   { encoding: 'gzip', suffix: '.gz' },
 ];
+const fileCache = new Map<string, { etag: string; bytes: Buffer }>();
+let cacheBytes = 0;
+/** Solo archivos públicos de compilación; nunca respuestas ni fotos privadas. */
+export async function staticBytes(asset: StaticAsset) {
+  const cacheable = asset.filename.includes(sep + 'assets' + sep);
+  const cached = cacheable ? fileCache.get(asset.filename) : undefined;
+  if (cached?.etag === asset.etag) {
+    fileCache.delete(asset.filename);
+    fileCache.set(asset.filename, cached);
+    return cached.bytes;
+  }
+  const bytes = await readFile(asset.filename);
+  if (cacheable && bytes.length <= 2 * 1024 * 1024) {
+    if (cached) {
+      cacheBytes -= cached.bytes.length;
+      fileCache.delete(asset.filename);
+    }
+    while (cacheBytes + bytes.length > 16 * 1024 * 1024 && fileCache.size) {
+      const key = fileCache.keys().next().value!;
+      cacheBytes -= fileCache.get(key)!.bytes.length;
+      fileCache.delete(key);
+    }
+    fileCache.set(asset.filename, { etag: asset.etag, bytes });
+    cacheBytes += bytes.length;
+  }
+  return bytes;
+}
 
 export type StaticAsset = {
   /** Archivo que hay que leer: el original o la variante precomprimida elegida. */
@@ -94,5 +121,6 @@ export async function staticAsset(
   // Sale del archivo servido, así que cada codificación tiene su propio ETag.
   const etag = `W/"${info.size.toString(16)}-${info.mtimeMs.toString(16)}"`;
   headers.ETag = etag;
+  headers['Content-Length'] = String(info.size);
   return { filename: served, headers, etag };
 }
