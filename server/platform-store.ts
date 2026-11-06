@@ -59,6 +59,11 @@ function role(value: string): MembershipRole {
   if (!['admin', 'operator', 'viewer'].includes(value)) throw new ApiError(400, 'Rol de gimnasio inválido.');
   return value as MembershipRole;
 }
+function memberPassword(value: unknown): string {
+  if (typeof value !== 'string' || value.length < 6 || value.length > 200)
+    throw new ApiError(400, 'La contraseña debe tener entre 6 y 200 caracteres.');
+  return value;
+}
 function publicUser(row: Row): PlatformUser {
   return { id: row.id, email: row.email, name: row.name, global_role: row.global_role, active: Boolean(row.active) };
 }
@@ -563,12 +568,113 @@ export class PlatformStore {
     });
   }
 
-  listMembers(user: PlatformUser, gymId: string) {
+  private memberCreationActor(user: PlatformUser, gymId: string, memberRole: MembershipRole) {
+    const actor = this.gymAdmin(user, gymId);
+    const gym = this.raw.prepare('SELECT * FROM gyms WHERE id=?').get(gymId) as Row;
+    if (gym.deleted_at !== null || gym.archived_at !== null || gym.status === 'suspended')
+      throw new ApiError(403, 'El gimnasio no está disponible para crear personal.');
+    if (!gym.provisioned) throw new ApiError(409, 'La preparación del gimnasio aún no ha terminado.');
+    if (gym.status === 'provisioning' && memberRole !== 'admin')
+      throw new ApiError(409, 'El primer usuario debe ser administrador.');
+    return { actor, gym };
+  }
+
+  private requireMemberSession(user: PlatformUser, currentToken?: string) {
+    if (currentToken === undefined) return;
+    const session = this.authenticateSync(currentToken);
+    if (!session || session.mobileGymId || session.user.id !== user.id)
+      throw new ApiError(401, 'Inicia sesión en la plataforma.');
+  }
+
+  async createMember(
+    user: PlatformUser,
+    gymId: string,
+    input: InvitationInput & { password: string },
+    currentToken?: string,
+  ) {
+    this.requireMemberSession(user, currentToken);
     this.gymAdmin(user, gymId);
+    const normalized = email(input.email),
+      displayName = name(input.name),
+      memberRole = role(input.role),
+      password = memberPassword(input.password);
+    this.memberCreationActor(user, gymId, memberRole);
+    const ensureNewIdentity = () => {
+      if (this.raw.prepare('SELECT 1 FROM platform_users WHERE email=?').get(normalized))
+        throw new ApiError(409, 'Ese correo ya tiene una cuenta. Usa otro correo para crear personal.');
+    };
+    ensureNewIdentity();
+    const hashed = await passwordHash(password);
+    this.requireMemberSession(user, currentToken);
+    this.memberCreationActor(user, gymId, memberRole);
+    return this.transaction(() => {
+      this.requireMemberSession(user, currentToken);
+      const { actor, gym } = this.memberCreationActor(user, gymId, memberRole);
+      ensureNewIdentity();
+      const id = randomUUID();
+      this.raw
+        .prepare(
+          "INSERT INTO platform_users(id,email,name,password_hash,global_role,created_at) VALUES(?,?,?,?,'user',?)",
+        )
+        .run(id, normalized, displayName, hashed, Date.now());
+      this.raw
+        .prepare('INSERT INTO gym_memberships(user_id,gym_id,role,active) VALUES(?,?,?,1)')
+        .run(id, gymId, memberRole);
+      if (gym.status === 'provisioning') {
+        this.raw.prepare("UPDATE gyms SET status='active',updated_at=? WHERE id=?").run(Date.now(), gymId);
+        recordBillingActivity(this.raw, gymId, false, true, true);
+      }
+      this.audit(actor.id, 'member.created', gymId, id);
+      return { id, name: displayName, email: normalized, role: memberRole, active: true };
+    });
+  }
+
+  private canResetMemberPassword(actor: PlatformUser, gymId: string, member: Row) {
+    return (
+      member.global_role === 'user' &&
+      Boolean(member.user_active) &&
+      (actor.global_role === 'superadmin' ||
+        !this.raw.prepare('SELECT 1 FROM gym_memberships WHERE user_id=? AND gym_id<>? LIMIT 1').get(member.id, gymId))
+    );
+  }
+
+  private memberPasswordTarget(user: PlatformUser, gymId: string, userId: string) {
+    const actor = this.gymAdmin(user, gymId);
+    const member = this.raw
+      .prepare(
+        'SELECT u.id,u.global_role,u.active AS user_active FROM gym_memberships m JOIN platform_users u ON u.id=m.user_id WHERE m.gym_id=? AND u.id=?',
+      )
+      .get(gymId, userId) as Row | undefined;
+    if (!member) throw new ApiError(404, 'Usuario no encontrado en este gimnasio.');
+    if (!this.canResetMemberPassword(actor, gymId, member))
+      throw new ApiError(403, 'No tienes permiso para cambiar la contraseña de esta cuenta.');
+    return actor;
+  }
+
+  async setMemberPassword(user: PlatformUser, gymId: string, userId: string, password: string, currentToken?: string) {
+    this.requireMemberSession(user, currentToken);
+    this.memberPasswordTarget(user, gymId, userId);
+    const hashed = await passwordHash(memberPassword(password));
+    this.requireMemberSession(user, currentToken);
+    this.memberPasswordTarget(user, gymId, userId);
+    this.transaction(() => {
+      this.requireMemberSession(user, currentToken);
+      const actor = this.memberPasswordTarget(user, gymId, userId);
+      this.raw.prepare('UPDATE platform_users SET password_hash=? WHERE id=?').run(hashed, userId);
+      this.revokeUserSessions(userId);
+      this.raw
+        .prepare('UPDATE password_resets SET consumed_at=? WHERE user_id=? AND consumed_at IS NULL')
+        .run(Date.now(), userId);
+      this.audit(actor.id, 'member.password_changed', gymId, userId);
+    });
+  }
+
+  listMembers(user: PlatformUser, gymId: string) {
+    const actor = this.gymAdmin(user, gymId);
     return (
       this.raw
         .prepare(
-          'SELECT u.id,u.email,u.name,m.role,m.active FROM gym_memberships m JOIN platform_users u ON u.id=m.user_id WHERE m.gym_id=? ORDER BY u.name,u.id',
+          'SELECT u.id,u.email,u.name,u.global_role,u.active AS user_active,m.role,m.active FROM gym_memberships m JOIN platform_users u ON u.id=m.user_id WHERE m.gym_id=? ORDER BY u.name,u.id',
         )
         .all(gymId) as Row[]
     ).map((row) => ({
@@ -577,6 +683,7 @@ export class PlatformStore {
       name: row.name,
       role: row.role as MembershipRole,
       active: Boolean(row.active),
+      can_reset_password: this.canResetMemberPassword(actor, gymId, row),
     }));
   }
 

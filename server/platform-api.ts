@@ -156,6 +156,10 @@ export function createPlatformApi(
           !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(admin.email.trim())
         )
           throw new ApiError(400, 'Revisa el nombre y correo del administrador.');
+        const direct = Object.prototype.hasOwnProperty.call(input, 'admin_password');
+        const password = direct ? required(input.admin_password, 'La contraseña del administrador') : undefined;
+        if (password !== undefined && (password.length < 6 || password.length > 200))
+          throw new ApiError(400, 'La contraseña debe tener entre 6 y 200 caracteres.');
         const gym = store.createGym(actor, {
           name: required(input.name, 'El nombre'),
           slug: required(input.slug, 'El identificador'),
@@ -163,8 +167,13 @@ export function createPlatformApi(
         await options.provisionGym(gym);
         const freshSession = await store.requireWebSession(value);
         store.markGymProvisioned(gym.id);
-        const invitation = store.invite(freshSession.user, gym.id, admin);
-        send(res, { gym: store.getGym(gym.id), invitation }, 201);
+        if (direct) {
+          const member = await store.createMember(freshSession.user, gym.id, { ...admin, password: password! }, value);
+          send(res, { gym: store.getGym(gym.id), member }, 201);
+        } else {
+          const invitation = store.invite(freshSession.user, gym.id, admin);
+          send(res, { gym: store.getGym(gym.id), invitation }, 201);
+        }
       } else if (method === 'GET' && path === '/api/platform/audit') {
         send(res, { audit: store.listAudit(actor) });
       } else {
@@ -205,9 +214,19 @@ export function createPlatformApi(
         }
         const gymRoute =
           /^\/api\/platform\/gyms\/([^/]+)(?:\/(members|invitations|support|restore)(?:\/([^/]+))?)?$/.exec(path);
+        const memberPasswordRoute = /^\/api\/platform\/gyms\/([^/]+)\/members\/([^/]+)\/password$/.exec(path);
         const supportRoute = /^\/api\/platform\/support\/([a-f0-9]{64})$/.exec(path);
         const recoveryRoute = /^\/api\/platform\/users\/([^/]+)\/recovery$/.exec(path);
-        if (gymRoute) {
+        if (method === 'POST' && memberPasswordRoute) {
+          await store.setMemberPassword(
+            actor,
+            memberPasswordRoute[1],
+            memberPasswordRoute[2],
+            required(input.password, 'La contraseña'),
+            value,
+          );
+          send(res, { ok: true });
+        } else if (gymRoute) {
           const [, gymId, resource, memberId] = gymRoute;
           if (method === 'DELETE' && !resource) send(res, { gym: store.deleteGym(actor, gymId) });
           else if (method === 'POST' && resource === 'restore' && !memberId)
@@ -225,6 +244,24 @@ export function createPlatformApi(
             });
           else if (method === 'GET' && resource === 'members' && !memberId)
             send(res, { members: store.listMembers(actor, gymId) });
+          else if (method === 'POST' && resource === 'members' && !memberId)
+            send(
+              res,
+              {
+                member: await store.createMember(
+                  actor,
+                  gymId,
+                  {
+                    name: required(input.name, 'El nombre'),
+                    email: required(input.email, 'El correo'),
+                    role: input.role,
+                    password: required(input.password, 'La contraseña'),
+                  },
+                  value,
+                ),
+              },
+              201,
+            );
           else if (method === 'POST' && resource === 'invitations' && !memberId)
             send(
               res,

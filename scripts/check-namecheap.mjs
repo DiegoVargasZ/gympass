@@ -548,6 +548,167 @@ test("el cierre diario respeta zonas horarias y mantiene aislados los gimnasios"
   }
 });
 
+test("el administrador crea personal sin invitación y gestiona sólo su gimnasio", async (t) => {
+  const app = await startPlatform({
+    dataDirectory: temporary(t),
+    port: 0,
+    allowHttp: true,
+  });
+  try {
+    const owner = await app.store.bootstrap({
+      name: "Owner",
+      email: "owner@staff.test",
+      password: "owner-secret",
+    });
+    const ownerLogin = await app.store.login({
+      email: owner.email,
+      password: "owner-secret",
+    });
+    const post = async (path, input, token) => {
+      const response = await fetch(app.url + "/api/platform/" + path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: app.url,
+          "X-Requested-With": "GymPASS",
+          Cookie: "gympass_platform=" + token,
+        },
+        body: JSON.stringify(input),
+      });
+      return { status: response.status, data: await response.json() };
+    };
+    const first = await post(
+      "gyms",
+      {
+        name: "Independiente",
+        slug: "independiente",
+        admin_name: "Ana",
+        admin_email: "admin@staff.test",
+        admin_password: "admin-secret",
+      },
+      ownerLogin.token,
+    );
+    assert.equal(first.status, 201, JSON.stringify(first.data));
+    assert.equal(first.data.gym.status, "active");
+    assert.equal("invitation" in first.data, false);
+    const gymId = first.data.gym.id;
+    const admin = await app.store.login({
+      email: "admin@staff.test",
+      password: "admin-secret",
+    });
+    const created = await post(
+      "gyms/" + gymId + "/members",
+      {
+        name: "Cajero",
+        email: "cashier@staff.test",
+        role: "operator",
+        password: "staff-secret",
+      },
+      admin.token,
+    );
+    assert.equal(created.status, 201, JSON.stringify(created.data));
+    assert.equal(created.data.member.role, "operator");
+    assert.equal("password" in created.data.member, false);
+    const staff = await app.store.login({
+      email: "cashier@staff.test",
+      password: "staff-secret",
+    });
+    assert.equal(
+      (
+        await post(
+          "gyms/" + gymId + "/members",
+          {
+            name: "No",
+            email: "no@staff.test",
+            role: "admin",
+            password: "new-secret",
+          },
+          staff.token,
+        )
+      ).status,
+      403,
+    );
+    assert.equal(
+      (
+        await post(
+          "gyms/" + gymId + "/members",
+          {
+            name: "No",
+            email: "admin@staff.test",
+            role: "operator",
+            password: "new-secret",
+          },
+          admin.token,
+        )
+      ).status,
+      409,
+    );
+    assert.throws(
+      () =>
+        app.store.updateMembership(
+          admin.session.user,
+          gymId,
+          first.data.member.id,
+          { active: false },
+        ),
+      { status: 409 },
+    );
+    const foreign = app.store.createGym(owner, {
+      name: "Ajeno",
+      slug: "ajeno",
+    });
+    assert.equal(
+      (
+        await post(
+          "gyms/" + foreign.id + "/members",
+          {
+            name: "No",
+            email: "no@staff.test",
+            role: "admin",
+            password: "new-secret",
+          },
+          admin.token,
+        )
+      ).status,
+      403,
+    );
+    const path =
+      "gyms/" + gymId + "/members/" + created.data.member.id + "/password";
+    assert.equal(
+      (await post(path, { password: "new-staff-secret" }, admin.token)).status,
+      200,
+    );
+    assert.equal(await app.store.authenticate(staff.token), null);
+    await assert.rejects(
+      app.store.login({
+        email: "cashier@staff.test",
+        password: "staff-secret",
+      }),
+      { status: 401 },
+    );
+    assert.equal(
+      (
+        await app.store.login({
+          email: "cashier@staff.test",
+          password: "new-staff-secret",
+        })
+      ).session.user.id,
+      created.data.member.id,
+    );
+    app.store.raw
+      .prepare(
+        "INSERT INTO gym_memberships(user_id,gym_id,role,active) VALUES(?,?,?,0)",
+      )
+      .run(created.data.member.id, foreign.id, "viewer");
+    assert.equal(
+      (await post(path, { password: "other-secret" }, admin.token)).status,
+      403,
+    );
+  } finally {
+    await app.close();
+  }
+});
+
 test("una base anterior vuelve a abrir sin perder registros y queda conservada para recuperación", async (t) => {
   const directory = temporary(t),
     manager = new TenantManager(directory);
