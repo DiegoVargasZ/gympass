@@ -23,7 +23,7 @@ concurrency:
 jobs:
   clients:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       RELEASE_ID: ${{ inputs.release_id }}
       RELEASE_ASSET_ID: ${{ inputs.asset_id }}
