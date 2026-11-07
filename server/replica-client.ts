@@ -157,7 +157,7 @@ export class ReplicaClient {
       response = await fetch(server + "/api/" + path, {
         method,
         redirect: "error",
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(120000),
         headers: {
           "Content-Type": "application/json",
           "X-Requested-With": "GymPASS",
