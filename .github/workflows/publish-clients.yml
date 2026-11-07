@@ -28,7 +28,7 @@ jobs:
       RELEASE_ID: ${{ inputs.release_id }}
       RELEASE_ASSET_ID: ${{ inputs.asset_id }}
       RELEASE_ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
-      RELEASE_WORKSPACE: ${{ runner.temp }}/gympass-client-build
+      RELEASE_WORKSPACE: ${{ github.workspace }}/.client-build
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
