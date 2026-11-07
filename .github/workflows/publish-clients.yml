@@ -12,6 +12,10 @@ on:
       archive_sha256:
         description: SHA-256 del paquete preparado
         required: true
+      android_only:
+        description: Publicar solamente el APK firmado y comprobado
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -22,6 +26,7 @@ concurrency:
 
 jobs:
   clients:
+    if: ${{ !inputs.android_only }}
     runs-on: windows-latest
     timeout-minutes: 40
     env:
@@ -67,3 +72,21 @@ jobs:
         run: node scripts/publish-clients.mjs upload
         env:
           GH_TOKEN: ${{ github.token }}
+  android:
+    if: ${{ inputs.android_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Recuperar el APK firmado, verificar y adjuntar al borrador
+        run: node scripts/publish-android.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          RELEASE_ASSET_ID: ${{ inputs.asset_id }}
+          RELEASE_ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
