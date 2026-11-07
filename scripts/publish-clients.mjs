@@ -22,8 +22,9 @@ const {
   RELEASE_ARCHIVE_SHA256,
   RELEASE_WORKSPACE,
 } = process.env;
+const mode = process.argv[2];
 if (
-  !GH_TOKEN ||
+  (!GH_TOKEN && mode !== "validate") ||
   !/^[\w.-]+\/[\w.-]+$/.test(GITHUB_REPOSITORY || "") ||
   !/^\d+$/.test(RELEASE_ID || "") ||
   !/^\d+$/.test(RELEASE_ASSET_ID || "") ||
@@ -45,8 +46,11 @@ async function api(path, options = {}) {
   if (!response.ok) throw Error(`GitHub respondió HTTP ${response.status}.`);
   return response;
 }
-const release = await (await api(`/releases/${RELEASE_ID}`)).json();
-if (!release.draft || release.tag_name !== `v${version}`)
+const release =
+  mode === "validate"
+    ? null
+    : await (await api(`/releases/${RELEASE_ID}`)).json();
+if (release && (!release.draft || release.tag_name !== `v${version}`))
   throw Error("Solo se adjuntan archivos al borrador de esta versión.");
 const work = resolve(RELEASE_WORKSPACE),
   prepared = join(work, "package");
@@ -55,7 +59,6 @@ async function digest(path) {
   for await (const chunk of createReadStream(path)) hash.update(chunk);
   return hash.digest("hex");
 }
-const mode = process.argv[2];
 if (mode === "prepare") {
   const asset = release.assets.find(
     (item) => String(item.id) === RELEASE_ASSET_ID,
