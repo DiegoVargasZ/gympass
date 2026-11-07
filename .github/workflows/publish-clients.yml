@@ -1,0 +1,66 @@
+name: Preparar instaladores desde runtime verificado
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: ID de la entrega en borrador
+        required: true
+      asset_id:
+        description: ID del paquete preparado privado del borrador
+        required: true
+      archive_sha256:
+        description: SHA-256 del paquete preparado
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gympass-client-release
+  cancel-in-progress: false
+
+jobs:
+  clients:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      RELEASE_ID: ${{ inputs.release_id }}
+      RELEASE_ASSET_ID: ${{ inputs.asset_id }}
+      RELEASE_ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+      RELEASE_WORKSPACE: ${{ runner.temp }}/gympass-client-build
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Descargar y verificar el paquete privado
+        run: node scripts/publish-clients.mjs prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Extraer runtime y comprobar Android
+        shell: pwsh
+        run: |
+          & 'C:/Program Files/7-Zip/7z.exe' x "$env:RELEASE_WORKSPACE/clients.7z" "-o$env:RELEASE_WORKSPACE/package" -y
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo extraer el paquete.' }
+          node scripts/publish-clients.mjs validate
+      - name: Recuperar dependencias y conector oficial
+        shell: pwsh
+        run: |
+          Set-Location "$env:RELEASE_WORKSPACE/package"
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la instalación de herramientas.' }
+          node scripts/prepare-cloudflared.cjs desktop-runtime/bin
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la verificación del conector.' }
+      - name: Empaquetar Windows
+        shell: pwsh
+        run: |
+          Set-Location "$env:RELEASE_WORKSPACE/package"
+          npx --no-install electron-builder --config desktop/builder.cjs --win --x64 --publish never
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la generación de Windows.' }
+      - name: Adjuntar instaladores y retirar el paquete temporal
+        run: node scripts/publish-clients.mjs upload
+        env:
+          GH_TOKEN: ${{ github.token }}
