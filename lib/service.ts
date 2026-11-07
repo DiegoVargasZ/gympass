@@ -118,12 +118,15 @@ const peopleSummarySql = (
   p.membership_managed,p.sessions_remaining,p.valid_until,
   (SELECT COUNT(*) FROM credentials c WHERE c.person_id=p.id AND c.active=1) credential_count,
   (SELECT COUNT(*) FROM person_zones z WHERE z.person_id=p.id) zone_count FROM ${effectivePeopleSql(today, includeDeleted)} p`;
-export const presenceSql = `SELECT e.* FROM events e WHERE e.allowed=1 AND e.direction='entry' AND NOT EXISTS (SELECT 1 FROM events later WHERE later.person_id=e.person_id AND later.zone_id=e.zone_id AND later.allowed=1 AND later.id>e.id)`;
+export const presenceSql = `SELECT e.* FROM events e WHERE e.allowed=1 AND e.direction='entry' AND NOT EXISTS (SELECT 1 FROM events later WHERE later.person_id=e.person_id AND later.zone_id=e.zone_id AND later.allowed=1 AND (later.occurred_at>e.occurred_at OR (later.occurred_at=e.occurred_at AND later.id>e.id)))`;
 export const randomToken = (prefix: string) =>
   prefix +
   '_' +
   Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, '0')).join('');
+let hashImplementation: ((value: string) => Promise<string>) | undefined;
+export function setHashImplementation(implementation: (value: string) => Promise<string>) { hashImplementation = implementation; }
 export async function hash(value: string) {
+  if (hashImplementation) return hashImplementation(value);
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))), (b) =>
     b.toString(16).padStart(2, '0'),
   ).join('');
@@ -177,7 +180,7 @@ export class Service {
       ),
       this.all('SELECT * FROM schedules ORDER BY name'),
       this.all(
-        'SELECT e.*,p.photo_path FROM events e LEFT JOIN people p ON p.id=e.person_id ORDER BY e.id DESC LIMIT 12',
+        'SELECT e.*,p.photo_path FROM events e LEFT JOIN people p ON p.id=e.person_id ORDER BY e.occurred_at DESC,e.id DESC LIMIT 12',
       ),
       this.one(`SELECT COUNT(*) total FROM (${presenceSql})`),
     ]);
@@ -911,7 +914,7 @@ export class Service {
       SELECT p.*,c.id credential_id,c.active credential_active,c.kind credential_kind,z.active zone_active,z.capacity,z.name zone_name,
         v.id invitation_id,v.expected_date invitation_date,v.used_at invitation_used,v.status invitation_status,v.access_mode invitation_access,NULLIF(v.guest_name,'') invitation_name,
         s.days,s.start,s.end,
-        (SELECT direction FROM events WHERE person_id=p.id AND zone_id=z.id AND allowed=1 ORDER BY id DESC LIMIT 1) last_direction,
+        (SELECT direction FROM events WHERE person_id=p.id AND zone_id=z.id AND allowed=1 ORDER BY occurred_at DESC,id DESC LIMIT 1) last_direction,
         (SELECT COUNT(*) FROM (${presenceSql}) occupancy WHERE occupancy.zone_id=z.id) inside,
         EXISTS(SELECT 1 FROM person_zones pz WHERE pz.person_id=p.id AND pz.zone_id=z.id) has_zone,
         ((p.legacy_access=0 OR EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id)) AND NOT ${legacyCoverageSql(local.date)}) pos_managed,
@@ -1046,7 +1049,7 @@ export class Service {
     const limit = exportAll ? 10001 : 50;
     const [rows, count] = await Promise.all([
       this.all(
-        `SELECT * FROM events ${where} ORDER BY id DESC LIMIT ? OFFSET ?`,
+        `SELECT * FROM events ${where} ORDER BY occurred_at DESC,id DESC LIMIT ? OFFSET ?`,
         ...args,
         limit,
         exportAll ? 0 : (page - 1) * limit,
@@ -1076,15 +1079,15 @@ export class Service {
       throw new ApiError(400, 'Selecciona un período de hasta 93 días.');
     const rows = await this.all(
       `WITH relevant AS (
-        SELECT person_id,zone_id,MIN(id) first_id FROM events
+        SELECT person_id,zone_id,MIN(occurred_at) first_time FROM events
         WHERE allowed=1 AND direction='entry' AND local_date BETWEEN ? AND ? GROUP BY person_id,zone_id
       ), sequenced AS (
         SELECT e.id,e.person_id,e.person_name,e.zone_name,e.local_date,e.direction,e.occurred_at,
           LEAD(e.direction) OVER movements next_direction,
           LEAD(e.occurred_at) OVER movements next_time,
           LEAD(e.reason) OVER movements next_reason
-        FROM events e JOIN relevant r ON e.person_id=r.person_id AND e.zone_id=r.zone_id AND e.id>=r.first_id
-        WHERE e.allowed=1 WINDOW movements AS (PARTITION BY e.person_id,e.zone_id ORDER BY e.id)
+        FROM events e JOIN relevant r ON e.person_id=r.person_id AND e.zone_id=r.zone_id AND e.occurred_at>=r.first_time
+        WHERE e.allowed=1 WINDOW movements AS (PARTITION BY e.person_id,e.zone_id ORDER BY e.occurred_at,e.id)
       ) SELECT id,person_id,person_name,zone_name,local_date,occurred_at entry_at,
         COALESCE((SELECT document FROM people p WHERE p.id=sequenced.person_id),'') document,
         CASE WHEN next_direction='exit' THEN next_time END exit_at,
@@ -1149,7 +1152,7 @@ export class Service {
     const list = personIds.map(() => '?').join(',');
     return this.all(
       `WITH relevant AS (
-        SELECT person_id,zone_id,MIN(id) first_id FROM events
+        SELECT person_id,zone_id,MIN(occurred_at) first_time FROM events
         WHERE allowed=1 AND direction='entry' AND local_date BETWEEN ? AND ? AND person_id IN (${list})
         GROUP BY person_id,zone_id
       ), sequenced AS (
@@ -1157,8 +1160,8 @@ export class Service {
           LEAD(e.direction) OVER movements next_direction,
           LEAD(e.occurred_at) OVER movements next_time,
           LEAD(e.reason) OVER movements next_reason
-        FROM events e JOIN relevant r ON e.person_id=r.person_id AND e.zone_id=r.zone_id AND e.id>=r.first_id
-        WHERE e.allowed=1 WINDOW movements AS (PARTITION BY e.person_id,e.zone_id ORDER BY e.id)
+        FROM events e JOIN relevant r ON e.person_id=r.person_id AND e.zone_id=r.zone_id AND e.occurred_at>=r.first_time
+        WHERE e.allowed=1 WINDOW movements AS (PARTITION BY e.person_id,e.zone_id ORDER BY e.occurred_at,e.id)
       ) SELECT person_id,zone_name,local_date,occurred_at entry_at,
         CASE WHEN next_direction='exit' THEN next_time END exit_at,
         CASE WHEN next_direction='exit' AND next_reason='AUTO_CLOSE' THEN 1 ELSE 0 END auto_closed
@@ -1988,7 +1991,7 @@ export class Service {
             `INSERT INTO events(request_key,payload_hash,person_id,person_name,zone_id,zone_name,direction,method,allowed,reason,detail,actor,device_id,occurred_at,local_date)
           SELECT ?,?,e.person_id,e.person_name,e.zone_id,e.zone_name,'exit','system',1,'AUTO_CLOSE',?,'system',NULL,?,?
           FROM events e WHERE e.id=? AND e.allowed=1 AND e.direction='entry'
-          AND NOT EXISTS(SELECT 1 FROM events later WHERE later.person_id=e.person_id AND later.zone_id=e.zone_id AND later.allowed=1 AND later.id>e.id)
+          AND NOT EXISTS(SELECT 1 FROM events later WHERE later.person_id=e.person_id AND later.zone_id=e.zone_id AND later.allowed=1 AND (later.occurred_at>e.occurred_at OR (later.occurred_at=e.occurred_at AND later.id>e.id)))
           AND EXISTS(SELECT 1 FROM settings WHERE id=1 AND auto_close_hours=? AND timezone=? AND closing_time IS ?)
           ON CONFLICT(request_key) DO NOTHING`,
             'auto-close:' + entry.id,

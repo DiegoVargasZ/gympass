@@ -288,6 +288,7 @@ export type Settings = {
   closing_time?: string | null;
 };
 export type Bootstrap = {
+  replica?: { linked: boolean };
   platform?: { gym_id: string; gym_name: string; support: boolean; superadmin: boolean; read_only: boolean };
   activation?: {
     machineId: string;

@@ -13,6 +13,8 @@ import { acquirePlatformLock } from './platform-lock.ts';
 import { staticAsset, staticBytes } from './static-files.ts';
 import { authorizedDatabase } from './authorized-database.ts';
 import { createRealtime, changeTopics } from './realtime.ts';
+import { platformCopies, exportPlatformCopy } from './platform-backup-export.ts';
+import { replicationApi } from './replication-api.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 type Options = {
@@ -99,6 +101,19 @@ export async function startPlatform(options: Options) {
           res.setHeader('X-GymPASS-Realtime', '1');
           return json(res, { ok: true, mode: 'platform', protocol: 1 });
         }
+        const platformBackup = /^\/api\/platform\/backups(?:\/([^/]+)\/export)?$/.exec(url.pathname);
+        if (platformBackup && method === 'GET') {
+          const token = requestToken(req);
+          const session = await store.requireWebSession(token);
+          if (session.user.global_role !== 'superadmin') throw new ApiError(403, 'Se requiere superadministrador.');
+          if (!platformBackup[1]) return json(res, { copies: platformCopies(tenants.root) });
+          const copy = exportPlatformCopy(tenants.root, platformBackup[1]);
+          const current = store.authenticateSync(token);
+          if (!current || current.kioskGymId || current.user.global_role !== 'superadmin') throw new ApiError(401, 'Inicia sesión de nuevo.');
+          store.audit(current.user.id, 'platform.backup_download', undefined, platformBackup[1]);
+          res.writeHead(200, { 'Content-Type': 'application/gzip', 'Content-Disposition': `attachment; filename="${copy.filename}"`, 'Cache-Control': 'no-store' });
+          return res.end(copy.bytes);
+        }
         if (url.pathname === '/api/platform/backups' && method === 'POST') {
           const requestSession = requestToken(req);
           const session = await store.requireWebSession(requestSession);
@@ -136,6 +151,7 @@ export async function startPlatform(options: Options) {
         const operationalWrite =
           writing && path[0] !== 'auth' && !(method === 'POST' && path.length === 1 && path[0] === 'backups');
         const token = requestToken(req);
+        if (path[0] === 'sync') return await replicationApi(req, res, url, gymId, store, tenants);
         if (
           path.length === 1 &&
           ((path[0] === 'device-access' && method === 'POST') || (path[0] === 'device-check' && method === 'GET'))

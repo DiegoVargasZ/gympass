@@ -1,6 +1,6 @@
 # GymPASS para Namecheap
 
-La raíz de este repositorio contiene el código listo para desplegar la plataforma central de GymPASS 4.3.0, incluida la corrección de apertura de bases existentes. La interfaz ya está compilada en `dist/`; el servidor y las migraciones están en `server/`.
+La raíz de este repositorio contiene el código listo para desplegar la plataforma central de GymPASS 4.4.0. La interfaz ya está compilada en `dist/`; el servidor y las migraciones están en `server/`.
 
 Los proyectos locales de escritorio, Android y desarrollo se conservan en el disco y quedan excluidos de Git. Los datos y las credenciales tampoco se versionan.
 
@@ -42,6 +42,28 @@ El cajero puede registrar un socio activo dentro de este cobro, con acceso gener
 Si el socio todavía tiene un plan vigente, Caja muestra **Renovación anticipada** y programa el plan pagado para el día siguiente al último día cubierto. Los días que quedan se conservan: si vence el 10 de noviembre y paga otro mes el día 6, mantiene su acceso hasta el 10 y el nuevo mes comienza el 11. También se respeta el vencimiento de las fichas antiguas y se aplica la misma programación al añadir un plan desde la ficha. No selecciones el reemplazo administrativo si quieres conservar el plan actual; esa opción cancela los días restantes.
 
 Las pantallas antiguas de eventos, invitaciones y asistencia laboral se retiraron de la interfaz. Se conservan las bases, las migraciones y los datos históricos, así como los informes actuales de visitas y horas en el gimnasio.
+
+## Descargar respaldos
+
+Cada administrador de gimnasio puede crear y descargar las copias de **su gimnasio** desde **Configuración → Respaldos**. Se descargan como `.gympassbackup` e incluyen base, fotos, recursos y la clave de recuperación de las credenciales QR. Los cajeros y las cuentas de consulta no tienen este permiso. La restauración de la plataforma sigue reservada al superadministrador.
+
+El superadministrador dispone de **Copia de la plataforma** en su panel. Puede crear una copia y descargar las existentes como `.tar.gz`, con el registro central y los gimnasios. Para restaurarla, se extrae en un directorio nuevo y se utiliza `scripts/platform-restore.ts`. Las copias contienen información privada y deben guardarse en una ubicación de confianza. Se mantiene el límite de descarga de 256 MiB por archivo.
+
+## Escritorio y móviles independientes sin Internet
+
+Actualiza las aplicaciones a **4.4.0** y realiza la primera vinculación con Internet. Cada dispositivo conserva su propia copia del gimnasio y sincroniza automáticamente al recuperar la conexión. La computadora puede estar apagada cuando se utiliza un móvil conectado directamente a la plataforma o su copia sin conexión.
+
+- **Windows:** en el menú **Conexión de GymPASS → Servidor central**, escribe `https://gympass.site` y activa **Guardar una copia local para trabajar sin Internet y sincronizar al reconectar**. Reinicia e inicia la vinculación con una cuenta administradora del gimnasio. Se descarga una copia independiente, conservando la instalación local anterior en su carpeta. Después puedes usar socios, planes, caja, credenciales y recepción sin Internet. El acceso se hace con la cuenta que vinculó esa copia. **Configuración → Celular como lector** muestra el estado y permite sincronizar manualmente.
+- **Android:** instala el APK 4.4.0 e inicia sesión en `https://gympass.site`; selecciona el gimnasio si tienes varios. La aplicación descarga su base local. El lector, los socios, la presencia, el historial reciente y las horas funcionan sin Wi-Fi, datos ni computadora. Cada teléfono tiene su propio archivo SQLite, separado por servidor, gimnasio y cuenta. El historial móvil conserva los últimos 10.000 movimientos y las entradas abiertas necesarias para calcular la presencia.
+- **Administración central:** **Configuración → Conexión** muestra los dispositivos, su última sincronización y los lotes que necesitan revisión. Puedes revocar o reactivar una vinculación. El superadministrador también puede administrarlas dentro de una sesión de soporte, pero la primera vinculación se hace con una cuenta propia del gimnasio.
+
+Las autorizaciones sin conexión duran **7 días desde la última sincronización**; las fechas y sesiones de los planes se siguen comprobando en la copia local. Al reconectar se comprueban de nuevo gimnasio, cuenta, rol y vinculación. La suspensión o baja del gimnasio y la revocación de permisos bloquean nuevas sincronizaciones. Cambiar la contraseña central invalida las vinculaciones anteriores.
+
+Sin conexión, los dispositivos conocen las altas, bajas y pagos que recibieron en su última copia. Dos equipos desconectados pueden tomar decisiones incompatibles sobre aforo, presencia o la última sesión de un socio. Al reconectar, el servidor conserva esos lotes para revisión y no reemplaza silenciosamente los datos centrales ni permite que los contadores queden negativos. El administrador puede **Descargar pendientes**, revisar sus respaldos y elegir **Conservar nube y archivar lote local**. Antes de reemplazar un lote archivado, escritorio conserva un respaldo local y móvil conserva el lote en su archivo. La operación de archivar no registra cobros adicionales: cualquier ajuste comercial se revisa expresamente.
+
+Las altas y pagos usan identificadores estables. Un envío confirmado cuya respuesta se pierde se puede repetir sin duplicar los datos, y las operaciones posteriores se conservan mientras se confirma el lote anterior. Se combinan cambios compatibles de distintos campos; las ediciones incompatibles del mismo dato se conservan como conflicto. Los movimientos se ordenan por su fecha real, no por el momento en que llegaron al servidor. El QR permanente se conserva al sincronizar y renovar.
+
+El móvil solo recibe la información necesaria para recepción y consultas; no descarga las contraseñas centrales, las claves de los lectores, los importes de ventas ni los códigos QR descifrables. Las copias completas de escritorio requieren una cuenta administradora. El mínimo de contraseña se mantiene en **6 caracteres**.
 
 ## Encuadrar la foto de un socio
 

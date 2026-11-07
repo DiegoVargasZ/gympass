@@ -91,8 +91,7 @@ export async function gymApi(
     return res.end(bytes);
   }
   if (first === 'backups') {
-    if (auth.user.global_role !== 'superadmin' || !auth.support)
-      throw new ApiError(403, 'Los respaldos de plataforma los gestiona el superadministrador.');
+    s.require('admin');
     if (method === 'GET') {
       if (!id) {
         const status = ctx.backups.status();
@@ -102,6 +101,7 @@ export async function gymApi(
       if (action === 'inspect') return send(ctx.backups.inspect(id));
       if (action === 'export') {
         const copy = ctx.backups.exportCopy(id);
+        store.audit(auth.user.id, 'backup.downloaded', ctx.id, id);
         res.writeHead(200, {
           'Content-Type': 'application/octet-stream',
           'Content-Disposition': `attachment; filename="${copy.filename}"`,
@@ -110,8 +110,14 @@ export async function gymApi(
         return res.end(copy.bytes);
       }
     }
-    if (method === 'POST' && !id) return send(ctx.backups.create(), 201);
+    if (method === 'POST' && !id) {
+      const copy = ctx.backups.create();
+      store.audit(auth.user.id, 'backup.created', ctx.id, copy.id);
+      return send(copy, 201);
+    }
     if (method === 'POST' && action === 'restore') {
+      if (auth.user.global_role !== 'superadmin' || !auth.support)
+        throw new ApiError(403, 'La restauración la realiza el superadministrador.');
       if (body.confirm !== 'RESTAURAR') throw new ApiError(400, 'Escribe RESTAURAR para continuar.');
       const owner = store.raw
         .prepare('SELECT password_hash FROM platform_users WHERE id=? AND active=1')

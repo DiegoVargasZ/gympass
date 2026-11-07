@@ -24,6 +24,7 @@ export const applicationVersion: string = JSON.parse(
 ).version;
 const assets = [
   'credentials.key',
+  'cloud-sync.json',
   'photos',
   'branding',
   'backgrounds',

@@ -317,6 +317,18 @@ export class PlatformStore {
       throw new ApiError(403, 'Gimnasio no disponible.');
     return gym;
   }
+  authorizeLinkedUser(userId: string, gymId: string): GymAuthorization {
+    const user = this.currentUser({ id: userId } as PlatformUser);
+    const gym = this.requireOperationalGym(gymId);
+    const member = this.raw.prepare('SELECT role FROM gym_memberships WHERE user_id=? AND gym_id=? AND active=1').get(userId, gymId) as Row | undefined;
+    if (!member) throw new ApiError(403, 'La cuenta ya no pertenece a este gimnasio.');
+    return { user, gym, actor: { id: user.id, name: user.name, email: user.email, role: member.role }, support: false, readOnly: member.role === 'viewer' };
+  }
+  linkedCredentialRevision(userId: string): string {
+    const row = this.raw.prepare('SELECT password_hash FROM platform_users WHERE id=? AND active=1').get(userId);
+    if (!row) throw new ApiError(401, 'La cuenta fue desactivada.');
+    return secretHash(String(row.password_hash));
+  }
 
   startKiosk(value: string, gymId: string, supportToken?: string) {
     const auth = this.authorizeSync(value, gymId, supportToken, true, true);
