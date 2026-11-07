@@ -12,7 +12,12 @@ const mime: Record<string, string> = {
   '.ico': 'image/x-icon',
   '.webmanifest': 'application/manifest+json',
   '.woff2': 'font/woff2',
+  '.apk': 'application/vnd.android.package-archive',
+  '.txt': 'text/plain; charset=utf-8',
 };
+
+/** Desde este tamaño el archivo se envía por partes en vez de cargarse completo en memoria. */
+export const streamThreshold = 4 * 1024 * 1024;
 
 /** Extensiones con variante precomprimida. PNG, WebP y WOFF2 ya vienen comprimidos. */
 export const compressible = new Set(['.html', '.js', '.css', '.json', '.svg', '.webmanifest']);

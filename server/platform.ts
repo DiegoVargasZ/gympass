@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { createReadStream } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ZodError } from 'zod';
@@ -10,7 +11,7 @@ import { ApiError, Service, hash } from '../lib/service.ts';
 import { reasons } from '../lib/domain.ts';
 import { json, cookieValue, requestToken, readJson } from './platform-http.ts';
 import { acquirePlatformLock } from './platform-lock.ts';
-import { staticAsset, staticBytes } from './static-files.ts';
+import { staticAsset, staticBytes, streamThreshold } from './static-files.ts';
 import { authorizedDatabase } from './authorized-database.ts';
 import { createRealtime, changeTopics } from './realtime.ts';
 import { platformCopies, exportPlatformCopy } from './platform-backup-export.ts';
@@ -263,6 +264,16 @@ export async function startPlatform(options: Options) {
       if (method === 'HEAD') {
         res.writeHead(200, asset.headers);
         res.end();
+        return;
+      }
+      // El instalador de Android pesa decenas de MB: se envía por partes para no reservar
+      // toda esa memoria en cada descarga simultánea.
+      if (Number(asset.headers['Content-Length']) > streamThreshold) {
+        res.writeHead(200, asset.headers);
+        const file = createReadStream(asset.filename);
+        file.on('error', () => res.destroy());
+        res.on('close', () => file.destroy());
+        file.pipe(res);
         return;
       }
       const content = await staticBytes(asset);
