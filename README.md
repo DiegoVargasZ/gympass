@@ -59,7 +59,7 @@ Desde un navegador, **Abrir conexión** lleva al servidor HTTPS seleccionado o a
 
 ### Descargar las aplicaciones desde el login
 
-Los formularios de acceso local y de la plataforma incluyen **Descarga GymPASS**, con enlaces directos al APK Android, al instalador Windows y a Windows portátil de la versión publicada 4.4.1 en las entregas oficiales de `DiegoVargasZ/gympass`. Los enlaces se pueden abrir sin iniciar sesión. Los binarios se alojan en GitHub Releases.
+Los formularios de acceso local y de la plataforma incluyen **Descarga GymPASS**, con enlaces directos al APK Android y al instalador Windows de las entregas oficiales de `DiegoVargasZ/gympass`. El login muestra únicamente versiones instalables. Los enlaces se pueden abrir sin iniciar sesión y los binarios se alojan en GitHub Releases.
 
 La web conserva el logo horizontal anterior y el panel de bienvenida negro. El login muestra el formulario y las descargas sin desplazamiento vertical en pantallas de escritorio de 1980 × 1080 y 1920 × 1080. Los instaladores 4.4.1 mantienen los nuevos iconos de Windows y Android; Windows permite guardar la conexión desde Configuración.
 
