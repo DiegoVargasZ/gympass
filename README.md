@@ -45,7 +45,7 @@ Las pantallas antiguas de eventos, invitaciones y asistencia laboral se retiraro
 
 ## Encuadrar la foto de un socio
 
-Al cargar una imagen o capturar una foto, arrástrala dentro de la vista previa con el ratón o el dedo para ajustar el encuadre. Usa **Acercar** para ampliar; las barras de posición también permiten ajustar con el teclado. El recorte respeta los bordes de la imagen y se guarda como una copia cuadrada de 512 × 512 px.
+Al cargar una imagen o capturar una foto, arrástrala dentro de la vista previa con el ratón o el dedo para ajustar el encuadre. Acerca o aleja sobre la propia foto con la rueda del ratón o separando y juntando dos dedos. También puedes enfocarla con el teclado y usar las flechas para mover y + / - para acercar o alejar. El recorte respeta los bordes de la imagen y se guarda como una copia cuadrada de 512 × 512 px.
 
 ## Cierre diario y acceso automático
 
