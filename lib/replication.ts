@@ -19,6 +19,37 @@ export type SyncSnapshot = {
   triggers: string[];
   assets?: Record<string, string>;
 };
+export type SyncUnchanged = Pick<
+  SyncSnapshot,
+  | "gym_id"
+  | "installation_id"
+  | "revision"
+  | "issued_at"
+  | "expires_at"
+  | "user"
+> & { unchanged: true };
+export function renewSyncSnapshot(
+  base: SyncSnapshot,
+  update: SyncUnchanged,
+): SyncSnapshot {
+  if (
+    update.gym_id !== base.gym_id ||
+    update.installation_id !== base.installation_id ||
+    update.revision !== base.revision ||
+    update.user.id !== base.user.id ||
+    !Number.isFinite(update.issued_at) ||
+    !Number.isFinite(update.expires_at) ||
+    update.expires_at <= update.issued_at ||
+    update.expires_at - update.issued_at > 7 * 86400000
+  )
+    throw Error("La renovación no corresponde a la copia de este gimnasio.");
+  return {
+    ...base,
+    issued_at: update.issued_at,
+    expires_at: update.expires_at,
+    user: update.user,
+  };
+}
 export type SyncChange = {
   table: string;
   before: SyncRow | null;

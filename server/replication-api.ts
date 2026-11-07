@@ -151,6 +151,16 @@ export async function replicationApi(
     if (action === "snapshot" && method === "GET") {
       const snapshot = await replicaSnapshot(ctx, device, auth);
       authorizeReplica(store, ctx, token);
+      if (url.searchParams.get("revision") === snapshot.revision)
+        return json(res, {
+          unchanged: true,
+          revision: snapshot.revision,
+          gym_id: snapshot.gym_id,
+          installation_id: snapshot.installation_id,
+          issued_at: snapshot.issued_at,
+          expires_at: snapshot.expires_at,
+          user: snapshot.user,
+        });
       return json(res, snapshot);
     }
     if (action === "push" && method === "POST") {

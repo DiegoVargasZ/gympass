@@ -211,16 +211,21 @@ export async function replicaSnapshot(
       .all() as any[]
   ).map((row) => String(row.sql));
   const revision = digest(JSON.stringify([tables, assets]));
-  const issued = Date.now();
+  const now = Date.now();
+  const previous = ctx.db.raw
+    .prepare(
+      "SELECT issued_at FROM sync_leases WHERE device_id=? AND revision=? AND expires_at>? ORDER BY issued_at DESC LIMIT 1",
+    )
+    .get(device.id, revision, now + 6 * 86400000) as
+    { issued_at: number } | undefined;
+  const issued = previous ? Number(previous.issued_at) : now;
   ctx.db.raw
     .prepare("UPDATE sync_devices SET last_sync_at=?,expires_at=? WHERE id=?")
-    .run(issued, issued + 90 * 86400000, device.id);
+    .run(now, now + 90 * 86400000, device.id);
   ctx.db.raw
     .prepare("INSERT OR REPLACE INTO sync_leases VALUES(?,?,?,?)")
     .run(device.id, revision, issued, issued + lease);
-  ctx.db.raw
-    .prepare("DELETE FROM sync_leases WHERE expires_at<?")
-    .run(issued - 30 * 86400000);
+  ctx.db.raw.prepare("DELETE FROM sync_leases WHERE expires_at<?").run(now);
   return {
     protocol: 1,
     gym_id: ctx.id,

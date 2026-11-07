@@ -153,13 +153,11 @@ test("escritorio funciona sin red y combina dos lotes tras una respuesta perdida
       sale(first.id, plan),
     );
     const card = await a.service().credentialCard(payment.credential.id);
-    const entry = await a
-      .service()
-      .access({
-        code: card.code,
-        direction: "entry",
-        request_id: crypto.randomUUID(),
-      });
+    const entry = await a.service().access({
+      code: card.code,
+      direction: "entry",
+      request_id: crypto.randomUUID(),
+    });
     assert.equal(entry.allowed, 1);
     await a.replica.synchronize();
     assert.ok(a.replica.status().pending > 0);
@@ -365,13 +363,11 @@ test("dos dispositivos no consumen dos veces la última sesión y las vinculacio
     for (const client of [a, b])
       assert.equal(
         (
-          await client
-            .service()
-            .access({
-              code: seeded.card.code,
-              direction: "entry",
-              request_id: crypto.randomUUID(),
-            })
+          await client.service().access({
+            code: seeded.card.code,
+            direction: "entry",
+            request_id: crypto.randomUUID(),
+          })
         ).allowed,
         1,
       );
@@ -425,6 +421,19 @@ test("dos dispositivos no consumen dos veces la última sesión y las vinculacio
     );
     assert.equal(snapshot.response.status, 200);
     assert.equal(snapshot.data.assets, undefined);
+    const unchanged = await f.request(
+      `gyms/${f.gym.id}/sync/snapshot?revision=${snapshot.data.revision}`,
+      "GET",
+      undefined,
+      mobile.data.token,
+      true,
+    );
+    assert.equal(unchanged.response.status, 200);
+    assert.equal(unchanged.data.unchanged, true);
+    assert.equal(unchanged.data.tables, undefined);
+    assert.equal(unchanged.data.assets, undefined);
+    assert.equal(unchanged.data.issued_at, snapshot.data.issued_at);
+    assert.equal(unchanged.data.expires_at, snapshot.data.expires_at);
     assert.ok(
       snapshot.data.tables
         .find((t) => t.name === "credentials")

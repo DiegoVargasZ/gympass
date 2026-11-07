@@ -7,6 +7,8 @@ import {
   syncChanges,
   validSyncSnapshot,
   mappedSyncPatch,
+  renewSyncSnapshot,
+  type SyncUnchanged,
   type SyncSnapshot,
   type SyncPatch,
   type SyncTable,
@@ -458,7 +460,20 @@ export class ReplicaClient {
             return;
           }
         }
-        const snapshot = (await request("snapshot")).data as SyncSnapshot;
+        const snapshot = (
+          await request(
+            "snapshot?revision=" + encodeURIComponent(state.base.revision),
+          )
+        ).data as SyncSnapshot | SyncUnchanged;
+        if ("unchanged" in snapshot) {
+          state.base = renewSyncSnapshot(state.base, snapshot);
+          state.last_success = Date.now();
+          state.last_error = "";
+          state.revoked = false;
+          state.last_clock = Math.max(state.last_clock, Date.now());
+          this.save(state);
+          return;
+        }
         validSyncSnapshot(
           snapshot,
           configuration.gym_id,
