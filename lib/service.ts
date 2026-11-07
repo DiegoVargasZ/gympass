@@ -94,7 +94,7 @@ const emptyTotals = (): AttendanceTotals => ({
 /** Conserva la vigencia de una ficha antigua hasta que empiece su primer plan comprado. */
 export function legacyCoverageSql(today: string) {
   date.parse(today);
-  return `(p.expires IS NOT NULL AND p.expires>='${today}' AND NOT EXISTS(
+  return `(p.legacy_access=1 AND p.expires IS NOT NULL AND p.expires>='${today}' AND NOT EXISTS(
     SELECT 1 FROM pos_memberships old WHERE old.person_id=p.id AND old.start_date<='${today}'))`;
 }
 /** The people table with membership-aware `expires`. Fichas dadas de baja quedan fuera salvo que se pidan. */
@@ -102,10 +102,10 @@ function effectivePeopleSql(today: string, includeDeleted = false) {
   date.parse(today);
   return `(SELECT p.id,p.name,p.document,p.email,p.phone,p.department,p.kind,p.status,p.schedule_id,p.notes,p.created_at,p.photo_path,p.deleted_at,
     p.expires legacy_expires,
-    CASE WHEN p.kind='member' AND NOT ${legacyCoverageSql(today)} AND EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id) THEN 1 ELSE 0 END membership_managed,
+    CASE WHEN p.kind='member' AND NOT ${legacyCoverageSql(today)} AND (p.legacy_access=0 OR EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id)) THEN 1 ELSE 0 END membership_managed,
     COALESCE((SELECT SUM(m.sessions_remaining) FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.unit='sessions' AND m.start_date<='${today}'),0) sessions_remaining,
     (SELECT MAX(date(m.end_date,'-1 day')) FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.unit<>'sessions' AND m.start_date<='${today}' AND m.end_date>'${today}') valid_until,
-    CASE WHEN p.kind='member' AND NOT ${legacyCoverageSql(today)} AND EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id) THEN
+    CASE WHEN p.kind='member' AND NOT ${legacyCoverageSql(today)} AND (p.legacy_access=0 OR EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id)) THEN
       CASE WHEN EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.unit='sessions' AND m.start_date<='${today}' AND m.sessions_remaining>0) THEN NULL
       ELSE COALESCE((SELECT MAX(date(m.end_date,'-1 day')) FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.unit<>'sessions' AND m.start_date<='${today}'),date('${today}','-1 day')) END
     ELSE p.expires END expires
@@ -152,6 +152,9 @@ export class Service {
   require(role: 'admin' | 'operator') {
     if (this.actor.role === 'viewer' || (role === 'admin' && this.actor.role !== 'admin'))
       throw new ApiError(403, 'Tu rol no permite esta acción.');
+  }
+  requireReports() {
+    if (!['admin', 'viewer'].includes(this.actor.role)) throw new ApiError(403, 'Tu rol no permite consultar ni exportar informes.');
   }
   audit(action: string, id: string) {
     return this.stmt(
@@ -911,7 +914,7 @@ export class Service {
         (SELECT direction FROM events WHERE person_id=p.id AND zone_id=z.id AND allowed=1 ORDER BY id DESC LIMIT 1) last_direction,
         (SELECT COUNT(*) FROM (${presenceSql}) occupancy WHERE occupancy.zone_id=z.id) inside,
         EXISTS(SELECT 1 FROM person_zones pz WHERE pz.person_id=p.id AND pz.zone_id=z.id) has_zone,
-        (EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id) AND NOT ${legacyCoverageSql(local.date)}) pos_managed,
+        ((p.legacy_access=0 OR EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id)) AND NOT ${legacyCoverageSql(local.date)}) pos_managed,
         EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.start_date<=?
           AND ((m.unit<>'sessions' AND m.end_date>?) OR (m.unit='sessions' AND m.sessions_remaining>0))) pos_valid,
         EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id AND m.status='active' AND m.unit='sessions' AND m.start_date<=?) pos_sessions
@@ -1010,6 +1013,7 @@ export class Service {
     return event;
   }
   async eventList(params: URLSearchParams, exportAll = false) {
+    if (exportAll) this.requireReports();
     const conditions: string[] = [],
       args: any[] = [];
     for (const [key, sql] of [
@@ -1109,6 +1113,7 @@ export class Service {
     return { rows: rows as GymSession[], from, to };
   }
   async attendance(params: URLSearchParams) {
+    this.requireReports();
     const { rows, from, to } = await this.gymSessions(params);
     // Each shift belongs to the date of its entry. Open sessions remain explicitly incomplete.
     const groups = new Map<string, AttendanceRow>();
@@ -1172,6 +1177,7 @@ export class Service {
    * absent, and a person without a shift is reported as worked time only.
    */
   async attendanceReport(params: URLSearchParams): Promise<AttendanceReport> {
+    this.requireReports();
     const settings = await this.one('SELECT timezone FROM settings WHERE id=1');
     const timezone = settings!.timezone as string;
     const today = localParts(new Date(), timezone).date;

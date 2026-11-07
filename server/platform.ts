@@ -140,18 +140,18 @@ export async function startPlatform(options: Options) {
           path.length === 1 &&
           ((path[0] === 'device-access' && method === 'POST') || (path[0] === 'device-check' && method === 'GET'))
         ) {
-          const gym = store.getGym(gymId);
-          if (!gym || gym.status !== 'active') throw new ApiError(403, 'Gimnasio no disponible.');
+          const gym = store.requireOperationalGym(gymId);
           const deviceToken = req.headers.authorization?.match(/^Bearer ([A-Za-z\d_-]+)$/)?.[1];
           if (!deviceToken) throw new ApiError(401, 'Falta la clave del lector.');
           const body = method === 'POST' ? await readJson(req) : undefined;
           return await tenants.withTenant(gym, async (ctx) => {
-            if (store.getGym(gymId)?.status !== 'active') throw new ApiError(403, 'Gimnasio no disponible.');
+            store.requireOperationalGym(gymId);
             const device = await ctx.db
               .prepare('SELECT * FROM devices WHERE hash=? AND active=1')
               .bind(await hash(deviceToken))
               .first<Record<string, any>>();
             if (!device) throw new ApiError(401, 'Lector no autorizado.');
+            store.requireOperationalGym(gymId);
             if (path[0] === 'device-check')
               return json(res, {
                 ok: true,
@@ -164,7 +164,7 @@ export async function startPlatform(options: Options) {
                 },
               });
             const reauthorizeDevice = () => {
-              if (store.getGym(gymId)?.status !== 'active') throw new ApiError(403, 'Gimnasio no disponible.');
+              store.requireOperationalGym(gymId);
               if (
                 !ctx.db.raw
                   .prepare('SELECT 1 FROM devices WHERE id=? AND hash=? AND active=1')
@@ -188,6 +188,11 @@ export async function startPlatform(options: Options) {
           });
         }
         const mobile = !!req.headers.authorization;
+        const kioskRoute =
+          (method === 'GET' && path.join('/') === 'kiosk/bootstrap') ||
+          (method === 'POST' && path.join('/') === 'kiosk/start') ||
+          (method === 'POST' && path.join('/') === 'access') ||
+          (method === 'GET' && path.join('/') === 'branding/logo');
         if (mobile) {
           const allowed =
             (method === 'GET' &&
@@ -205,7 +210,7 @@ export async function startPlatform(options: Options) {
         const support = String(
           req.headers['x-gympass-support'] || (imageGet ? cookieValue(req, 'gympass_support') : '') || '',
         );
-        const auth = await store.authorize(token, gymId, support, operationalWrite);
+        const auth = await store.authorize(token, gymId, support, operationalWrite, kioskRoute);
         if (path[0] === 'auth' && ['logout', 'password'].includes(path[1])) {
           const alias = new URL(url);
           alias.pathname = '/api/platform/' + path[1];
@@ -216,15 +221,15 @@ export async function startPlatform(options: Options) {
           return json(res, { ok: true });
         }
         return await tenants.withTenant(auth.gym, async (ctx) => {
-          const current = await store.authorize(token, gymId, support, operationalWrite);
+          const current = await store.authorize(token, gymId, support, operationalWrite, kioskRoute);
           if (current.support && writing)
             store.audit(current.user.id, 'support.request', gymId, method + ' ' + path.join('/'));
           const reauthorize = () => {
-            const latest = store.authorizeSync(token, gymId, support, operationalWrite);
+            const latest = store.authorizeSync(token, gymId, support, operationalWrite, kioskRoute);
             if (latest.actor.role !== current.actor.role)
               throw new ApiError(403, 'Tus permisos cambiaron. Vuelve a abrir el gimnasio.');
           };
-          await gymApi(req, res, url, path, ctx, current, store, tenants, reauthorize);
+          await gymApi(req, res, url, path, ctx, current, store, tenants, reauthorize, token, support);
         });
       }
       if (method !== 'GET' && method !== 'HEAD') throw new ApiError(404, 'Ruta no encontrada.');

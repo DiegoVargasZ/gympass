@@ -599,7 +599,7 @@ export class PosService {
     }[];
     if (!rows.length) {
       const legacy = await this.service.one(
-        `SELECT p.expires FROM people p WHERE p.id=? AND p.expires>=?
+        `SELECT p.expires FROM people p WHERE p.id=? AND p.legacy_access=1 AND p.expires>=?
          AND NOT EXISTS(SELECT 1 FROM pos_memberships m WHERE m.person_id=p.id AND m.start_date<=?)`,
         personId,
         today,
@@ -644,8 +644,8 @@ export class PosService {
     const active = memberships.filter((m) => m.status === 'active' && m.start_date <= today);
     const temporal = active.filter((m) => m.end_date && m.end_date > today);
     const sessions = active.reduce((sum, m) => sum + (m.sessions_remaining || 0), 0);
-    const legacyValid = person.expires && person.expires >= today && !memberships.some((m) => m.start_date <= today);
-    const managed = memberships.length > 0 && !legacyValid;
+    const legacyValid = person.legacy_access === 1 && person.expires && person.expires >= today && !memberships.some((m) => m.start_date <= today);
+    const managed = (person.legacy_access !== 1 || memberships.length > 0) && !legacyValid;
     return {
       plan_gate: await this.planGate(id, today),
       managed,

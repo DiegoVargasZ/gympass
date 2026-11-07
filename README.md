@@ -55,6 +55,12 @@ El sistema revisa los cierres cada minuto y registra las salidas pendientes con 
 
 En Recepción, **Acceso automático** abre la pantalla para cámara o lector USB. Cada lectura alterna entrada y salida según si la persona está dentro; ya no hay que elegir el movimiento. Los lectores USB deben enviar **Enter** al terminar el código. Se conservan las configuraciones de los equipos externos con entradas o salidas dedicadas.
 
+En la plataforma web, abrir **Acceso automático** restringe esa sesión en el servidor al lector del gimnasio. Cambiar la dirección, recargar o abrir otra pestaña con la misma sesión mantiene esa restricción. **Salir** cierra la sesión; para volver al panel hay que iniciar sesión con correo y contraseña. El PIN local deja de utilizarse en la plataforma. El mínimo de contraseña sigue siendo **6 caracteres**.
+
+Los cajeros pueden usar Recepción, Caja y las consultas de la aplicación lectora móvil. Los informes históricos y sus exportaciones requieren administrador o consulta también en el servidor.
+
+Las fichas nuevas de socios pueden registrarse sin cobrar, pero su QR no autoriza entradas hasta tener un plan vigente. La migración conserva los derechos heredados de las fichas existentes y el QR permanente. Un vencimiento escrito en una ficha nueva no sustituye el plan.
+
 ## Conectar lectores
 
 Entra como administrador en **Configuración → Lectores**. Puedes preparar las conexiones antes de tener el equipo. Hay dos formas de usar un lector:
@@ -89,7 +95,7 @@ Authorization: Bearer CLAVE_DEL_LECTOR
 Content-Type: application/json
 ```
 
-El GET de comprobación devuelve `ok: true` y los datos del lector autorizado. No requiere una sesión de usuario. Una clave inválida, revocada o de otro gimnasio se rechaza. Un gimnasio suspendido tampoco acepta la comprobación ni las lecturas.
+El GET de comprobación devuelve `ok: true` y los datos del lector autorizado. No requiere una sesión de usuario. Una clave inválida, revocada o de otro gimnasio se rechaza. Un gimnasio suspendido, archivado o dado de baja tampoco acepta la comprobación ni las lecturas, incluso si la solicitud ya estaba esperando su turno.
 
 Cada lectura envía un JSON como este (el programa genera un UUID distinto para cada lectura):
 

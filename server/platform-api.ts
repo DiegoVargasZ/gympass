@@ -79,6 +79,12 @@ export function createPlatformApi(
     try {
       if (method === 'GET' && path === '/api/platform/status') {
         const current = await store.authenticate(value);
+        if (current?.kioskGymId) {
+          const gym = store.requireOperationalGym(current.kioskGymId);
+          store.authorizeSync(value, gym.id, undefined, false, true);
+          send(res, { mode: 'platform', protocol: 1, user: null, gyms: [], kiosk: { id: gym.id, name: gym.name } });
+          return true;
+        }
         const user = current && !current.mobileGymId ? current.user : null;
         send(res, {
           mode: 'platform',
@@ -125,13 +131,17 @@ export function createPlatformApi(
       }
       // Read the body before resolving permissions so an upload cannot retain an old grant.
       const input = ['POST', 'PATCH', 'PUT'].includes(method) ? await body(req) : {};
-      const session = await store.requireWebSession(value);
-      const actor = session.user;
       if (method === 'POST' && path === '/api/platform/logout') {
+        const current = store.authenticateSync(value);
+        if (!current || current.mobileGymId) throw new ApiError(401, 'Inicia sesión en la plataforma.');
         await store.logout(value);
         res.setHeader('Set-Cookie', cookie(req, '', false, true));
         send(res, { ok: true });
-      } else if (method === 'POST' && path === '/api/platform/password') {
+        return true;
+      }
+      const session = await store.requireWebSession(value);
+      const actor = session.user;
+      if (method === 'POST' && path === '/api/platform/password') {
         await store.changePassword(
           value,
           required(input.current, 'La contraseña actual'),

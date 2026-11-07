@@ -30,7 +30,7 @@ export type Gym = {
 };
 /** Qué subconjunto del panel se está mirando. `archived` y `deleted` son solo para superadministradores. */
 export type GymScope = 'active' | 'archived' | 'deleted';
-export type PlatformSession = { id: string; user: PlatformUser; mobileGymId?: string };
+export type PlatformSession = { id: string; user: PlatformUser; mobileGymId?: string; kioskGymId?: string };
 export type GymAuthorization = {
   user: PlatformUser;
   gym: Gym;
@@ -118,6 +118,8 @@ export class PlatformStore {
     ])
       if (!gymColumns.has(column)) this.raw.exec(`ALTER TABLE gyms ADD COLUMN ${column} ${definition}`);
     initializeBilling(this.raw);
+    if (!(this.raw.prepare('PRAGMA table_info(platform_sessions)').all() as Row[]).some(c => c.name === 'kiosk_gym_id'))
+      this.raw.exec('ALTER TABLE platform_sessions ADD COLUMN kiosk_gym_id TEXT REFERENCES gyms(id)');
     this.billing = new PlatformBilling(this);
   }
 
@@ -239,17 +241,17 @@ export class PlatformStore {
     if (typeof value !== 'string' || !/^(?:m_)?[a-f0-9]{64}$/.test(value)) return null;
     const row = this.raw
       .prepare(
-        'SELECT s.id AS session_id,s.kind,s.gym_id,u.* FROM platform_sessions s JOIN platform_users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND s.revoked_at IS NULL AND u.active=1',
+        'SELECT s.id AS session_id,s.kind,s.gym_id,s.kiosk_gym_id,u.* FROM platform_sessions s JOIN platform_users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND s.revoked_at IS NULL AND u.active=1',
       )
       .get(secretHash(value), Date.now()) as Row | undefined;
     return row
-      ? { id: row.session_id, user: publicUser(row), ...(row.kind === 'mobile' ? { mobileGymId: row.gym_id } : {}) }
+      ? { id: row.session_id, user: publicUser(row), ...(row.kind === 'mobile' ? { mobileGymId: row.gym_id } : {}), ...(row.kiosk_gym_id ? { kioskGymId: row.kiosk_gym_id } : {}) }
       : null;
   }
 
   async requireWebSession(value: string) {
     const session = await this.authenticate(value);
-    if (!session || session.mobileGymId) throw new ApiError(401, 'Inicia sesión en la plataforma.');
+    if (!session || session.mobileGymId || session.kioskGymId) throw new ApiError(401, 'Inicia sesión en la plataforma.');
     return session;
   }
 
@@ -263,13 +265,15 @@ export class PlatformStore {
     this.audit(session.user.id, 'session.logout', session.mobileGymId);
   }
 
-  async authorize(value: string, gymId: string, supportToken?: string, write = false): Promise<GymAuthorization> {
-    return this.authorizeSync(value, gymId, supportToken, write);
+  async authorize(value: string, gymId: string, supportToken?: string, write = false, kiosk = false): Promise<GymAuthorization> {
+    return this.authorizeSync(value, gymId, supportToken, write, kiosk);
   }
 
-  authorizeSync(value: string, gymId: string, supportToken?: string, write = false): GymAuthorization {
+  authorizeSync(value: string, gymId: string, supportToken?: string, write = false, kiosk = false): GymAuthorization {
     const session = this.authenticateSync(value);
     if (!session) throw new ApiError(401, 'Inicia sesión de nuevo.');
+    if (session.kioskGymId && (!kiosk || session.kioskGymId !== gymId))
+      throw new ApiError(403, 'La sesión de acceso automático solo permite leer credenciales. Inicia sesión para volver al panel.');
     if (session.mobileGymId && session.mobileGymId !== gymId)
       throw new ApiError(403, 'El lector está vinculado a otro gimnasio.');
     const gym = this.getGym(gymId);
@@ -305,6 +309,23 @@ export class PlatformStore {
       support,
       readOnly,
     };
+  }
+
+  requireOperationalGym(id: string): Gym {
+    const gym = this.getGym(id);
+    if (!gym || gym.status !== 'active' || gym.archived || gym.deleted)
+      throw new ApiError(403, 'Gimnasio no disponible.');
+    return gym;
+  }
+
+  startKiosk(value: string, gymId: string, supportToken?: string) {
+    const auth = this.authorizeSync(value, gymId, supportToken, true, true);
+    const session = this.authenticateSync(value)!;
+    if (session.mobileGymId || auth.actor.role === 'viewer' || auth.support)
+      throw new ApiError(403, 'Abre el lector con una cuenta de recepción o administración del gimnasio.');
+    this.raw.prepare('UPDATE platform_sessions SET kiosk_gym_id=? WHERE id=?').run(gymId, session.id);
+    this.raw.prepare('UPDATE support_sessions SET revoked_at=? WHERE session_id=? AND revoked_at IS NULL').run(Date.now(), session.id);
+    this.audit(auth.user.id, 'session.kiosk', gymId);
   }
 
   getGym(id: string): Gym | null {
@@ -582,7 +603,7 @@ export class PlatformStore {
   private requireMemberSession(user: PlatformUser, currentToken?: string) {
     if (currentToken === undefined) return;
     const session = this.authenticateSync(currentToken);
-    if (!session || session.mobileGymId || session.user.id !== user.id)
+    if (!session || session.mobileGymId || session.kioskGymId || session.user.id !== user.id)
       throw new ApiError(401, 'Inicia sesión en la plataforma.');
   }
 

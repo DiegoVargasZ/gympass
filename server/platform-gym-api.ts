@@ -24,6 +24,8 @@ export async function gymApi(
   store: PlatformStore,
   manager: TenantManager,
   reauthorize: () => void,
+  sessionToken: string,
+  supportToken?: string,
 ) {
   const method = req.method || 'GET';
   const s = new Service(authorizedDatabase(ctx.db, reauthorize), auth.actor, ctx.codec);
@@ -35,6 +37,24 @@ export async function gymApi(
   const body = method === 'GET' || imageUpload || background ? {} : await readJson(req);
   reauthorize();
   const send = (value: unknown, status = 200) => json(res, value, status);
+  if (first === 'kiosk') {
+    if (path.join('/') === 'kiosk/start' && method === 'POST') {
+      store.startKiosk(sessionToken, ctx.id, supportToken);
+      return send({ ok: true });
+    }
+    if (path.join('/') === 'kiosk/bootstrap' && method === 'GET') {
+      const session = store.authenticateSync(sessionToken);
+      if (session?.kioskGymId !== ctx.id) throw new ApiError(403, 'Activa primero el acceso automático.');
+      const settings = await s.one('SELECT name,timezone,logo_path,brand_color FROM settings WHERE id=1');
+      const installation = await s.one('SELECT owner FROM settings WHERE id=1');
+      const zones = await s.all(`SELECT z.*, (SELECT COUNT(*) FROM (${presenceSql}) p WHERE p.zone_id=z.id) inside FROM zones z WHERE z.id='general'`);
+      return send({ user: { ...auth.actor, role: 'operator' }, settings, zones, installation_id: await hash(installation!.owner),
+        platform: { gym_id: ctx.id, gym_name: auth.gym.name, kiosk: true, support: false, superadmin: false, read_only: false } });
+    }
+    throw new ApiError(404, 'Ruta no encontrada.');
+  }
+  if (method === 'GET' && ['events', 'gym-sessions', 'attendance', 'workdays', 'payroll', 'saved-reports', 'periods'].includes(first))
+    s.requireReports();
   if (first === 'pos') {
     const result = await posRequest(s, method, path, body, url.searchParams);
     return send(result.data, result.status);
@@ -287,7 +307,16 @@ export async function gymApi(
     if (first === 'gym-sessions' && action === 'correct')
       return send(correctSessionTimes(ctx.db, auth.actor, { ...body, entry_id: Number(id) }, Date.now(), auth.actor));
     if (first === 'access') {
+      if (store.authenticateSync(sessionToken)?.kioskGymId) {
+        if (body.person_id || !body.code || body.zone_id && body.zone_id !== 'general' || body.direction !== 'auto')
+          throw new ApiError(403, 'El acceso automático requiere una credencial en acceso general.');
+      }
       const event = await s.access(body);
+      if (store.authenticateSync(sessionToken)?.kioskGymId)
+        return send({ id: event.id, person_id: event.person_id, person_name: event.person_name,
+          zone_id: event.zone_id, zone_name: event.zone_name, direction: event.direction, method: event.method,
+          allowed: event.allowed, reason: event.reason, occurred_at: event.occurred_at, local_date: event.local_date,
+          membership: event.membership, photo_path: null });
       const person = event.person_id ? await s.one('SELECT photo_path FROM people WHERE id=?', event.person_id) : null;
       return send({ ...event, photo_path: person?.photo_path ?? null });
     }

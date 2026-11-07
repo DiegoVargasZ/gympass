@@ -13,6 +13,7 @@ async function fixture(t, expires = null) {
   const service = new Service(db, { id: 'owner', email: 'test@example.test', name: 'Admin', role: 'admin' });
   const pos = new PosService(service);
   const person = await service.savePerson({ name: 'Socio', document: 'CI-RENOVAR', kind: 'member', status: 'active', phone: '59171234567', expires });
+  if (expires) db.raw.prepare('UPDATE people SET legacy_access=1 WHERE id=?').run(person.id);
   const plan = await pos.savePlan({ name: 'Mensual', unit: 'months', duration: 1, price_cents: 10000 });
   const sell = (extra = {}) => pos.checkout({ request_id: randomUUID(), person_id: person.id, payment_method: 'cash', lines: [{ kind: 'plan', id: plan.id, quantity: 1 }], ...extra });
   const scan = (at, direction = 'entry') => service.access({ request_id: randomUUID(), person_id: person.id, direction, reason: 'Prueba de continuidad' }, undefined, new Date(at));
