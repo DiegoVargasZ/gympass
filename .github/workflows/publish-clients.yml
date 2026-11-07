@@ -55,9 +55,12 @@ jobs:
           node scripts/prepare-cloudflared.cjs desktop-runtime/bin
           if ($LASTEXITCODE -ne 0) { throw 'Falló la verificación del conector.' }
       - name: Empaquetar Windows
-        shell: pwsh
+        shell: powershell
         run: |
           Set-Location "$env:RELEASE_WORKSPACE/package"
+          $ErrorActionPreference = 'Continue'
+          node scripts/signing.cjs --inspect-certificates
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo comprobar el almacén de certificados.' }
           npx --no-install electron-builder --config desktop/builder.cjs --win --x64 --publish never
           if ($LASTEXITCODE -ne 0) { throw 'Falló la generación de Windows.' }
       - name: Adjuntar instaladores y retirar el paquete temporal
