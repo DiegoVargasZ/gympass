@@ -126,6 +126,43 @@ const sale = (person_id, plan) => ({
   lines: [{ kind: "plan", id: plan.id, quantity: 1 }],
 });
 
+test('la primera conexión descarga socios, cobros y el mismo QR y la copia persiste al volver a abrir sin red', async t => {
+  const f = await fixture(t);
+  let copy;
+  let reopened;
+  try {
+    const member = await f.cloud(s => s.savePerson(person('CENTRAL-ANTES', 'Socio del servidor')));
+    const plan = await f.cloud(s => new PosService(s).savePlan({ name: 'Mes central', unit: 'months', duration: 1, price_cents: 15000 }));
+    const payment = await f.cloud(s => new PosService(s).checkout(sale(member.id, plan)));
+    const card = await f.cloud(s => s.credentialCard(payment.credential.id));
+    copy = await f.local('Copia automática inicial');
+    assert.equal((await copy.service().personDetail(member.id)).name, 'Socio del servidor');
+    assert.equal(copy.db.raw.prepare('SELECT COUNT(*) n FROM pos_sales').get().n, 1);
+    assert.equal((await copy.service().credentialCard(payment.credential.id)).code, card.code);
+    await copy.replica.stop();
+    copy.db.close();
+    reopened = new SqliteDatabase(join(copy.root, 'gympass.sqlite'));
+    const replica = new ReplicaClient(reopened, copy.root, new Backups(reopened.raw, join(copy.root, 'gympass.sqlite'), join(copy.root, 'backups')), () => {});
+    assert.equal(replica.linked, true);
+    assert.equal(replica.status().gym_id, f.gym.id);
+    const offline = t.mock.method(globalThis, 'fetch', async () => { throw Error('Sin Internet'); });
+    await replica.synchronize();
+    replica.requireWritable();
+    assert.equal(reopened.raw.prepare('SELECT name FROM people WHERE id=?').get(member.id).name, 'Socio del servidor');
+    assert.equal(reopened.raw.prepare('SELECT COUNT(*) n FROM pos_sales').get().n, 1);
+    offline.mock.restore();
+    await f.cloud(s => s.savePerson(person('CENTRAL-DESPUES', 'Cambio desde otro equipo')));
+    await replica.synchronize();
+    assert.equal(reopened.raw.prepare('SELECT COUNT(*) n FROM people').get().n, 2);
+    assert.equal(replica.status().pending, 0);
+    await replica.stop();
+  } finally {
+    if (reopened) reopened.close();
+    else if (copy) { await copy.replica.stop(); copy.db.close(); }
+    await f.app.close();
+  }
+});
+
 test("escritorio funciona sin red y combina dos lotes tras una respuesta perdida sin duplicar pagos ni QR", async (t) => {
   const f = await fixture(t),
     desktops = [];

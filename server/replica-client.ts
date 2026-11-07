@@ -86,7 +86,9 @@ export class ReplicaClient {
     return !!this.configuration;
   }
   get required() {
-    return !!process.env.GYMPASS_SYNC_SERVER && !this.linked;
+    const firstRun = process.env.GYMPASS_STANDALONE !== "1" &&
+      !this.db.raw.prepare("SELECT id FROM settings WHERE id=1").get();
+    return !this.linked && (!!process.env.GYMPASS_SYNC_SERVER || firstRun);
   }
   status() {
     const state = this.state();
@@ -99,7 +101,7 @@ export class ReplicaClient {
       linked: this.linked,
       required: this.required,
       server:
-        this.configuration?.server || process.env.GYMPASS_SYNC_SERVER || "",
+        this.configuration?.server || process.env.GYMPASS_SYNC_SERVER || "https://gympass.site",
       gym_id: this.configuration?.gym_id,
       gym_name: state?.base.tables.find((t) => t.name === "settings")?.rows[0]
         ?.name,
@@ -182,7 +184,7 @@ export class ReplicaClient {
     return { data, response };
   }
   async link(input: Record<string, any>, canReplace = false) {
-    const server = String(input.server || process.env.GYMPASS_SYNC_SERVER || "")
+    const server = String(input.server || process.env.GYMPASS_SYNC_SERVER || "https://gympass.site")
       .trim()
       .replace(/\/$/, "");
     const login = await this.remote(server, "platform/login", "POST", {

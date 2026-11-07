@@ -85,10 +85,36 @@ if (mode === "prepare") {
   );
   if (
     manifest.version !== version ||
-    !/^[a-f0-9]{40}$/.test(manifest.source_commit)
+    !/^[a-f0-9]{40}$/.test(manifest.source_commit) ||
+    (process.env.GITHUB_SHA && manifest.source_commit !== process.env.GITHUB_SHA)
   )
     throw Error("Versión de runtime incorrecta.");
   const apk = join(prepared, `GymPASS-Android-${version}.apk`);
+  const windowsOnly = manifest.windows_only === true;
+  if (windowsOnly) {
+    if (!manifest.native_smoke?.passed || manifest.native_smoke.version !== version)
+      throw Error('Falta la comprobación de arranque de Windows.');
+    for (const name of ['gympass-logo.png', 'gympass-icon-512.png']) {
+      const asset = manifest.public_images?.[name];
+      if (!asset || !/^[a-f0-9]{64}$/.test(asset.sha256)) throw Error('Falta la huella de la imagen: ' + name);
+      const target = join(prepared, 'desktop-runtime', 'dist', name);
+      if (!existsSync(target)) {
+        const url = `https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${manifest.source_commit}/dist/${name}`;
+        const response = await fetch(url, { signal: AbortSignal.timeout(60000) });
+        if (!response.ok) throw Error('No se pudo recuperar la imagen: ' + name);
+        const bytes = Buffer.from(await response.arrayBuffer());
+        if (createHash('sha256').update(bytes).digest('hex') !== asset.sha256) throw Error('La imagen publicada difiere: ' + name);
+        writeFileSync(target, bytes);
+      }
+      if (await digest(target) !== asset.sha256) throw Error('Imagen incorrecta: ' + name);
+    }
+    for (const name of ['desktop/main.cjs', 'desktop/remote.cjs', 'desktop-runtime/server/replica-client.js', 'desktop-runtime/dist/index.html']) {
+      const expected = manifest.runtime_sha256?.[name];
+      if (!/^[a-f0-9]{64}$/.test(expected || '') || await digest(join(prepared, name)) !== expected)
+        throw Error('El runtime de Windows no coincide: ' + name);
+    }
+  }
+  if (!windowsOnly) {
   if (!existsSync(apk)) {
     const patch = JSON.parse(readFileSync(join(prepared, 'android-delta.json'), 'utf8'));
     const source = new URL(patch.base_url);
@@ -102,6 +128,7 @@ if (mode === "prepare") {
   }
   if ((await digest(apk)) !== manifest.android_sha256)
     throw Error("No coincide el APK firmado.");
+  }
   for (const name of [
     "server/replica-client.js",
     "server/replication.js",
@@ -110,10 +137,10 @@ if (mode === "prepare") {
   ])
     if (!existsSync(join(prepared, "desktop-runtime", name)))
       throw Error("Runtime incompleto: " + name);
-  console.log(`Runtime ${manifest.source_commit} y APK firmado verificados.`);
+  console.log(`Runtime ${manifest.source_commit} verificado${windowsOnly ? ' para Windows' : ' con el APK firmado'}.`);
   if (mode === "upload") {
     const paths = [
-      apk,
+      ...(windowsOnly ? [] : [apk]),
       ...["Setup", "Portable"].map((kind) =>
         join(work, "dist-escritorio", `GymPASS-${kind}-${version}.exe`),
       ),
