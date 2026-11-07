@@ -7,11 +7,11 @@ import {
   mkdirSync,
   statSync,
   existsSync,
-  copyFileSync,
 } from "node:fs";
 import { resolve, join, basename } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { restoreSignedApk } from "./apk-delta.mjs";
 const version = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ).version;
@@ -79,25 +79,6 @@ if (mode === "prepare") {
   if ((await digest(path)) !== RELEASE_ARCHIVE_SHA256)
     throw Error("No coincide la huella del paquete preparado.");
   console.log("Paquete preparado verificado.");
-  // The signed APK is uploaded once from the signing machine, separately from
-  // the much smaller Windows runtime. Never replace it with an unsigned build.
-  let android;
-  for (let attempt = 0; attempt < 120; attempt++) {
-    const current = await (await api(`/releases/${RELEASE_ID}`)).json();
-    if (!current.draft || current.tag_name !== `v${version}`)
-      throw Error("La entrega dejó de ser el borrador esperado.");
-    android = current.assets.find(item => item.name === `GymPASS-Android-${version}.apk` && item.state === "uploaded");
-    if (android) break;
-    if (attempt % 6 === 0) console.log("Esperando el APK firmado de esta versión…");
-    await new Promise(done => setTimeout(done, 10000));
-  }
-  if (!android || !/^sha256:[a-f0-9]{64}$/.test(android.digest || ""))
-    throw Error("No está disponible el APK firmado verificado.");
-  const androidResponse = await api(`/releases/assets/${android.id}`, { headers: { Accept: "application/octet-stream" } });
-  const androidPath = join(work, `GymPASS-Android-${version}.apk`);
-  await pipeline(Readable.fromWeb(androidResponse.body), createWriteStream(androidPath));
-  if (`sha256:${await digest(androidPath)}` !== android.digest)
-    throw Error("No coincide el APK descargado de la entrega.");
 } else {
   const manifest = JSON.parse(
     readFileSync(join(prepared, "prepared.json"), "utf8"),
@@ -108,7 +89,17 @@ if (mode === "prepare") {
   )
     throw Error("Versión de runtime incorrecta.");
   const apk = join(prepared, `GymPASS-Android-${version}.apk`);
-  if (!existsSync(apk)) copyFileSync(join(work, `GymPASS-Android-${version}.apk`), apk);
+  if (!existsSync(apk)) {
+    const patch = JSON.parse(readFileSync(join(prepared, 'android-delta.json'), 'utf8'));
+    const source = new URL(patch.base_url);
+    if (source.origin !== 'https://github.com' || !source.pathname.startsWith(`/${GITHUB_REPOSITORY}/releases/download/`) || source.search || source.hash)
+      throw Error('La base Android no pertenece a las entregas de este repositorio.');
+    const response = await fetch(source, { signal: AbortSignal.timeout(120000) });
+    if (!response.ok) throw Error('No se pudo descargar la base Android publicada.');
+    if (patch.sha256 !== manifest.android_sha256) throw Error('El delta no corresponde al APK firmado del manifiesto.');
+    const bytes = restoreSignedApk(Buffer.from(await response.arrayBuffer()), readFileSync(join(prepared, 'android-delta.bin')), patch);
+    writeFileSync(apk, bytes);
+  }
   if ((await digest(apk)) !== manifest.android_sha256)
     throw Error("No coincide el APK firmado.");
   for (const name of [
