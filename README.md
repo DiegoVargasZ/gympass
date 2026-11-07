@@ -1,6 +1,6 @@
 # GymPASS para Namecheap
 
-La raíz de este repositorio contiene el código listo para desplegar la plataforma central de GymPASS 4.4.0. La interfaz ya está compilada en `dist/`; el servidor y las migraciones están en `server/`.
+La raíz de este repositorio contiene el código listo para desplegar la plataforma central de GymPASS 4.4.1. La interfaz ya está compilada en `dist/`; el servidor y las migraciones están en `server/`.
 
 Los proyectos locales de escritorio, Android y desarrollo se conservan en el disco y quedan excluidos de Git. Los datos y las credenciales tampoco se versionan.
 
@@ -51,10 +51,22 @@ El superadministrador dispone de **Copia de la plataforma** en su panel. Puede c
 
 ## Escritorio y móviles independientes sin Internet
 
-Actualiza las aplicaciones a **4.4.0** y realiza la primera vinculación con Internet. Cada dispositivo conserva su propia copia del gimnasio y sincroniza automáticamente al recuperar la conexión. La computadora puede estar apagada cuando se utiliza un móvil conectado directamente a la plataforma o su copia sin conexión.
+### Seleccionar la conexión desde Configuración
+
+En **Configuración → Conexión → Dónde quieres trabajar**, elige **Local** o **Servidor**. En la aplicación de escritorio, **Guardar conexión y reiniciar** solicita confirmar el destino y conserva las bases actuales. La opción **Guardar una copia local** permite trabajar sin Internet y sincronizar después. Volver a Local abre la base independiente de esta computadora; no mezcla automáticamente sus datos con los del servidor.
+
+Desde un navegador, **Abrir conexión** lleva al servidor HTTPS seleccionado o al servidor local que ya esté funcionando en esta computadora. Cada destino requiere su propia sesión. La instalación de escritorio debe estar actualizada para guardar y aplicar la conexión desde esta pantalla.
+
+### Descargar las aplicaciones desde el login
+
+Los formularios de acceso local y de la plataforma incluyen **Descarga GymPASS**, con enlaces directos al APK Android, al instalador Windows y a Windows portátil de la versión publicada 4.4.1 en las entregas oficiales de `DiegoVargasZ/gympass`. Los enlaces se pueden abrir sin iniciar sesión. Los binarios se alojan en GitHub Releases.
+
+El logo y los iconos web, Windows y Android usan la imagen de GymPASS facilitada para esta actualización. Los instaladores 4.4.1 incluyen la nueva imagen; Windows permite guardar la conexión desde Configuración.
+
+Actualiza las aplicaciones a **4.4.1** y realiza la primera vinculación con Internet. Cada dispositivo conserva su propia copia del gimnasio y sincroniza automáticamente al recuperar la conexión. La computadora puede estar apagada cuando se utiliza un móvil conectado directamente a la plataforma o su copia sin conexión.
 
 - **Windows:** en el menú **Conexión de GymPASS → Servidor central**, escribe `https://gympass.site` y activa **Guardar una copia local para trabajar sin Internet y sincronizar al reconectar**. Reinicia e inicia la vinculación con una cuenta administradora del gimnasio. Se descarga una copia independiente, conservando la instalación local anterior en su carpeta. Después puedes usar socios, planes, caja, credenciales y recepción sin Internet. El acceso se hace con la cuenta que vinculó esa copia. **Configuración → Celular como lector** muestra el estado y permite sincronizar manualmente.
-- **Android:** instala el APK 4.4.0 e inicia sesión en `https://gympass.site`; selecciona el gimnasio si tienes varios. La aplicación descarga su base local. El lector, los socios, la presencia, el historial reciente y las horas funcionan sin Wi-Fi, datos ni computadora. Cada teléfono tiene su propio archivo SQLite, separado por servidor, gimnasio y cuenta. El historial móvil conserva los últimos 10.000 movimientos y las entradas abiertas necesarias para calcular la presencia.
+- **Android:** instala el APK 4.4.1 e inicia sesión en `https://gympass.site`; selecciona el gimnasio si tienes varios. La aplicación descarga su base local. El lector, los socios, la presencia, el historial reciente y las horas funcionan sin Wi-Fi, datos ni computadora. Cada teléfono tiene su propio archivo SQLite, separado por servidor, gimnasio y cuenta. El historial móvil conserva los últimos 10.000 movimientos y las entradas abiertas necesarias para calcular la presencia.
 - **Administración central:** **Configuración → Conexión** muestra los dispositivos, su última sincronización y los lotes que necesitan revisión. Puedes revocar o reactivar una vinculación. El superadministrador también puede administrarlas dentro de una sesión de soporte, pero la primera vinculación se hace con una cuenta propia del gimnasio.
 
 Las autorizaciones sin conexión duran **7 días desde la última sincronización**; las fechas y sesiones de los planes se siguen comprobando en la copia local. Al reconectar se comprueban de nuevo gimnasio, cuenta, rol y vinculación. La suspensión o baja del gimnasio y la revocación de permisos bloquean nuevas sincronizaciones. Cambiar la contraseña central invalida las vinculaciones anteriores.
