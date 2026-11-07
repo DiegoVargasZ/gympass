@@ -6,10 +6,11 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const apk = resolve(process.argv[2] || '');
 const serial = process.argv[3];
-if (!process.argv[2] || !/^emulator-\d+$/.test(serial || ''))
-  throw Error('Uso: node scripts/check-android-start.mjs ruta/al/APK emulator-5554. Solo se prueba en emuladores.');
+const expectedInterface = process.argv[4] || 'any';
+if (!process.argv[2] || !/^emulator-\d+$/.test(serial || '') || !['any', 'web'].includes(expectedInterface))
+  throw Error('Uso: node scripts/check-android-start.mjs ruta/al/APK emulator-5554 [web]. Solo se prueba en emuladores.');
 const executable = process.env.ADB_BINARY || (process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Android/Sdk/platform-tools/adb.exe') : 'adb');
-const adb = (args, encoding = 'utf8') => execFileSync(executable, ['-s', serial, ...args], { encoding, timeout: 120000, windowsHide: true });
+const adb = (args, encoding = 'utf8') => execFileSync(executable, ['-s', serial, ...args], { encoding, timeout: 120000, maxBuffer: 32 * 1024 * 1024, windowsHide: true });
 const packageName = 'local.gympass.controlacceso.mobile';
 const directory = resolve('output/android-crash');
 mkdirSync(directory, { recursive: true });
@@ -30,8 +31,10 @@ try {
       if (!pid) throw Error('GymPASS terminó durante el arranque.');
       adb(['shell', 'uiautomator', 'dump', '/sdcard/gympass-smoke.xml']);
       const ui = adb(['shell', 'cat', '/sdcard/gympass-smoke.xml']);
-      if (ui.includes('Te damos la bienvenida') && ui.includes('Dirección HTTPS de GymPASS')) {
-        starts.push({ attempt: attempt + 1, pid, login_visible: true });
+      const webLogin = ui.includes('android.webkit.WebView') && ui.includes('Iniciar sesión') && ui.includes('Correo electrónico') && ui.includes('Gestión');
+      const readerLogin = ui.includes('Te damos la bienvenida') && ui.includes('Dirección HTTPS de GymPASS');
+      if (webLogin || (expectedInterface !== 'web' && readerLogin)) {
+        starts.push({ attempt: attempt + 1, pid, login_visible: true, interface: webLogin ? 'web' : 'reader' });
         ready = true;
         break;
       }
