@@ -416,9 +416,10 @@ test("compartir recupera el QR activo y el teléfono del socio sin emitir otra c
         },
         context.codec,
       );
-      await assert.rejects(() => operator.credentialCard(issued.id), {
-        status: 403,
-      });
+      assert.equal((await operator.credentialCard(issued.id)).code, issued.code);
+      assert.equal((await operator.credentials(person.id))[0].shareable, 1);
+      await assert.rejects(() => operator.revokeCredential(issued.id), { status: 403 });
+      await assert.rejects(() => operator.issueCredential(person.id, { kind: 'qr', label: 'Otro' }), { status: 403 });
       await service.revokeCredential(issued.id);
       await assert.rejects(() => service.credentialCard(issued.id), {
         status: 409,

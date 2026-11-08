@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { gunzipSync } from "node:zlib";
@@ -124,6 +124,46 @@ const sale = (person_id, plan) => ({
   person_id,
   payment_method: "cash",
   lines: [{ kind: "plan", id: plan.id, quantity: 1 }],
+});
+
+test('la foto para la copia móvil exige vinculación vigente y permanece aislada por gimnasio', async t => {
+  const f = await fixture(t);
+  try {
+    const bytes = Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA', 'base64');
+    const filename = crypto.randomUUID() + '.webp';
+    const member = await f.cloud(async (s, ctx) => {
+      const member = await s.savePerson(person('PHOTO'));
+      mkdirSync(join(ctx.root, 'photos'), { recursive: true });
+      writeFileSync(join(ctx.root, 'photos', filename), bytes);
+      ctx.db.raw.prepare('UPDATE people SET photo_path=? WHERE id=?').run(filename, member.id);
+      return member;
+    });
+    const login = await f.app.store.mobileLogin({ email: 'operator@example.test', password: '123456', gymId: f.gym.id });
+    const paired = await f.request(`gyms/${f.gym.id}/sync/pair`, 'POST', { kind: 'mobile', name: 'Fotos' }, login.token, true);
+    assert.equal(paired.response.status, 201);
+    const path = `gyms/${f.gym.id}/sync/photo?person=${member.id}`;
+    const photo = () => f.request(path, 'GET', undefined, paired.data.token, true);
+    const result = await photo();
+    assert.equal(result.response.status, 200);
+    assert.equal(result.data.photo_path, filename);
+    assert.equal(result.data.data_uri, 'data:image/webp;base64,' + bytes.toString('base64'));
+    assert.match(result.response.headers.get('cache-control'), /no-store/);
+    assert.equal((await f.request(path)).response.status, 401);
+    assert.equal((await f.request(path, 'GET', undefined, login.token, true)).response.status, 401);
+    assert.equal((await f.request(`gyms/${f.gym.id}/sync/photo?person=inexistente`, 'GET', undefined, paired.data.token, true)).response.status, 404);
+    const other = f.app.store.createGym(f.owner, { name: 'Otro gimnasio', slug: 'other-photo' });
+    f.app.tenants.provision(other);
+    f.app.store.markGymProvisioned(other.id);
+    const foreign = await f.request(`gyms/${other.id}/sync/photo?person=${member.id}`, 'GET', undefined, paired.data.token, true);
+    assert.ok([401, 403].includes(foreign.response.status), 'la vinculación nunca entrega fotos de otro gimnasio');
+    await f.cloud((_s, ctx) => ctx.db.raw.prepare('UPDATE people SET deleted_at=? WHERE id=?').run(Date.now(), member.id));
+    assert.equal((await photo()).response.status, 404);
+    await f.cloud((_s, ctx) => ctx.db.raw.prepare('UPDATE people SET deleted_at=NULL WHERE id=?').run(member.id));
+    assert.equal((await f.request(`gyms/${f.gym.id}/sync/devices/${paired.data.id}`, 'DELETE')).response.status, 200);
+    assert.equal((await photo()).response.status, 401);
+  } finally {
+    await f.app.close();
+  }
 });
 
 test('la primera conexión descarga socios, cobros y el mismo QR y la copia persiste al volver a abrir sin red', async t => {

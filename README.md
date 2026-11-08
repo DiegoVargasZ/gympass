@@ -1,6 +1,6 @@
 # GymPASS para Namecheap
 
-La raíz de este repositorio contiene el código listo para desplegar la plataforma central de GymPASS 4.4.1. La interfaz ya está compilada en `dist/`; el servidor y las migraciones están en `server/`.
+La raíz de este repositorio contiene el código listo para desplegar la plataforma central de GymPASS 4.5.5. La interfaz ya está compilada en `dist/`; el servidor y las migraciones están en `server/`.
 
 Los proyectos locales de escritorio, Android y desarrollo se conservan en el disco y quedan excluidos de Git. Los datos y las credenciales tampoco se versionan.
 
@@ -23,9 +23,13 @@ La utilidad pide las credenciales en la terminal. No hay una contraseña predete
 
 ## Compartir la credencial por WhatsApp
 
-El administrador puede pulsar **Enviar por WhatsApp** en **Credenciales QR** o en las credenciales de la ficha del socio. El sistema prepara la imagen PNG del QR activo que ya tiene; no emite ni reemplaza su credencial.
+El administrador y el cajero pueden compartir el QR vigente del socio desde su ficha o el comprobante de Caja. El cajero también puede recuperar las tarjetas anteriores a los cobros actuales. Emitir o anular credenciales y gestionar tarjetas del personal sigue reservado al administrador. El sistema prepara la imagen PNG del QR activo que ya tiene; no emite ni reemplaza su credencial.
 
-**Descargar PNG y abrir WhatsApp** guarda la tarjeta y abre directamente el chat del número registrado del socio. Adjunta la imagen descargada y confirma el envío en WhatsApp. No hay que elegir el contacto desde un menú del teléfono. El envío automático de una imagen requiere una integración adicional con WhatsApp Business API.
+En Android 4.5.5, **Abrir WhatsApp con credencial** entrega la imagen y el mensaje juntos a WhatsApp para el número registrado. Confirma el envío allí. El PNG se prepara en la caché privada; no hace falta descargarlo primero. **Copiar imagen** también permite pegarlo en otra conversación. El guardado opcional utiliza la carpeta elegida mediante el sistema de documentos de Android.
+
+En Windows 4.5.5, **Copiar imagen y abrir WhatsApp** copia el PNG al portapapeles y abre el chat con el mensaje preparado. Pega la imagen con Ctrl+V y confirma el envío. En navegadores compatibles se ofrece compartir imagen y texto mediante el menú del sistema. La aplicación no utiliza WhatsApp Business API ni envía mensajes sin confirmación.
+
+El lector móvil sin conexión comparte los textos, colores y datos de resultado con la web: entrada, salida, rechazo, nombre, foto o iniciales, vigencia y sesiones disponibles. Las fotos se guardan en la copia local al sincronizar y permanecen disponibles sin Internet. Ambos lectores utilizan los mismos tres archivos WAV, con tonos distintos para entrada, salida y rechazo; el reproductor móvil usa volumen completo. El aviso aparece durante cuatro segundos con entrada de 180 ms y desvanecimiento de 300 ms, y se retira antes de la siguiente lectura. La lectura automática y la protección contra registros duplicados se conservan.
 
 El WhatsApp con código de país es obligatorio al registrar o editar socios y al cobrarles un plan. Las fichas anteriores se conservan; si falta el número, hay que completarlo antes del cobro.
 
@@ -51,7 +55,7 @@ El superadministrador dispone de **Copia de la plataforma** en su panel. Puede c
 
 ## Escritorio y móviles independientes sin Internet
 
-**Android 4.5.4** amplía el aviso verde o rojo del lector sin conexión para cubrir el panel del escáner y mantiene el resultado identificado por color. Incorpora sonidos locales diferentes para entrada, salida y acceso denegado, con mayor nivel de señal y volumen completo del reproductor. Funcionan sin Internet y respetan el volumen multimedia del teléfono. Windows conserva el instalador 4.5.3.
+**Windows y Android 4.5.5** incluyen el uso compartido de credenciales descrito arriba. Android conserva el aviso verde o rojo del lector sin conexión y utiliza los mismos sonidos de entrada, salida y rechazo que la web. Funcionan sin Internet y respetan el volumen multimedia del teléfono.
 
 La corrección **4.5.3** deja el lector móvil en **Acceso automático**: cada QR registra entrada o salida según la presencia del socio, también con la copia local. No requiere elegir el movimiento ni pulsar un botón para repetir un QR. Conserva cinco segundos entre lecturas; para repetir el mismo código hay que retirarlo de la cámara durante al menos 1,5 segundos. Mantenerlo visible no repite el movimiento. Los pendientes anteriores conservan su movimiento y solicitud originales al reintentar.
 
@@ -73,7 +77,7 @@ La página web incluye **Descarga GymPASS**, con enlaces al APK Android y al ins
 
 La web conserva el logo horizontal anterior y el panel de bienvenida negro. El login muestra el formulario y las descargas sin desplazamiento vertical en pantallas de escritorio de 1980 × 1080 y 1920 × 1080. Los instaladores 4.4.1 mantienen los nuevos iconos de Windows y Android; Windows permite guardar la conexión desde Configuración.
 
-Usa **Windows 4.5.2 y Android 4.5.2** y realiza la primera vinculación con Internet. Cada dispositivo conserva su propia copia del gimnasio y sincroniza automáticamente al recuperar la conexión. La computadora puede estar apagada cuando se utiliza un móvil conectado directamente a la plataforma o su copia sin conexión.
+Usa **Windows 4.5.5 y Android 4.5.5** y realiza la primera vinculación con Internet. Cada dispositivo conserva su propia copia del gimnasio y sincroniza automáticamente al recuperar la conexión. La computadora puede estar apagada cuando se utiliza un móvil conectado directamente a la plataforma o su copia sin conexión.
 
 - **Windows:** instala 4.5.2 y entra con la cuenta administradora del gimnasio. La primera conexión prepara automáticamente la copia completa. Configuración → Conexión permite elegir Servidor o Copia local sin cambiar de base. Al reconectar se envían los cambios y se reciben los de otros equipos. La instalación independiente anterior se conserva aparte.
 - **Android:** instala el APK 4.5.2. **Gestión** abre directamente `https://gympass.site/` con el mismo login, diseño claro, apartados y funciones de la web, según los permisos de la cuenta. Funciona en vertical y horizontal. La gestión completa requiere Internet. Para preparar la copia local, abre **Lector sin conexión**, inicia sesión allí con Internet y selecciona el gimnasio si tienes varios. El lector, los socios, la presencia, el historial reciente y las horas funcionan después sin Wi-Fi, datos ni computadora. Cada teléfono tiene su propio archivo SQLite, separado por servidor, gimnasio y cuenta. El historial móvil conserva los últimos 10.000 movimientos y las entradas abiertas necesarias para calcular la presencia.

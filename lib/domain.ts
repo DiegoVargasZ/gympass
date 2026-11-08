@@ -152,6 +152,7 @@ export type AccessEvent = {
 };
 export type Credential = {
   downloadable?: number;
+  shareable?: number;
   id: string;
   person_id: string;
   kind: string;

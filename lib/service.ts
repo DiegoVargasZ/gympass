@@ -546,7 +546,11 @@ export class Service {
   async credentials(personId: string) {
     await this.exists('people', personId);
     return this.all(
-      "SELECT id,person_id,kind,label,suffix,active,created_at,(kind='qr' AND active=1 AND code_cipher IS NOT NULL) downloadable FROM credentials WHERE person_id=? AND NOT EXISTS(SELECT 1 FROM visits WHERE credential_id=credentials.id) ORDER BY created_at DESC",
+      `SELECT id,person_id,kind,label,suffix,active,created_at,(kind='qr' AND active=1 AND code_cipher IS NOT NULL) downloadable,
+      (?='admin' OR (?='operator' AND (EXISTS(SELECT 1 FROM people WHERE id=credentials.person_id AND kind='member') OR EXISTS(SELECT 1 FROM pos_sales WHERE credential_id=credentials.id)))) shareable
+      FROM credentials WHERE person_id=? AND NOT EXISTS(SELECT 1 FROM visits WHERE credential_id=credentials.id) ORDER BY created_at DESC`,
+      this.actor.role,
+      this.actor.role,
       personId,
     );
   }
@@ -689,8 +693,6 @@ export class Service {
   }
   async credentialCard(id: string) {
     this.require('operator');
-    if (this.actor.role !== 'admin' && !(await this.one('SELECT id FROM pos_sales WHERE credential_id=?', id)))
-      throw new ApiError(403, 'Solo puedes recuperar las credenciales asociadas a cobros de planes.');
     const settings = await this.one('SELECT timezone FROM settings WHERE id=1');
     const today = localParts(new Date(), settings!.timezone).date;
     const row = await this.one(
@@ -699,6 +701,10 @@ export class Service {
       id,
     );
     if (!row) throw new ApiError(404, 'Credencial no encontrada.');
+    if (this.actor.role !== 'admin' && !(
+      (row.person_kind === 'member' && !(await this.one('SELECT id FROM visits WHERE credential_id=?', id))) ||
+      await this.one('SELECT id FROM pos_sales WHERE credential_id=?', id)
+    )) throw new ApiError(403, 'Solo puedes compartir las credenciales de socios o de cobros de planes.');
     if (!row.active || row.kind !== 'qr') throw new ApiError(409, 'Solo puedes descargar una credencial QR activa.');
     if (!row.code_cipher || !this.codec)
       throw new ApiError(

@@ -3,6 +3,7 @@ import type { PlatformStore } from "./platform-store.ts";
 import type { TenantManager } from "./tenant-manager.ts";
 import { ApiError } from "../lib/service.ts";
 import { json, readJson, requestToken } from "./platform-http.ts";
+import { loadMedia } from "./media.ts";
 import {
   authorizeReplica,
   pairReplica,
@@ -148,6 +149,17 @@ export async function replicationApi(
   const body = method === "GET" ? {} : await readJson(req, 64 * 1024 * 1024);
   return manager.withTenant(gym, async (ctx) => {
     const { device, auth } = authorizeReplica(store, ctx, token);
+    if (action === 'photo' && method === 'GET') {
+      const person = ctx.db.raw.prepare('SELECT photo_path FROM people WHERE id=? AND deleted_at IS NULL')
+        .get(url.searchParams.get('person') || '');
+      if (!person?.photo_path || !/\.(png|webp)$/.test(String(person.photo_path)))
+        throw new ApiError(404, 'Esta persona no tiene foto.');
+      const bytes = await loadMedia(ctx.root, 'photos', String(person.photo_path));
+      authorizeReplica(store, ctx, token);
+      if (bytes.length > 2 * 1024 * 1024) throw new ApiError(413, 'La foto es demasiado grande.');
+      return json(res, { photo_path: person.photo_path,
+        data_uri: `data:image/${String(person.photo_path).endsWith('.webp') ? 'webp' : 'png'};base64,${bytes.toString('base64')}` });
+    }
     if (action === "snapshot" && method === "GET") {
       const snapshot = await replicaSnapshot(ctx, device, auth);
       authorizeReplica(store, ctx, token);
