@@ -3,7 +3,8 @@ import { gunzipSync } from 'node:zlib';
 import { restoreSignedApk } from './apk-delta.mjs';
 
 const { GH_TOKEN, GITHUB_REPOSITORY, GITHUB_SHA, RELEASE_ID, RELEASE_ASSET_ID, RELEASE_ARCHIVE_SHA256 } = process.env;
-if (!GH_TOKEN || !/^[\w.-]+\/[\w.-]+$/.test(GITHUB_REPOSITORY || '') || !/^\d+$/.test(RELEASE_ID || '') || !/^\d+$/.test(RELEASE_ASSET_ID || '') || !/^[a-f0-9]{64}$/.test(RELEASE_ARCHIVE_SHA256 || ''))
+const preparedBlob = /^[a-f0-9]{40}$/.test(RELEASE_ASSET_ID || '');
+if (!GH_TOKEN || !/^[\w.-]+\/[\w.-]+$/.test(GITHUB_REPOSITORY || '') || !/^\d+$/.test(RELEASE_ID || '') || (!/^\d+$/.test(RELEASE_ASSET_ID || '') && !preparedBlob) || !/^[a-f0-9]{64}$/.test(RELEASE_ARCHIVE_SHA256 || ''))
   throw Error('Configuración Android incompleta.');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const headers = { Authorization: `Bearer ${GH_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'GymPASS-Android-release' };
@@ -16,10 +17,20 @@ async function api(path, options = {}) {
 let release = await (await api(`/releases/${RELEASE_ID}`)).json();
 if (!release.draft || !/^v\d+\.\d+\.\d+$/.test(release.tag_name)) throw Error('Se requiere la entrega Android en borrador.');
 const version = release.tag_name.slice(1);
-const archive = release.assets.find(item => String(item.id) === RELEASE_ASSET_ID);
+let archive;
+let archiveBytes;
+if (preparedBlob) {
+  const blob = await (await api(`/git/blobs/${RELEASE_ASSET_ID}`)).json();
+  if (blob.sha !== RELEASE_ASSET_ID || blob.encoding !== 'base64' || !Number.isInteger(blob.size) || blob.size <= 0 || blob.size > 64 * 1024 * 1024)
+    throw Error('El blob Android preparado no es válido.');
+  archiveBytes = Buffer.from(blob.content, 'base64');
+  if (archiveBytes.length !== blob.size) throw Error('El blob Android quedó incompleto.');
+} else {
+archive = release.assets.find(item => String(item.id) === RELEASE_ASSET_ID);
 if (!archive || archive.name !== `GymPASS-Android-prepared-${version}.json.gz` || archive.state !== 'uploaded' || archive.digest !== `sha256:${RELEASE_ARCHIVE_SHA256}`)
   throw Error('El paquete Android no coincide con el borrador.');
-const archiveBytes = Buffer.from(await (await api(`/releases/assets/${archive.id}`, { headers: { Accept: 'application/octet-stream' } })).arrayBuffer());
+archiveBytes = Buffer.from(await (await api(`/releases/assets/${archive.id}`, { headers: { Accept: 'application/octet-stream' } })).arrayBuffer());
+}
 if (hash(archiveBytes) !== RELEASE_ARCHIVE_SHA256) throw Error('Huella del paquete Android incorrecta.');
 const { manifest, patch, literal } = JSON.parse(gunzipSync(archiveBytes, { maxOutputLength: 64 * 1024 * 1024 }).toString('utf8'));
 if (manifest.version !== version || manifest.source_commit !== GITHUB_SHA || !manifest.smoke?.passed || manifest.smoke.sha256 !== manifest.sha256 || patch.sha256 !== manifest.sha256)
@@ -49,5 +60,5 @@ for (const [name, bytes] of [[apkName, apk], [checksumName, Buffer.from(`${hash(
     throw Error('El archivo publicado no coincide: ' + name);
   console.log('Adjuntado y verificado: ' + name);
 }
-await api(`/releases/assets/${archive.id}`, { method: 'DELETE' });
+if (archive) await api(`/releases/assets/${archive.id}`, { method: 'DELETE' });
 console.log('APK firmado y arranque verificados. Paquete temporal retirado. El borrador está listo para publicación.');

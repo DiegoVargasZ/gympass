@@ -51,6 +51,8 @@ El superadministrador dispone de **Copia de la plataforma** en su panel. Puede c
 
 ## Escritorio y móviles independientes sin Internet
 
+**Android 4.5.4** amplía el aviso verde o rojo del lector sin conexión para cubrir el panel del escáner y mantiene el resultado identificado por color. Incorpora sonidos locales diferentes para entrada, salida y acceso denegado, con mayor nivel de señal y volumen completo del reproductor. Funcionan sin Internet y respetan el volumen multimedia del teléfono. Windows conserva el instalador 4.5.3.
+
 La corrección **4.5.3** deja el lector móvil en **Acceso automático**: cada QR registra entrada o salida según la presencia del socio, también con la copia local. No requiere elegir el movimiento ni pulsar un botón para repetir un QR. Conserva cinco segundos entre lecturas; para repetir el mismo código hay que retirarlo de la cámara durante al menos 1,5 segundos. Mantenerlo visible no repite el movimiento. Los pendientes anteriores conservan su movimiento y solicitud originales al reintentar.
 
 En todas las interfaces se retiró el bloque «Tus datos en el servidor y en tus equipos» y sus descargas de **Configuración → Conexión**. Se conservan la sincronización, los equipos vinculados y la revisión de conflictos. El APK conserva la firma Android existente. Windows mantiene la distribución sin firma de código configurada en este equipo.
