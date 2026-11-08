@@ -95,6 +95,8 @@ Al cargar una imagen o capturar una foto, arrástrala dentro de la vista previa 
 
 ## Cierre diario y acceso automático
 
+En escritorio, la distribución aprovecha pantallas de **1920 × 1080 y 1980 × 1080**. Recepción ajusta la altura de la cámara para mostrarla completa junto con sus controles; la presencia y los movimientos continúan debajo. Caja mantiene visible la confirmación del cobro y desplaza los catálogos largos dentro de sus listas. El historial del socio se puede desplegar sin sacar el botón de cobro de la pantalla. Planes conserva sus herramientas y cabecera al recorrer la lista. En Configuración, Mi gimnasio presenta los datos y el cierre automático en dos columnas para mostrar el formulario y su submenú completos.
+
 En **Configuración → Datos del gimnasio → Cierre automático**, selecciona **A la hora de cierre del gimnasio**, indica la hora y guarda. Se utiliza la **Zona horaria** de ese gimnasio: para cerrar a las 23:00 en Bolivia, elige **Bolivia (La Paz)** y **23:00**. La hora no se activa por defecto en otros gimnasios.
 
 El sistema revisa los cierres cada minuto y registra las salidas pendientes con la hora de cierre configurada. Los informes las muestran como **Salida estimada**. Si el servidor estuvo detenido, al volver recupera el primer cierre que correspondía a cada visita. Una entrada registrada exactamente en el límite o después corresponde al siguiente cierre. Las salidas reales anteriores se conservan y los reintentos no duplican movimientos. También puedes conservar el cierre por horas o desactivarlo.
