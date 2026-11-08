@@ -171,7 +171,11 @@ export class Service {
   async exists(table: string, id: string) {
     if (!(await this.one(`SELECT id FROM ${table} WHERE id=?`, id))) throw new ApiError(404, 'Registro no encontrado.');
   }
-  async bootstrap(options: { compact?: boolean } = {}) {
+  async bootstrap(options: { compact?: boolean; maintain?: boolean } = {}) {
+    if (options.maintain) {
+      await new Service(this.db, { id: 'system', email: 'system', name: 'Sistema', role: 'admin' }, this.codec)
+        .closeStaleSessions();
+    }
     const installation = await this.one('SELECT owner FROM settings WHERE id=1');
     const [settings, zones, schedules, events, presence] = await Promise.all([
       this.one('SELECT name,timezone,logo_path,brand_color,auto_close_hours,closing_time FROM settings WHERE id=1'),
@@ -893,8 +897,8 @@ export class Service {
       if (!target) throw new ApiError(404, 'Registro no encontrado.');
       if (target.deleted_at) throw new ApiError(409, 'Esta ficha está dada de baja y no puede registrar accesos.');
     }
-    const settings = await this.one('SELECT timezone,closing_time FROM settings WHERE id=1');
-    if (settings?.closing_time) {
+    const settings = await this.one('SELECT timezone,auto_close_hours,closing_time FROM settings WHERE id=1');
+    if (settings?.closing_time || settings?.auto_close_hours) {
       const system = new Service(
         this.db,
         { id: 'system', email: 'system', name: 'Sistema', role: 'admin' },
@@ -1975,7 +1979,7 @@ export class Service {
     let closed = 0;
     for (;;) {
       const entries = await this.all(
-        `SELECT * FROM (${presenceSql}) WHERE occurred_at<? ORDER BY id LIMIT 500`,
+        `SELECT * FROM (${presenceSql}) WHERE occurred_at${closing ? '<' : '<='}? ORDER BY id LIMIT 500`,
         cutoff,
       );
       if (!entries.length) break;

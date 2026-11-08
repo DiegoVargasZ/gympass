@@ -149,7 +149,7 @@ export async function gymApi(
     }
     if (first === 'invitation-templates') return send(await batches.templates());
     if (first === 'bootstrap' || (first === 'mobile' && id === 'bootstrap')) {
-      const boot = await s.bootstrap({ compact: first === 'bootstrap' && url.searchParams.get('compact') === '1' });
+      const boot = await s.bootstrap({ compact: first === 'bootstrap' && url.searchParams.get('compact') === '1', maintain: true });
       if (first === 'mobile') {
         s.require('operator');
         return send({

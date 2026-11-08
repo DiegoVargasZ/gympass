@@ -51,6 +51,12 @@ El superadministrador dispone de **Copia de la plataforma** en su panel. Puede c
 
 ## Escritorio y móviles independientes sin Internet
 
+La corrección **4.5.3** deja el lector móvil en **Acceso automático**: cada QR registra entrada o salida según la presencia del socio, también con la copia local. No requiere elegir el movimiento ni pulsar un botón para repetir un QR. Conserva cinco segundos entre lecturas; para repetir el mismo código hay que retirarlo de la cámara durante al menos 1,5 segundos. Mantenerlo visible no repite el movimiento. Los pendientes anteriores conservan su movimiento y solicitud originales al reintentar.
+
+En todas las interfaces se retiró el bloque «Tus datos en el servidor y en tus equipos» y sus descargas de **Configuración → Conexión**. Se conservan la sincronización, los equipos vinculados y la revisión de conflictos. El APK conserva la firma Android existente. Windows mantiene la distribución sin firma de código configurada en este equipo.
+
+El cierre de visitas por horas se revisa cada minuto, también cuando ya hubo una comprobación ese día. Recepción recupera los cierres pendientes al abrirse, y una lectura automática aplica primero el cierre vencido antes de decidir entrada o salida. Se registra la salida estimada a la hora de entrada más el límite configurado; se conservan las salidas reales. Android aplica esos cierres en su copia autorizada y los sincroniza al reconectar.
+
 ### Seleccionar la conexión desde Configuración
 
 En Windows 4.5.1, **Configuración → Conexión** ofrece **Servidor y copia automática** y **Copia local de este gimnasio**. Ambos usan la misma base sincronizada: elegir Local ya no abre una base vacía e independiente. Antes de volver al servidor, la aplicación intenta enviar los cambios pendientes; si hay un conflicto o quedan cambios sin enviar, conserva la copia y pide resolverlo antes de cambiar.
@@ -59,9 +65,9 @@ La primera ejecución utiliza `https://gympass.site` por defecto. Inicia sesión
 
 Desde un navegador, **Abrir conexión** lleva al servidor HTTPS seleccionado o al servidor local que ya esté funcionando en esta computadora. Cada destino requiere su propia sesión. La instalación de escritorio debe estar actualizada para guardar y aplicar la conexión desde esta pantalla.
 
-### Descargar las aplicaciones desde el login
+### Descargar las aplicaciones desde la página web
 
-Los formularios de acceso local y de la plataforma incluyen **Descarga GymPASS**, con enlaces directos al APK Android y al instalador Windows de las entregas oficiales de `DiegoVargasZ/gympass`. El login muestra únicamente versiones instalables. Los enlaces se pueden abrir sin iniciar sesión y los binarios se alojan en GitHub Releases.
+La página web incluye **Descarga GymPASS**, con enlaces al APK Android y al instalador Windows de las entregas oficiales de `DiegoVargasZ/gympass`. Los enlaces se pueden abrir sin iniciar sesión. El login dentro de Android y Windows oculta estas descargas, tanto en conexión local como central.
 
 La web conserva el logo horizontal anterior y el panel de bienvenida negro. El login muestra el formulario y las descargas sin desplazamiento vertical en pantallas de escritorio de 1980 × 1080 y 1920 × 1080. Los instaladores 4.4.1 mantienen los nuevos iconos de Windows y Android; Windows permite guardar la conexión desde Configuración.
 
