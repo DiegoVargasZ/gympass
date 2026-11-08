@@ -24,11 +24,12 @@ const {
   RELEASE_WORKSPACE,
 } = process.env;
 const mode = process.argv[2];
+const preparedBlob = /^[a-f0-9]{40}$/.test(RELEASE_ASSET_ID || "");
 if (
   (!GH_TOKEN && mode !== "validate") ||
   !/^[\w.-]+\/[\w.-]+$/.test(GITHUB_REPOSITORY || "") ||
   !/^\d+$/.test(RELEASE_ID || "") ||
-  !/^\d+$/.test(RELEASE_ASSET_ID || "") ||
+  (!/^\d+$/.test(RELEASE_ASSET_ID || "") && !preparedBlob) ||
   !/^[a-f0-9]{64}$/.test(RELEASE_ARCHIVE_SHA256 || "") ||
   !RELEASE_WORKSPACE
 )
@@ -61,6 +62,17 @@ async function digest(path) {
   return hash.digest("hex");
 }
 if (mode === "prepare") {
+  mkdirSync(work, { recursive: true });
+  const path = join(work, "clients.7z");
+  if (preparedBlob) {
+    const blob = await (await api(`/git/blobs/${RELEASE_ASSET_ID}`)).json();
+    if (blob.sha !== RELEASE_ASSET_ID || blob.encoding !== "base64" || !Number.isInteger(blob.size) || blob.size <= 0 || blob.size > 64 * 1024 * 1024)
+      throw Error("El blob preparado no es un paquete válido de este repositorio.");
+    const bytes = Buffer.from(blob.content, "base64");
+    if (bytes.length !== blob.size || createHash("sha256").update(bytes).digest("hex") !== RELEASE_ARCHIVE_SHA256)
+      throw Error("No coincide la huella del runtime preparado.");
+    writeFileSync(path, bytes);
+  } else {
   const asset = release.assets.find(
     (item) => String(item.id) === RELEASE_ASSET_ID,
   );
@@ -70,12 +82,11 @@ if (mode === "prepare") {
     asset.state !== "uploaded"
   )
     throw Error("El paquete preparado no pertenece al borrador.");
-  mkdirSync(work, { recursive: true });
   const response = await api(`/releases/assets/${RELEASE_ASSET_ID}`, {
     headers: { Accept: "application/octet-stream" },
   });
-  const path = join(work, "clients.7z");
   await pipeline(Readable.fromWeb(response.body), createWriteStream(path));
+  }
   if ((await digest(path)) !== RELEASE_ARCHIVE_SHA256)
     throw Error("No coincide la huella del paquete preparado.");
   console.log("Paquete preparado verificado.");
@@ -189,7 +200,7 @@ if (mode === "prepare") {
         throw Error("La descarga publicada no coincide: " + name);
       console.log(`Adjuntado y verificado: ${name} (${uploaded.size} bytes).`);
     }
-    await api(`/releases/assets/${RELEASE_ASSET_ID}`, { method: "DELETE" });
+    if (!preparedBlob) await api(`/releases/assets/${RELEASE_ASSET_ID}`, { method: "DELETE" });
     console.log(
       "Paquete temporal retirado; el borrador está listo para revisión.",
     );

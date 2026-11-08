@@ -7,7 +7,7 @@ on:
         description: ID de la entrega en borrador
         required: true
       asset_id:
-        description: ID del paquete preparado privado del borrador
+        description: ID del paquete del borrador o SHA del blob Git preparado
         required: true
       archive_sha256:
         description: SHA-256 del paquete preparado
