@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="935 195 185 185" role="img" aria-label="GymPASS">
-  <rect x="935" y="195" width="185" height="185" fill="#000"/>
-  <g transform="translate(965 238)" fill="none" stroke="white" stroke-width="11" stroke-linecap="round"><path d="M-17 8 V-9 Q-17 -25 0 -25 H25 M85 -25 H110 Q127 -25 127 -8 V17 M127 81 V106 Q127 122 110 122 H85 M25 122 H0 Q-17 122 -17 106 V81"/></g>
-  <g fill="white" transform="translate(965 238)"><path fill-rule="evenodd" d="M9 8h45v45H9z M19 18v25h25V18z M67 8h45v45H67z M77 18v25h25V18z M9 66h45v45H9z M19 76v25h25V76z"/><rect x="67" y="66" width="15" height="15"/><rect x="82" y="81" width="15" height="15"/><rect x="97" y="66" width="15" height="15"/><rect x="67" y="96" width="15" height="15"/><rect x="97" y="96" width="15" height="15"/></g>
-</svg>

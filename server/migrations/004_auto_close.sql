@@ -1,1 +1,0 @@
-ALTER TABLE settings ADD COLUMN auto_close_hours INTEGER NOT NULL DEFAULT 24 CHECK(auto_close_hours BETWEEN 0 AND 720);
