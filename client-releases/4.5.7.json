@@ -14,13 +14,24 @@
     "qr_scan_confirmed": true,
     "sync_recovered": true,
     "code_signed": false,
-    "package_smoke_passed": false,
-    "local_server_source_sha256": "e2fde1f4e4c42b98281ef1fe4148df357f11e6d22aa879ed3417d006a5f3625c"
+    "package_smoke_passed": true,
+    "local_server_source_sha256": "e2fde1f4e4c42b98281ef1fe4148df357f11e6d22aa879ed3417d006a5f3625c",
+    "package_bootstrap_ms": 30
   },
   "files": {
     "GymPASS-Android-4.5.7.apk": {
       "sha256": "7b13d8dd5e13205d2921849527b64cc0c48c4459a11db359abf0d2b777fe878a",
       "bytes": 63381496
+    },
+    "GymPASS-Portable-4.5.7.exe": {
+      "sha256": "e8a566178aa61731749a56cd5cf95972383771c51c57deec8f5cb527a7a40fde",
+      "bytes": 118663127
+    },
+    "GymPASS-Setup-4.5.7.exe": {
+      "sha256": "35c195410946ebd427bf5a89cbc445367ebee07e2c97deab43376a4966d57fda",
+      "bytes": 118916962
     }
-  }
+  },
+  "build_source_commit": "a66de3b3e826a027db212b137013c41937fcfd40",
+  "build_workflow": "https://github.com/DiegoVargasZ/gympass/actions/runs/42633343204"
 }
