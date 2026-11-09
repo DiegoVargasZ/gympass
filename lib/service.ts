@@ -118,7 +118,16 @@ const peopleSummarySql = (
   p.membership_managed,p.sessions_remaining,p.valid_until,
   (SELECT COUNT(*) FROM credentials c WHERE c.person_id=p.id AND c.active=1) credential_count,
   (SELECT COUNT(*) FROM person_zones z WHERE z.person_id=p.id) zone_count FROM ${effectivePeopleSql(today, includeDeleted)} p`;
-export const presenceSql = `SELECT e.* FROM events e WHERE e.allowed=1 AND e.direction='entry' AND NOT EXISTS (SELECT 1 FROM events later WHERE later.person_id=e.person_id AND later.zone_id=e.zone_id AND later.allowed=1 AND (later.occurred_at>e.occurred_at OR (later.occurred_at=e.occurred_at AND later.id>e.id)))`;
+/**
+ * Quien sigue dentro: el ultimo evento permitido de cada par (persona,zona) es una entrada.
+ * Parte de los pares distintos y pide a cada uno su ultimo evento, en vez de recorrer todas
+ * las entradas historicas; asi el costo lo fija el numero de socios y no el tamano del historial.
+ * Un evento permitido sin persona nunca tuvo un posterior que lo cerrara, igual que antes.
+ */
+export const presenceSql = `SELECT e.* FROM events e WHERE e.allowed=1 AND e.direction='entry' AND (e.person_id IS NULL OR e.id IN (
+  SELECT (SELECT l.id FROM events l WHERE l.person_id=k.person_id AND l.zone_id=k.zone_id AND l.allowed=1
+          ORDER BY l.occurred_at DESC, l.id DESC LIMIT 1)
+  FROM (SELECT DISTINCT person_id, zone_id FROM events WHERE allowed=1 AND person_id IS NOT NULL) k))`;
 export const randomToken = (prefix: string) =>
   prefix +
   '_' +

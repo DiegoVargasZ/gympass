@@ -18,7 +18,13 @@
   --brand-900: #111111;
   --brand-700: var(--brand-base);
   --brand-600: var(--brand-base);
-  --brand-100: color-mix(in srgb, var(--brand-base) 9%, var(--surface));
+  /* Equivale a mezclar 9% de --brand-base sobre --surface, ya resuelto:
+     color-mix() necesita Chrome 111 y los equipos con Windows 7 llegan a 109. */
+  --brand-100: #e8e8e8;
+  --brand-hover: #000000;
+  --surface-glass: rgb(255 255 255 / 0.94);
+  --surface-2-glass: rgb(237 240 244 / 0.92);
+  --row-hover: rgb(237 240 244 / 0.52);
   --on-brand: #ffffff;
   --accent: var(--brand-base);
 
@@ -100,6 +106,10 @@
     --brand-700: #ffffff;
     --brand-600: #ffffff;
     --brand-100: #242424;
+    --brand-hover: #e0e0e0;
+    --surface-glass: rgb(17 17 17 / 0.94);
+    --surface-2-glass: rgb(28 28 28 / 0.92);
+    --row-hover: rgb(28 28 28 / 0.52);
     --on-brand: #000000;
     --metal-edge: transparent;
     --metal-shade: transparent;
@@ -161,6 +171,10 @@
   --brand-700: #ffffff;
   --brand-600: #ffffff;
   --brand-100: #242424;
+  --brand-hover: #e0e0e0;
+  --surface-glass: rgb(17 17 17 / 0.94);
+  --surface-2-glass: rgb(28 28 28 / 0.92);
+  --row-hover: rgb(28 28 28 / 0.52);
   --on-brand: #000000;
   --metal-edge: transparent;
   --metal-shade: transparent;

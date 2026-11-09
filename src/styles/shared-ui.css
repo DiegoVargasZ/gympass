@@ -2,7 +2,7 @@
   display: none;
 }
 .sidebar {
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  background: var(--surface-glass);
   color: var(--ink);
   border-right: 1px solid var(--border);
   -webkit-backdrop-filter: blur(12px) saturate(180%) contrast(140%);
@@ -72,7 +72,7 @@
   padding: 12px 8px;
   border: 1px solid var(--border);
   border-radius: 18px;
-  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  background: var(--surface-2-glass);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
   backdrop-filter: blur(12px) saturate(140%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);

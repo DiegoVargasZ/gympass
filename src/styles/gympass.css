@@ -67,7 +67,7 @@
   box-shadow: none;
 }
 .btn.primary:hover {
-  background: color-mix(in srgb, var(--brand-base) 88%, #000);
+  background: var(--brand-hover);
   box-shadow: none;
 }
 .field input,

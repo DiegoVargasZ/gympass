@@ -1,5 +1,13 @@
 # Cambios
 
+## 4.6.0
+
+- Consulta de presencia optimizada para reducir el coste del historial en recepción, informes y mantenimiento, conservando el resultado anterior.
+- Respuestas JSON grandes comprimidas con Brotli o gzip según el cliente; las respuestas pequeñas se envían directamente.
+- Colores de temas compatibles con Chrome y Edge 109; objetivos de compilación fijados y nuevas comprobaciones de compatibilidad y compresión en la verificación.
+- Android (código 4600) y Windows actualizados a 4.6.0 con el código compartido y la interfaz actuales, conservando identidad y datos.
+- Se conservan los recursos web publicados de 4.5.7 para las sesiones abiertas. Windows mantiene Electron 45 y la política existente de distribución sin firma de código.
+
 ## 4.5.7
 
 - Restaurados los módulos de cámara QR actuales y anteriores. Se entregan todos los archivos emitidos por Vite y se prueban las importaciones entre comillas invertidas y la decodificación real de una imagen QR.
