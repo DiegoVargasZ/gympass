@@ -1,6 +1,6 @@
 {
   "version": "4.5.6",
-  "source_sha256": "c0603a8022e9a31f9f02e50030de82acd0e7501eb30e85c847e075a2e47015c7",
+  "source_sha256": "22b7248bdcf863582e34d739500905555f679aa304ba5fcb596e3876641aa8d7",
   "assets": [
     {
       "path": "assets/Access-D4WodXvG.js",
@@ -149,6 +149,10 @@
     {
       "path": "assets/index-V2hZBx4a.css",
       "sha256": "4c68850ae7d43a3e295c96a26c5c72637ec82e1e0511d161cce3b438804882d3"
+    },
+    {
+      "path": "assets/jsQR-D3B25B5Z.js",
+      "sha256": "7d87951277f699c41e2ecaf7cbceae83c8c765583da0ec839c659f4592d4d799"
     },
     {
       "path": "assets/key-round-BxSRP5A4.js",

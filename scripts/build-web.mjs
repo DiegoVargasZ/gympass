@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, cpSync, readdirSync
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { collectWebAssets } from './web-assets.mjs';
+import { collectWebAssets, emittedWebAssets } from './web-assets.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
@@ -15,7 +15,8 @@ if (previous.version === version || !Array.isArray(previous.assets)) throw Error
 
 // Build into staging first: a failed build leaves the published artifact intact.
 await build({ root, build: { outDir: output, emptyOutDir: true } });
-const current = collectWebAssets(output);
+collectWebAssets(output);
+const current = emittedWebAssets(output);
 for (const asset of previous.assets) {
   if (!/^assets\/[A-Za-z0-9_.-]+\.(js|css)$/.test(asset.path)) throw Error('Ruta de retención inválida.');
   const source = join(dist, asset.path);
