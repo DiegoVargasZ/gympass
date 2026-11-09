@@ -8,6 +8,7 @@
 - Fuente web y dependencias de compilación versionadas. GitHub verifica tipos, compila y despliega el artefacto probado.
 - Retención de la interfaz actual y la anterior; retirada de recursos y descargas antiguas del directorio público.
 - Módulos antiguos disponibles solo para consulta histórica autorizada; sus escrituras devuelven 410. Se conservan datos y migraciones.
+- Los informes actuales de accesos y sus consultas guardadas siguen disponibles.
 - Documentación de instalación, operación e historial separada.
 - Android y Windows actualizados a 4.5.6.
 

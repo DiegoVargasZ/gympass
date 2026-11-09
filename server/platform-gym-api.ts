@@ -34,7 +34,8 @@ export async function gymApi(
   const imageUpload = method === 'PUT' && ((first === 'people' && action === 'photo') || first === 'branding');
   const background = ['invitation-batches', 'visits'].includes(first) && !!id && action === 'background';
   // Retired screens retain read-only historical access for reporting accounts.
-  const historical = ['attendance', 'workdays', 'payroll', 'saved-reports', 'periods', 'calendar', 'visits', 'invitation-batches', 'invitation-templates'].includes(first);
+  const historical = ['attendance', 'workdays', 'payroll', 'periods', 'calendar', 'visits', 'invitation-batches', 'invitation-templates'].includes(first);
+  if (first === 'saved-reports') s.requireReports();
   if (historical) {
     s.requireReports();
     if (method !== 'GET') throw new ApiError(410, 'Este módulo fue retirado. Sus datos históricos se conservan en modo de consulta.');
@@ -338,6 +339,7 @@ export async function gymApi(
     if (first === 'expirations' && id) return send(await s.markRenewal(id, body));
     if (first === 'blocklist') return send(await s.blockDocument(body), 201);
     if (first === 'alerts' && id === 'read') return send(await s.readAlerts(body));
+    if (first === 'saved-reports') return send(await s.saveReport(body), 201);
   }
   if (method === 'PATCH') {
     if (first === 'people' && id) return send(await s.savePerson(body, id));
@@ -347,6 +349,7 @@ export async function gymApi(
   }
   if (method === 'DELETE') {
     if (first === 'blocklist' && id) return send(await s.unblockDocument(decodeURIComponent(id)));
+    if (first === 'saved-reports' && id) return send(await s.deleteReport(id));
     if (first === 'people' && id && !action) return send(await s.deletePerson(id));
   }
   throw new ApiError(404, 'Ruta no encontrada.');
