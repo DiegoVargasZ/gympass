@@ -255,8 +255,10 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
         <p role="alert">{error}</p>
         <p>
           {onLogout
-            ? 'Comprueba tu conexión a Internet o vuelve al listado de gimnasios para revisar tu acceso.'
-            : 'Reconectando automáticamente. Comprueba que GymPASS esté abierto y ambos equipos estén en el mismo Wi-Fi.'}
+            ? 'Reconectando automáticamente. Comprueba tu conexión a Internet.'
+            : /Electron\/|GymPASSConnection\//.test(navigator.userAgent)
+              ? 'Reconectando automáticamente con GymPASS en esta computadora. Si el aviso continúa, vuelve a abrir la aplicación; tus datos se conservan.'
+              : 'Reconectando automáticamente. Comprueba que GymPASS esté abierto en la computadora que sirve esta página y que su dirección sea accesible.'}
         </p>
         <button className="btn primary" onClick={() => void initialize()}>
           Reintentar

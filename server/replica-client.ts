@@ -41,6 +41,9 @@ export class ReplicaClient {
   private timer?: ReturnType<typeof setInterval>;
   private running = false;
   private online = false;
+  private stopped = false;
+  private syncAbort = new AbortController();
+  private syncDone: Promise<void> | null = null;
   readonly db: SqliteDatabase;
   readonly root: string;
   readonly backups: Backups;
@@ -86,7 +89,8 @@ export class ReplicaClient {
     return !!this.configuration;
   }
   get required() {
-    const firstRun = process.env.GYMPASS_STANDALONE !== "1" &&
+    const firstRun =
+      process.env.GYMPASS_STANDALONE !== "1" &&
       !this.db.raw.prepare("SELECT id FROM settings WHERE id=1").get();
     return !this.linked && (!!process.env.GYMPASS_SYNC_SERVER || firstRun);
   }
@@ -101,7 +105,9 @@ export class ReplicaClient {
       linked: this.linked,
       required: this.required,
       server:
-        this.configuration?.server || process.env.GYMPASS_SYNC_SERVER || "https://gympass.site",
+        this.configuration?.server ||
+        process.env.GYMPASS_SYNC_SERVER ||
+        "https://gympass.site",
       gym_id: this.configuration?.gym_id,
       gym_name: state?.base.tables.find((t) => t.name === "settings")?.rows[0]
         ?.name,
@@ -159,7 +165,10 @@ export class ReplicaClient {
       response = await fetch(server + "/api/" + path, {
         method,
         redirect: "error",
-        signal: AbortSignal.timeout(120000),
+        signal: AbortSignal.any([
+          AbortSignal.timeout(120000),
+          this.syncAbort.signal,
+        ]),
         headers: {
           "Content-Type": "application/json",
           "X-Requested-With": "GymPASS",
@@ -184,7 +193,9 @@ export class ReplicaClient {
     return { data, response };
   }
   async link(input: Record<string, any>, canReplace = false) {
-    const server = String(input.server || process.env.GYMPASS_SYNC_SERVER || "https://gympass.site")
+    const server = String(
+      input.server || process.env.GYMPASS_SYNC_SERVER || "https://gympass.site",
+    )
       .trim()
       .replace(/\/$/, "");
     const login = await this.remote(server, "platform/login", "POST", {
@@ -334,79 +345,137 @@ export class ReplicaClient {
     }
     this.onInstalled();
   }
+  private localChanges(state: State) {
+    const tables = replicaTables(this.db.raw, "desktop");
+    const currentAssets = replicaAssets(this.root);
+    const assets: NonNullable<SyncPatch["assets"]> = {};
+    for (const [name, after] of Object.entries(currentAssets))
+      if (name !== "credentials.key" && state.base.assets?.[name] !== after)
+        assets[name] = { before: state.base.assets?.[name] || null, after };
+    return {
+      tables,
+      currentAssets,
+      changes: syncChanges(state.base, tables),
+      assets,
+    };
+  }
+
+  private preparePending(state: State, configuration: Configuration) {
+    if (state.pending) return;
+    const local = this.localChanges(state);
+    if (!local.changes.length && !Object.keys(local.assets).length) return;
+    state.pending = {
+      id: crypto.randomUUID(),
+      gym_id: configuration.gym_id,
+      installation_id: state.base.installation_id,
+      base_revision: state.base.revision,
+      issued_at: state.base.issued_at,
+      expires_at: state.base.expires_at,
+      changes: local.changes,
+      assets: local.assets,
+    };
+    state.pending_tables = local.tables;
+    state.pending_assets = local.currentAssets;
+    this.save(state);
+  }
+
   async synchronize() {
-    if (!this.configuration || this.running) return this.status();
+    if (!this.configuration || this.running || this.stopped)
+      return this.status();
+    const configuration = this.configuration;
     this.running = true;
+    let finish!: () => void;
+    this.syncDone = new Promise<void>((done) => {
+      finish = done;
+    });
     try {
-      await this.exclusive(async () => {
-        const state = this.state();
-        if (!state) return;
-        const configuration = this.configuration!;
-        const request = (path: string, method = "GET", body?: unknown) =>
-          this.remote(
-            configuration.server,
-            `gyms/${configuration.gym_id}/sync/${path}`,
-            method,
-            body,
-            { Authorization: "Bearer " + configuration.token },
-          );
-        if (!state.pending) {
-          const changes = syncChanges(
-            state.base,
-            replicaTables(this.db.raw, "desktop"),
-          );
-          const current = replicaAssets(this.root),
-            assets: NonNullable<SyncPatch["assets"]> = {};
-          // Old unreferenced photos remain in local storage; only additions and changed files are sent.
-          for (const [name, after] of Object.entries(current))
-            if (
-              name !== "credentials.key" &&
-              state.base.assets?.[name] !== after
-            )
-              assets[name] = {
-                before: state.base.assets?.[name] || null,
-                after,
-              };
-          if (changes.length || Object.keys(assets).length) {
-            state.pending = {
-              id: crypto.randomUUID(),
-              gym_id: configuration.gym_id,
-              installation_id: state.base.installation_id,
-              base_revision: state.base.revision,
-              issued_at: state.base.issued_at,
-              expires_at: state.base.expires_at,
-              changes,
-              assets,
-            };
-            state.pending_tables = replicaTables(this.db.raw, "desktop");
-            state.pending_assets = current;
-            this.save(state);
+      while (!this.stopped && this.configuration === configuration) {
+        // Only capture/install local state under the lock. Internet must never hold it.
+        const outgoing = await this.exclusive(async () => {
+          if (this.stopped || this.configuration !== configuration) return null;
+          const state = this.state();
+          if (!state) return null;
+          this.preparePending(state, configuration);
+          if (!state.pending)
+            return { kind: "pull" as const, revision: state.base.revision };
+          return {
+            kind: "push" as const,
+            batch: state.pending.id,
+            body: await mappedSyncPatch(
+              state.pending,
+              state.event_ids || {},
+              hash,
+            ),
+          };
+        });
+        if (!outgoing) break;
+        const { data } = await this.remote(
+          configuration.server,
+          `gyms/${configuration.gym_id}/sync/` +
+            (outgoing.kind === "push"
+              ? "push"
+              : "snapshot?revision=" + encodeURIComponent(outgoing.revision)),
+          outgoing.kind === "push" ? "POST" : "GET",
+          outgoing.kind === "push" ? outgoing.body : undefined,
+          { Authorization: "Bearer " + configuration.token },
+        );
+        const again = await this.exclusive(async () => {
+          if (this.stopped || this.configuration !== configuration)
+            return false;
+          const state = this.state();
+          if (!state) return false;
+          if (outgoing.kind === "pull") {
+            if (state.pending || state.base.revision !== outgoing.revision)
+              return true;
+            // An edit/cobro may have completed while the snapshot was downloading.
+            // Push it against its original base instead of replacing it with the response.
+            this.preparePending(state, configuration);
+            if (state.pending) return true;
+            if ("unchanged" in data) {
+              state.base = renewSyncSnapshot(state.base, data as SyncUnchanged);
+              state.last_success = Date.now();
+              state.last_error = "";
+              state.revoked = false;
+              state.last_clock = Math.max(state.last_clock, Date.now());
+              this.save(state);
+            } else {
+              const snapshot = data as SyncSnapshot;
+              validSyncSnapshot(
+                snapshot,
+                configuration.gym_id,
+                configuration.user_id,
+                state.base.installation_id,
+              );
+              this.install(snapshot, {
+                base: snapshot,
+                pending: null,
+                conflict: null,
+                revoked: false,
+                last_success: Date.now(),
+                last_error: "",
+                last_clock: Date.now(),
+              });
+            }
+            return false;
           }
-        }
-        while (state.pending) {
-          const outgoing = await mappedSyncPatch(
-            state.pending,
-            state.event_ids || {},
-            hash,
-          );
-          const { data } = await request("push", "POST", outgoing);
+          if (state.pending?.id !== outgoing.batch) return false;
           state.revoked = false;
           if (data.status === "conflict") {
             state.conflict = data.conflict;
             state.last_error = "";
             this.save(state);
-            return;
+            return false;
           }
           if (!["applied", "archived"].includes(data.status))
             throw new ApiError(
               502,
               "No se confirmó el lote de sincronización.",
             );
-          const currentTables = replicaTables(this.db.raw, "desktop"),
+          const tables = replicaTables(this.db.raw, "desktop"),
             currentAssets = replicaAssets(this.root);
           const additional = syncChanges(
             { ...state.base, tables: state.pending_tables! },
-            currentTables,
+            tables,
           );
           const assets: NonNullable<SyncPatch["assets"]> = {};
           for (const [name, after] of Object.entries(currentAssets))
@@ -418,16 +487,15 @@ export class ReplicaClient {
                 before: state.pending_assets?.[name] || null,
                 after,
               };
-          if (
-            data.status === "archived" &&
-            (additional.length || Object.keys(assets).length)
-          ) {
+          const changed =
+            additional.length > 0 || Object.keys(assets).length > 0;
+          if (data.status === "archived" && changed) {
             state.conflict =
               "Hay cambios locales posteriores al lote revisado. Descarga un respaldo y revisa estos datos antes de reemplazarlos.";
             this.save(state);
-            return;
+            return false;
           }
-          if (additional.length || Object.keys(assets).length) {
+          if (changed) {
             state.event_ids = { ...state.event_ids, ...data.event_ids };
             state.base.tables = state.pending_tables!;
             state.base.assets = state.pending_assets;
@@ -437,81 +505,64 @@ export class ReplicaClient {
               changes: additional,
               assets,
             };
-            state.pending_tables = currentTables;
+            state.pending_tables = tables;
             state.pending_assets = currentAssets;
             this.save(state);
-          } else {
-            const snapshot = data.snapshot as SyncSnapshot;
-            validSyncSnapshot(
-              snapshot,
-              configuration.gym_id,
-              configuration.user_id,
-              state.base.installation_id,
-            );
-            if (data.status === "archived")
-              this.backups.create("before-restore");
-            this.install(snapshot, {
-              base: snapshot,
-              pending: null,
-              conflict: null,
-              revoked: false,
-              last_success: Date.now(),
-              last_error: "",
-              last_clock: Date.now(),
-            });
-            return;
+            return true;
           }
-        }
-        const snapshot = (
-          await request(
-            "snapshot?revision=" + encodeURIComponent(state.base.revision),
-          )
-        ).data as SyncSnapshot | SyncUnchanged;
-        if ("unchanged" in snapshot) {
-          state.base = renewSyncSnapshot(state.base, snapshot);
-          state.last_success = Date.now();
-          state.last_error = "";
-          state.revoked = false;
-          state.last_clock = Math.max(state.last_clock, Date.now());
-          this.save(state);
-          return;
-        }
-        validSyncSnapshot(
-          snapshot,
-          configuration.gym_id,
-          configuration.user_id,
-          state.base.installation_id,
-        );
-        this.install(snapshot, {
-          base: snapshot,
-          pending: null,
-          conflict: null,
-          revoked: false,
-          last_success: Date.now(),
-          last_error: "",
-          last_clock: Date.now(),
+          const snapshot = data.snapshot as SyncSnapshot;
+          validSyncSnapshot(
+            snapshot,
+            configuration.gym_id,
+            configuration.user_id,
+            state.base.installation_id,
+          );
+          if (data.status === "archived") this.backups.create("before-restore");
+          this.install(snapshot, {
+            base: snapshot,
+            pending: null,
+            conflict: null,
+            revoked: false,
+            last_success: Date.now(),
+            last_error: "",
+            last_clock: Date.now(),
+          });
+          return false;
         });
-      });
+        if (!again) break;
+      }
     } catch (error) {
-      const state = this.state();
-      if (state) {
+      await this.exclusive(async () => {
+        if (this.stopped || this.configuration !== configuration) return;
+        const state = this.state();
+        if (!state) return;
         state.last_error = (error as Error).message;
         if (error instanceof ApiError && [401, 403].includes(error.status))
           state.revoked = true;
         this.save(state);
-      }
+      });
     } finally {
       this.running = false;
+      this.syncDone = null;
+      finish();
     }
     return this.status();
   }
+
   start() {
+    if (this.stopped) {
+      this.stopped = false;
+      this.syncAbort = new AbortController();
+    }
     this.timer = setInterval(() => void this.synchronize(), 30000);
     this.timer.unref();
     if (this.linked) void this.synchronize();
   }
   async stop() {
+    this.stopped = true;
     if (this.timer) clearInterval(this.timer);
+    this.syncAbort.abort();
+    await this.syncDone;
     await this.queue.catch(() => {});
   }
 }

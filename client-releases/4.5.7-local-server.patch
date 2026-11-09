@@ -1,0 +1,49 @@
+diff --git a/server/index.ts b/server/index.ts
+index 447d878..8fed4de 100644
+--- a/server/index.ts
++++ b/server/index.ts
+@@ -148,7 +148,7 @@ function csv(res: ServerResponse, name: string, headers: string[], rows: unknown
+   });
+   res.end(toCsv(headers, rows));
+ }
+-async function api(req: IncomingMessage, res: ServerResponse) {
++async function api(req: IncomingMessage, res: ServerResponse, alreadyLocked = false) {
+   let mutation: symbol | undefined;
+   try {
+     const url = new URL(req.url!, 'http://localhost'),
+@@ -629,7 +629,7 @@ async function api(req: IncomingMessage, res: ServerResponse) {
+       if (path[0] === 'invitation-templates') return json(res, await new InvitationBatches(s).templates());
+       if (path[0] === 'mobile' && path[1] === 'bootstrap') {
+         s.require('operator');
+-        await maintenance.check();
++        await maintenance.check(alreadyLocked);
+         const data = await s.bootstrap();
+         return json(res, {
+           user: data.user,
+@@ -653,7 +653,7 @@ async function api(req: IncomingMessage, res: ServerResponse) {
+           );
+       }
+       if (path[0] === 'bootstrap') {
+-        await maintenance.check();
++        await maintenance.check(alreadyLocked);
+         return json(res, {
+           ...(await s.bootstrap({ compact: url.searchParams.get('compact') === '1' })),
+           version: applicationVersion,
+@@ -983,7 +983,7 @@ async function api(req: IncomingMessage, res: ServerResponse) {
+       if (path[0] === 'devices' && path[1]) return json(res, await s.revokeDevice(path[1]));
+       if (path[0] === 'settings') {
+         const result = await s.updateSettings(body);
+-        await maintenance.check();
++        await maintenance.check(alreadyLocked);
+         return json(res, result);
+       }
+     }
+@@ -1020,7 +1020,7 @@ const handleRequest: RequestListener = async (req, res) => {
+       if (!replica.linked || alias[1] !== replica.status().gym_id) return json(res, { error: 'Esta copia pertenece a otro gimnasio.' }, 403);
+       req.url = '/api/' + alias[2];
+     }
+-    if (replica.linked && !req.url.startsWith('/api/cloud-sync/')) await replica.exclusive(() => api(req, res));
++    if (replica.linked && !req.url.startsWith('/api/cloud-sync/')) await replica.exclusive(() => api(req, res, true));
+     else await api(req, res);
+     return;
+   }

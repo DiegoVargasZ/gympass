@@ -11,14 +11,15 @@ const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).ver
 const dist = join(root, 'dist');
 const output = join(root, 'output/web-build');
 const previous = JSON.parse(readFileSync(join(root, 'web-releases/previous.json'), 'utf8'));
+const compatibility = JSON.parse(readFileSync(join(root, 'web-releases/compatibility.json'), 'utf8'));
 if (previous.version === version || !Array.isArray(previous.assets)) throw Error('La retención debe describir la versión anterior.');
 
 // Build into staging first: a failed build leaves the published artifact intact.
 await build({ root, build: { outDir: output, emptyOutDir: true } });
 collectWebAssets(output);
 const current = emittedWebAssets(output);
-for (const asset of previous.assets) {
-  if (!/^assets\/[A-Za-z0-9_.-]+\.(js|css)$/.test(asset.path)) throw Error('Ruta de retención inválida.');
+for (const asset of [...previous.assets, ...compatibility.assets]) {
+  if (!/^assets\/[A-Za-z0-9_.-]+\.[A-Za-z0-9]+$/.test(asset.path)) throw Error('Ruta de retención inválida.');
   const source = join(dist, asset.path);
   if (!existsSync(source) || lstatSync(source).isSymbolicLink() || createHash('sha256').update(readFileSync(source)).digest('hex') !== asset.sha256)
     throw Error('No se conserva el recurso de la versión anterior: ' + asset.path);
@@ -35,14 +36,14 @@ function hashInput(name) {
   else {
     sourceHash.update(name + '\0');
     const bytes = readFileSync(path);
-    sourceHash.update(/\.(ts|tsx|js|css|html|json|cjs|mjs|svg|md)$/.test(name) || name.endsWith('/LICENSE') ? bytes.toString('utf8').replaceAll('\r\n', '\n') : bytes);
+    sourceHash.update(/\.(ts|tsx|js|css|html|json|webmanifest|cjs|mjs|svg|md)$/.test(name) || name.endsWith('/LICENSE') ? bytes.toString('utf8').replaceAll('\r\n', '\n') : bytes);
   }
 }
 for (const name of ['src', 'public', 'lib', 'vendor', 'index.html', 'vite.config.ts', 'tsconfig.json', 'package.json', 'package-lock.json', 'scripts/build-web.mjs', 'scripts/web-assets.mjs', 'scripts/precompress.cjs']) hashInput(name);
-writeFileSync(join(output, 'release.json'), JSON.stringify({ version, source_sha256: sourceHash.digest('hex'), assets: current, previous_version: previous.version }, null, 2) + '\n');
+writeFileSync(join(output, 'release.json'), JSON.stringify({ version, source_sha256: sourceHash.digest('hex'), assets: current, previous_version: previous.version, compatibility_assets: compatibility.assets }, null, 2) + '\n');
 mkdirSync(dist, { recursive: true });
 cpSync(output, dist, { recursive: true });
-const retained = new Set([...current, ...previous.assets].flatMap(({ path }) => [path, path + '.br', path + '.gz']));
+const retained = new Set([...current, ...previous.assets, ...compatibility.assets].flatMap(({ path }) => [path, path + '.br', path + '.gz']));
 for (const name of readdirSync(join(dist, 'assets'))) {
   const relative = 'assets/' + name;
   if (!retained.has(relative)) {

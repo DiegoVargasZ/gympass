@@ -4,9 +4,7 @@ import { Service } from '../lib/service.ts';
 export function sessionMaintenance(db: Database, now = () => new Date(), exclusive?: (operation: () => Promise<{ closed: number }>) => Promise<{ closed: number }>) {
   const service = new Service(db, { id: 'system', email: 'system', name: 'Sistema', role: 'admin' });
   let running: Promise<{ closed: number }> | null = null;
-  function check() {
-    if (running) return running;
-    const operation = async () => {
+  const operation = async () => {
       const settings = await service.one('SELECT timezone,auto_close_hours,closing_time FROM settings WHERE id=1');
       if (!settings) return { closed: 0 };
       const at = now();
@@ -17,7 +15,11 @@ export function sessionMaintenance(db: Database, now = () => new Date(), exclusi
       if (result.closed)
         console.log(`Cierre automático: ${result.closed} ${result.closed === 1 ? 'sesión' : 'sesiones'}.`);
       return result;
-    };
+  };
+  function check(alreadyLocked = false) {
+    // An HTTP operation already in the replica queue must not await a timer queued behind it.
+    if (alreadyLocked) return operation();
+    if (running) return running;
     running = (exclusive ? exclusive(operation) : operation()).finally(() => {
       running = null;
     });

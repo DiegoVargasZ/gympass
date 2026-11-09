@@ -8,7 +8,11 @@ GitHub Actions publica el mismo `dist/` generado y verificado en su trabajo de c
 
 ## Retención de recursos
 
-Se distribuyen dos conjuntos: el actual y el descrito en `web-releases/previous.json`. Para 4.5.6 se conserva el grafo completo de 4.5.5. Esto permite que sus pestañas abiertas soliciten sus pantallas diferidas tras actualizar. Las sesiones de versiones anteriores deben recargarse.
+Se distribuyen dos conjuntos: el actual y el descrito en `web-releases/previous.json`. Para 4.5.7 se conserva el grafo completo de 4.5.6. Esto permite que sus pestañas abiertas soliciten sus pantallas diferidas tras actualizar. Las sesiones de versiones anteriores deben recargarse.
+
+Los lectores QR referenciados por clientes existentes se conservan además en `web-releases/compatibility.json`. La compilación entrega **todos** los recursos emitidos por Vite y valida las importaciones de JavaScript mediante su árbol de sintaxis, incluidas las cadenas entre comillas invertidas. No se eliminan archivos de la compilación actual basándose en una búsqueda textual.
+
+Durante la recuperación de 4.5.7 se conserva también la interfaz 4.5.5 en ese manifiesto, para que los clientes abiertos antes de la actualización puedan seguir cargando sus pantallas.
 
 Para preparar una versión posterior:
 

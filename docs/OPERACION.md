@@ -32,7 +32,7 @@ Para restaurar la plataforma, extrae el `.tar.gz` en un directorio nuevo y utili
 
 ## Aplicaciones y trabajo sin conexión
 
-Instala Android y Windows 4.5.6 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
+Instala Android y Windows 4.5.7 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
 
 En Windows, Configuración → Conexión permite utilizar servidor o copia local sincronizada. En Android, Gestión utiliza la web y requiere Internet; Lector sin conexión conserva su copia autorizada. Los conflictos se revisan antes de reemplazar datos locales. Windows sigue la política existente de distribución sin firma de código.
 

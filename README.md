@@ -1,4 +1,4 @@
-# GymPASS 4.5.6
+# GymPASS 4.5.7
 
 Plataforma para socios, planes, caja y control de acceso. La web, Android y Windows se publican con la misma versión.
 

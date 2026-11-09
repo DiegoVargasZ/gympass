@@ -9,6 +9,24 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const hour = 3600000;
+
+test('el panel ya en la cola puede comprobar cierres aunque el temporizador esté esperando detrás', async () => {
+  const db = new SqliteDatabase(':memory:');
+  db.raw.exec("INSERT INTO settings(id,owner,name,timezone) VALUES(1,'owner','Gym','America/La_Paz')");
+  let tail = Promise.resolve();
+  const exclusive = operation => { const work = tail.catch(() => {}).then(operation); tail = work; return work; };
+  const maintenance = sessionMaintenance(db, () => new Date('2026-11-09T12:00:00Z'), exclusive);
+  let queued, timer;
+  try {
+    await exclusive(async () => {
+      queued = maintenance.check();
+      const result = await Promise.race([maintenance.check(true), new Promise((_, reject) => { timer = setTimeout(() => reject(Error('El cierre automático esperó a su propia cola.')), 1000); })]);
+      assert.equal(result.closed, 0);
+      assert.equal(maintenance.check(), queued);
+    });
+    assert.equal((await queued).closed, 0);
+  } finally { clearTimeout(timer); await queued; maintenance.stop(); db.close(); }
+});
 async function fixture(t, hours = 2) {
   const db = new SqliteDatabase(':memory:');
   t.after(() => db.close());

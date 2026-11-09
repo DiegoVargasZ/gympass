@@ -126,6 +126,104 @@ const sale = (person_id, plan) => ({
   lines: [{ kind: "plan", id: plan.id, quantity: 1 }],
 });
 
+async function whileNetworkWaits(operation) {
+  let timer;
+  try {
+    return await Promise.race([operation(), new Promise((_, reject) => { timer = setTimeout(() => reject(Error('La espera de Internet bloqueó la copia local.')), 1500); })]);
+  } finally { clearTimeout(timer); }
+}
+
+test('una descarga lenta no bloquea recepción ni reemplaza las ediciones hechas durante la espera', async t => {
+  const f = await fixture(t);
+  let copy, synchronization, release;
+  try {
+    const member = await f.cloud(s => s.savePerson(person('RESPONSIVE', 'Original')));
+    copy = await f.local('Recepción disponible');
+    await f.cloud(s => s.savePerson(person('RESPONSIVE', 'Nombre central'), member.id));
+    const originalFetch = globalThis.fetch;
+    const gate = new Promise(done => { release = done; });
+    let started;
+    const waiting = new Promise(done => { started = done; });
+    let first = true;
+    t.mock.method(globalThis, 'fetch', async (...args) => {
+      const response = await originalFetch(...args);
+      if (first && String(args[0]).includes('/sync/snapshot?')) { first = false; started(); await gate; }
+      return response;
+    });
+    synchronization = copy.replica.synchronize();
+    await waiting;
+    await whileNetworkWaits(() => copy.replica.exclusive(async () => {
+      assert.equal((await copy.service().personDetail(member.id)).name, 'Original');
+      await copy.service().savePerson({ ...person('RESPONSIVE', 'Original'), notes: 'Edición local durante la descarga' }, member.id);
+    }));
+    release(); await synchronization;
+    assert.equal(copy.replica.status().conflict, null, copy.replica.status().error);
+    assert.equal(copy.replica.status().pending, 0);
+    const local = await copy.service().personDetail(member.id);
+    assert.equal(local.name, 'Nombre central');
+    assert.equal(local.notes, 'Edición local durante la descarga');
+    await f.cloud(async s => assert.equal((await s.personDetail(member.id)).notes, local.notes));
+  } finally { release?.(); await synchronization; if (copy) { await copy.replica.stop(); copy.db.close(); } await f.app.close(); }
+});
+
+test('cobrar mientras se confirma otro lote conserva ambos pagos y sus QR sin duplicarlos', async t => {
+  const f = await fixture(t);
+  let copy, synchronization, release;
+  try {
+    const plan = await f.cloud(s => new PosService(s).savePlan({ name: 'Mes', unit: 'months', duration: 1, price_cents: 10000 }));
+    copy = await f.local('Caja disponible');
+    const first = await copy.service().savePerson(person('DURING-PUSH-1'));
+    await new PosService(copy.service()).checkout(sale(first.id, plan));
+    const originalFetch = globalThis.fetch;
+    const gate = new Promise(done => { release = done; });
+    let started;
+    const waiting = new Promise(done => { started = done; });
+    let pause = true;
+    t.mock.method(globalThis, 'fetch', async (...args) => {
+      const response = await originalFetch(...args);
+      if (pause && String(args[0]).endsWith('/sync/push')) { pause = false; started(); await gate; }
+      return response;
+    });
+    synchronization = copy.replica.synchronize(); await waiting;
+    await whileNetworkWaits(() => copy.replica.exclusive(async () => {
+      const second = await copy.service().savePerson(person('DURING-PUSH-2'));
+      await new PosService(copy.service()).checkout(sale(second.id, plan));
+    }));
+    release(); await synchronization; await copy.replica.synchronize();
+    assert.equal(copy.replica.status().pending, 0, copy.replica.status().error);
+    assert.equal(copy.replica.status().conflict, null);
+    await f.cloud((_s, ctx) => {
+      assert.equal(ctx.db.raw.prepare('SELECT COUNT(*) n FROM pos_sales').get().n, 2);
+      assert.equal(ctx.db.raw.prepare("SELECT COUNT(*) n FROM credentials WHERE kind='qr' AND active=1").get().n, 2);
+    });
+  } finally { release?.(); await synchronization; if (copy) { await copy.replica.stop(); copy.db.close(); } await f.app.close(); }
+});
+
+test('cerrar con Internet detenido cancela la espera y conserva el lote para el siguiente arranque', async t => {
+  const f = await fixture(t);
+  let copy, reopened;
+  try {
+    copy = await f.local('Cierre seguro');
+    await copy.service().savePerson(person('PRESERVED-ON-CLOSE'));
+    let started;
+    const waiting = new Promise(done => { started = done; });
+    const mock = t.mock.method(globalThis, 'fetch', async (_url, options) => {
+      started();
+      return new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(new DOMException('Stopped', 'AbortError')), { once: true }));
+    });
+    const synchronization = copy.replica.synchronize(); await waiting;
+    await whileNetworkWaits(() => copy.replica.stop()); await synchronization;
+    const before = JSON.parse(copy.db.raw.prepare('SELECT state FROM replica_state WHERE id=1').get().state);
+    assert.ok(before.pending?.id);
+    assert.equal(copy.db.raw.prepare('SELECT COUNT(*) n FROM people').get().n, 1);
+    mock.mock.restore();
+    reopened = new ReplicaClient(copy.db, copy.root, copy.backups, () => {});
+    await reopened.synchronize();
+    assert.equal(reopened.status().pending, 0, reopened.status().error);
+    await f.cloud((_s, ctx) => assert.equal(ctx.db.raw.prepare('SELECT COUNT(*) n FROM people').get().n, 1));
+  } finally { if (reopened) await reopened.stop(); if (copy) { await copy.replica.stop(); copy.db.close(); } await f.app.close(); }
+});
+
 test('la foto para la copia móvil exige vinculación vigente y permanece aislada por gimnasio', async t => {
   const f = await fixture(t);
   try {

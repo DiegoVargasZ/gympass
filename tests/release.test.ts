@@ -26,7 +26,7 @@ test('la entrega conserva exactamente los recursos actuales y anteriores con sus
   assert.equal(release.version, manifest.version);
   assert.equal(release.previous_version, previous.version);
   const retained = new Set<string>();
-  for (const { path, sha256 } of [...release.assets, ...previous.assets]) {
+  for (const { path, sha256 } of [...release.assets, ...previous.assets, ...(release.compatibility_assets || [])]) {
     retained.add(path);
     const bytes = readFileSync(new URL('../dist/' + path, import.meta.url));
     assert.equal(createHash('sha256').update(bytes).digest('hex'), sha256, path);

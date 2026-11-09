@@ -102,6 +102,13 @@ if (mode === "prepare") {
     throw Error("Versión de runtime incorrecta.");
   const apk = join(prepared, `GymPASS-Android-${version}.apk`);
   const windowsOnly = manifest.windows_only === true;
+  if (!manifest.native_smoke?.passed || manifest.native_smoke.version !== version)
+    throw Error('Falta la comprobación de arranque de Windows de esta versión.');
+  for (const name of ['desktop/main.cjs', 'desktop/remote.cjs', 'desktop-runtime/server/index.js', 'desktop-runtime/server/maintenance.js', 'desktop-runtime/server/replica-client.js', 'desktop-runtime/dist/index.html']) {
+    const expected = manifest.runtime_sha256?.[name];
+    if (!/^[a-f0-9]{64}$/.test(expected || '') || await digest(join(prepared, name)) !== expected)
+      throw Error('El runtime probado no coincide: ' + name);
+  }
   if (windowsOnly) {
     if (!manifest.native_smoke?.passed || manifest.native_smoke.version !== version)
       throw Error('Falta la comprobación de arranque de Windows.');

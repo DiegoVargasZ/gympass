@@ -1,8 +1,8 @@
 import { Download, Monitor, Smartphone } from 'lucide-react';
 import './styles/app-downloads.css';
 
-const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v4.5.6/';
-const androidApk = 'https://github.com/DiegoVargasZ/gympass/releases/download/v4.5.6/GymPASS-Android-4.5.6.apk';
+const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v4.5.7/';
+const androidApk = 'https://github.com/DiegoVargasZ/gympass/releases/download/v4.5.7/GymPASS-Android-4.5.7.apk';
 
 export default function AppDownloads() {
   if (
@@ -22,20 +22,20 @@ export default function AppDownloads() {
           <Smartphone size={24} aria-hidden="true" />
           <span>
             <strong>Móvil Android</strong>
-            <small>Descargar APK · v4.5.6</small>
+            <small>Descargar APK · v4.5.7</small>
           </span>
           <Download size={16} aria-hidden="true" />
         </a>
         <a
           className="app-download"
-          href={release + 'GymPASS-Setup-4.5.6.exe'}
+          href={release + 'GymPASS-Setup-4.5.7.exe'}
           target="_blank"
           rel="noopener noreferrer"
         >
           <Monitor size={24} aria-hidden="true" />
           <span>
             <strong>Escritorio Windows</strong>
-            <small>Descargar instalador · v4.5.6</small>
+            <small>Descargar instalador · v4.5.7</small>
           </span>
           <Download size={16} aria-hidden="true" />
         </a>

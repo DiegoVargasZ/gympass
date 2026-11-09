@@ -1,0 +1,26 @@
+{
+  "version": "4.5.7",
+  "android": {
+    "version_code": 4507,
+    "package": "local.gympass.controlacceso.mobile",
+    "certificate_sha256": "a6735a9d424cb835fac4e5ca05f08df8cd9bd9007bdb8cf32f4fa42492187ded",
+    "smoke_passed": true,
+    "cold_starts": 2,
+    "page_size": 16384
+  },
+  "windows": {
+    "smoke_passed": true,
+    "mode": "linked-replica-with-stalled-network",
+    "qr_scan_confirmed": true,
+    "sync_recovered": true,
+    "code_signed": false,
+    "package_smoke_passed": false,
+    "local_server_source_sha256": "e2fde1f4e4c42b98281ef1fe4148df357f11e6d22aa879ed3417d006a5f3625c"
+  },
+  "files": {
+    "GymPASS-Android-4.5.7.apk": {
+      "sha256": "7b13d8dd5e13205d2921849527b64cc0c48c4459a11db359abf0d2b777fe878a",
+      "bytes": 63381496
+    }
+  }
+}
