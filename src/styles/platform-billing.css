@@ -1,0 +1,77 @@
+.platform-billing-summary {
+  padding: 20px;
+  margin-bottom: 24px;
+  min-width: 0;
+}
+.platform-billing-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.platform-billing-heading h2,
+.platform-billing-heading h3 {
+  margin: 0;
+}
+.platform-billing-heading p {
+  margin-bottom: 0;
+}
+.platform-billing-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.platform-billing .table-scroll,
+.platform-billing-summary .table-scroll {
+  max-width: 100%;
+}
+.platform-billing table,
+.platform-billing-summary table {
+  white-space: nowrap;
+}
+.platform-billing .table-scroll .btn,
+.platform-billing-summary .table-scroll .btn {
+  white-space: nowrap;
+  min-width: max-content;
+}
+.platform-billing caption {
+  text-align: left;
+  padding: 12px 0;
+  font-weight: 600;
+}
+.platform-payment-list {
+  display: grid;
+  gap: 12px;
+}
+.platform-payment {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.platform-payment p {
+  margin: 6px 0 0;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.platform-payment > div {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .platform-billing-summary {
+    padding: 16px;
+  }
+  .platform-billing-heading .platform-actions,
+  .platform-billing-heading > button {
+    width: 100%;
+  }
+  .platform-billing-heading .platform-actions > button {
+    flex: 1;
+  }
+}

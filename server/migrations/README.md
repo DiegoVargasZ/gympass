@@ -8,4 +8,4 @@
 - Si falla un archivo o el registro de su versión, se revierte todo el conjunto pendiente. Corrige el problema antes de volver a iniciar.
 - Las bases con una versión superior a la última migración disponible se rechazan. No rebajes manualmente `schema_version` para forzar su apertura.
 
-Antes de aplicar cambios a una base en uso, crea una copia con `npm run backup`. Las pruebas de `tests/database.test.ts` cubren instalación nueva, actualización de una base existente, orden, reapertura, rollback, reintento y rechazo de versiones futuras.
+Antes de actualizar una plataforma en uso, crea y descarga una copia desde **Copia de plataforma** con el superadministrador. Para un gimnasio concreto, utiliza **Configuración → Respaldos**. Conserva una copia fuera del servidor. Las pruebas versionadas en `tests/database.test.ts` se ejecutan con `npm test` y cubren instalación nueva, actualización de una base existente, orden, reapertura, rollback, reintento y rechazo de versiones futuras.

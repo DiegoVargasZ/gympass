@@ -1,0 +1,120 @@
+.readers-settings,
+.reader-connection {
+  display: grid;
+  gap: var(--s4);
+  min-width: 0;
+}
+.reader-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-block: var(--s4);
+}
+.reader-guide ol,
+.reader-connection ol {
+  padding-inline-start: 1.4rem;
+}
+.reader-guide li,
+.reader-connection li {
+  margin-block: var(--s3);
+  line-height: 1.6;
+}
+.reader-list {
+  container: readers / inline-size;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.readers-settings > .panel {
+  margin: 0;
+}
+.readers-settings > [aria-labelledby='reader-setup-title'] {
+  padding: var(--s5);
+}
+.readers-settings .panel-heading {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.readers-settings .panel-heading > div {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.readers-settings .panel-heading > .btn {
+  flex-shrink: 0;
+}
+.reader-list > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: flex-start;
+  gap: var(--s4);
+  padding: var(--s5);
+  border-top: 1px solid var(--border);
+}
+.reader-list strong {
+  display: block;
+  margin-bottom: var(--s1);
+}
+.reader-list p {
+  margin-bottom: var(--s3);
+}
+.reader-list .button-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  margin: 0;
+}
+.reader-list .btn {
+  white-space: normal;
+}
+.reader-list > li > div {
+  min-width: 0;
+}
+.reader-list strong,
+.reader-list p,
+.reader-technical code {
+  overflow-wrap: anywhere;
+}
+.reader-technical {
+  padding-block: var(--s3);
+  border-block: 1px solid var(--border);
+}
+.reader-technical summary {
+  cursor: pointer;
+  padding-block: var(--s2);
+  font-weight: 600;
+}
+@container readers (max-width: 540px) {
+  .reader-list > li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .reader-list .button-row {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 650px) {
+  .reader-modes,
+  .reader-list > li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .reader-list > li {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--s4);
+  }
+  .readers-settings .panel-heading {
+    padding: var(--s4);
+  }
+  .readers-settings > [aria-labelledby='reader-setup-title'] {
+    padding: var(--s4);
+  }
+  .readers-settings .button-row,
+  .reader-connection .button-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .reader-modes .btn {
+    white-space: normal;
+    text-align: left;
+  }
+}

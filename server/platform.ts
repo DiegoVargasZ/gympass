@@ -16,6 +16,7 @@ import { authorizedDatabase } from './authorized-database.ts';
 import { createRealtime, changeTopics } from './realtime.ts';
 import { platformCopies, exportPlatformCopy } from './platform-backup-export.ts';
 import { replicationApi } from './replication-api.ts';
+import { applicationVersion } from './backups.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 type Options = {
@@ -25,6 +26,7 @@ type Options = {
   publicOrigin?: string;
   allowHttp?: boolean;
   maxOpen?: number;
+  trustedProxies?: string;
 };
 
 export async function startPlatform(options: Options) {
@@ -42,6 +44,7 @@ export async function startPlatform(options: Options) {
       tenants.provision(gym);
     },
     secureCookies: !!origin,
+    trustedProxies: options.trustedProxies,
   });
   const limits = new Map<string, { count: number; until: number }>();
   let maintenanceWork: Promise<void> | null = null;
@@ -87,8 +90,8 @@ export async function startPlatform(options: Options) {
           if (!deviceRoute && req.headers['x-requested-with'] !== 'GymPASS')
             throw new ApiError(403, 'Solicitud no permitida.');
         }
-        if (/\/(login|mobile-login|accept|password)$/.test(url.pathname) && writing) {
-          const key = (req.socket.remoteAddress || 'unknown') + ':' + url.pathname;
+        if (/\/(accept|password)$/.test(url.pathname) && writing) {
+          const key = requestToken(req) || req.socket.remoteAddress || 'unknown';
           const now = Date.now();
           if (limits.size > 10000) for (const [key, value] of limits) if (value.until < now) limits.delete(key);
           let value = limits.get(key);
@@ -100,7 +103,7 @@ export async function startPlatform(options: Options) {
         }
         if (url.pathname === '/api/health' && method === 'GET') {
           res.setHeader('X-GymPASS-Realtime', '1');
-          return json(res, { ok: true, mode: 'platform', protocol: 1 });
+          return json(res, { ok: true, mode: 'platform', protocol: 1, version: applicationVersion });
         }
         const platformBackup = /^\/api\/platform\/backups(?:\/([^/]+)\/export)?$/.exec(url.pathname);
         if (platformBackup && method === 'GET') {
@@ -363,6 +366,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     publicOrigin: process.env.PUBLIC_ORIGIN,
     allowHttp,
     maxOpen: Number(process.env.GYMPASS_MAX_OPEN || 32),
+    trustedProxies: process.env.GYMPASS_TRUSTED_PROXIES,
   }).then((app) => {
     console.log('GymPASS plataforma:', process.env.PUBLIC_ORIGIN || app.url);
     for (const event of ['SIGINT', 'SIGTERM'] as const)

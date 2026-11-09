@@ -1,0 +1,104 @@
+.app-downloads {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.app-downloads h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 16px;
+}
+.app-downloads > p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 8px 0 16px;
+}
+.app-download-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.app-download {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--surface);
+}
+.app-download:hover {
+  border-color: var(--brand-base);
+  background: var(--bg);
+}
+.app-download span {
+  flex: 1;
+  min-width: 0;
+}
+.app-download strong,
+.app-download small {
+  display: block;
+}
+.app-download strong {
+  font-size: 13px;
+}
+.app-download small {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.app-downloads > a {
+  margin-top: 12px;
+  font-size: 12px;
+}
+.connection-settings {
+  margin-bottom: 24px;
+}
+.connection-options {
+  display: grid;
+  gap: 12px;
+  border: 0;
+  padding: 0;
+  margin: 0 0 16px;
+  min-width: 0;
+}
+.connection-options legend {
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.connection-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.connection-option:has(input:checked) {
+  border-color: var(--brand-base);
+  background: var(--bg);
+}
+.connection-option input {
+  width: 18px;
+  min-height: 18px;
+  flex: 0 0 18px;
+  accent-color: var(--brand-base);
+}
+.connection-option strong,
+.connection-option small {
+  display: block;
+}
+.connection-option small {
+  color: var(--muted);
+  margin-top: 4px;
+}
+@media (max-width: 480px) {
+  .app-download-options {
+    grid-template-columns: 1fr;
+  }
+}

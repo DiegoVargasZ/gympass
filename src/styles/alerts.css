@@ -1,0 +1,230 @@
+.alerts {
+  position: relative;
+}
+.alerts-trigger {
+  position: relative;
+}
+.alerts-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--danger);
+  color: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+.alerts-panel {
+  position: absolute;
+  top: calc(100% + var(--s2));
+  right: 0;
+  z-index: 40;
+  width: min(380px, calc(100vw - var(--s5)));
+  max-height: min(70vh, 540px);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
+}
+.alerts-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.alerts-head strong {
+  font-size: 13px;
+}
+.alerts-head .text-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: 0;
+  font-size: 13px;
+}
+.alerts-empty {
+  margin: 0;
+  padding: var(--s6) var(--s4);
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.alerts-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.alerts-panel li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+.alerts-panel li:last-child {
+  border-bottom: 0;
+}
+.alerts-panel li.read {
+  opacity: 0.6;
+}
+.alerts-panel li div {
+  flex: 1;
+  min-width: 0;
+}
+.alerts-panel li strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.alerts-panel li p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+.alerts-panel li small {
+  display: block;
+  margin-top: var(--s1);
+  font-size: 13px;
+}
+.alerts-panel li .text-btn {
+  padding: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.alert-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+}
+.alert-icon.info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.alert-icon.warning {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.alert-icon.danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.row-actions .danger,
+small.danger {
+  color: var(--danger);
+}
+small.danger {
+  display: block;
+}
+
+/* Weekly heatmap and today's visits, on the dashboard. */
+.heatmap {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--s4);
+}
+.heatmap-hours,
+.heatmap-row {
+  display: grid;
+  grid-template-columns: 38px repeat(24, minmax(0, 1fr));
+  gap: 2px;
+  align-items: center;
+}
+.heatmap-hours span {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+.heatmap-day {
+  font-size: 13px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.heatmap-cell {
+  height: 16px;
+  border-radius: 3px;
+  background: var(--chart-entries);
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+.visit-list {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+}
+.visit-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--border);
+}
+.visit-list li:last-child {
+  border-bottom: 0;
+}
+.visit-list div {
+  flex: 1;
+  min-width: 0;
+}
+.visit-list strong {
+  display: block;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.visit-list small {
+  overflow-wrap: anywhere;
+}
+.visit-list small {
+  display: block;
+}
+.visit-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--info);
+  flex-shrink: 0;
+}
+.visit-dot.checked_in {
+  background: var(--ok);
+}
+.visit-state {
+  flex-shrink: 0;
+  max-width: 40%;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--info);
+}
+.visit-state.checked_in {
+  color: var(--ok);
+}
+@media (max-width: 600px) {
+  .visit-list li {
+    display: grid;
+    grid-template-columns: 8px minmax(0, 1fr);
+    padding-inline: var(--s4);
+  }
+  .visit-state {
+    grid-column: 2;
+    max-width: none;
+    text-align: left;
+  }
+}

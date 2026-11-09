@@ -1,0 +1,83 @@
+.gympass-brand-logo {
+  display: inline-flex;
+  width: 176px;
+  height: 42px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.gympass-brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.gympass-logo-light {
+  display: block;
+}
+.gympass-logo-dark {
+  display: none;
+}
+:root[data-theme='dark'] .gympass-logo-light,
+.auth-story .gympass-logo-light {
+  display: none;
+}
+:root[data-theme='dark'] .gympass-logo-dark,
+.auth-story .gympass-logo-dark {
+  display: block;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'] .gympass-logo-light {
+    display: none;
+  }
+  :root[data-theme='system'] .gympass-logo-dark {
+    display: block;
+  }
+}
+.gympass-brand-mark {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+/* Dark brand surfaces used outside the app shell (sign-in story panel, printed cards). */
+:root {
+  --nav-bg: #172431;
+  --nav-surface: #243443;
+  --nav-hover: #2e4050;
+  --nav-border: #465666;
+  --nav-text: #e2e8ed;
+  --nav-muted: #b7c2cc;
+}
+.auth-story {
+  background: #000000;
+}
+.digital-card .card-brand {
+  background: var(--nav-bg);
+  color: #ffffff;
+}
+.btn.danger {
+  background: var(--result-danger);
+  color: var(--result-ink);
+  white-space: normal;
+}
+.btn.danger:hover {
+  background: var(--result-danger);
+  color: var(--result-ink);
+}
+.btn.primary {
+  border-color: var(--brand-base);
+  box-shadow: none;
+}
+.btn.primary:hover {
+  background: color-mix(in srgb, var(--brand-base) 88%, #000);
+  box-shadow: none;
+}
+.field input,
+.field select,
+.field textarea {
+  background-color: var(--surface);
+  border-color: var(--border-strong);
+  box-shadow: none;
+}
+.digital-card,
+.empty-icon {
+  background-image: none;
+}

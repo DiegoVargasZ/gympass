@@ -48,6 +48,9 @@ fi
 
 # No --delete: preserve cPanel configuration, uploaded assets and persistent data.
 rsync -a --delay-updates "$staging/" "$app_root/"
+# Only the public build is managed with deletion. It includes the previous release's chunks.
+[[ -d "$staging/dist/assets" && -d "$app_root/dist" && ! -L "$app_root/dist" ]] || exit 1
+rsync -a --delete --delay-updates "$staging/dist/" "$app_root/dist/"
 cd "$app_root"
 npm install --omit=dev --ignore-scripts --no-audit --no-fund
 mkdir -p tmp

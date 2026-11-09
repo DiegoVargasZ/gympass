@@ -1,5 +1,4 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { z } from 'zod';
 import { ApiError, Service, presenceSql, toCsv, hash } from '../lib/service.ts';
 import { kindLabels, reasons } from '../lib/domain.ts';
 import { InvitationBatches } from '../lib/invitation-batches.ts';
@@ -34,7 +33,13 @@ export async function gymApi(
     action = path[2];
   const imageUpload = method === 'PUT' && ((first === 'people' && action === 'photo') || first === 'branding');
   const background = ['invitation-batches', 'visits'].includes(first) && !!id && action === 'background';
-  const body = method === 'GET' || imageUpload || background ? {} : await readJson(req);
+  // Retired screens retain read-only historical access for reporting accounts.
+  const historical = ['attendance', 'workdays', 'payroll', 'saved-reports', 'periods', 'calendar', 'visits', 'invitation-batches', 'invitation-templates'].includes(first);
+  if (historical) {
+    s.requireReports();
+    if (method !== 'GET') throw new ApiError(410, 'Este módulo fue retirado. Sus datos históricos se conservan en modo de consulta.');
+  }
+  const body = method === 'GET' || imageUpload ? {} : await readJson(req);
   reauthorize();
   const send = (value: unknown, status = 200) => json(res, value, status);
   if (first === 'kiosk') {
@@ -67,7 +72,7 @@ export async function gymApi(
     });
     res.end(toCsv(columns, rows));
   };
-  if (background && ['GET', 'PUT', 'DELETE'].includes(method))
+  if (background && method === 'GET')
     return send(await invitationBackground(s, ctx.root, first as 'visits' | 'invitation-batches', id, req));
   if (imageUpload) return send(await saveMedia(s, ctx.root, req, first === 'people' ? id : undefined));
   if (first === 'auth' && id === 'status' && method === 'GET') return send({ setupRequired: false, user: auth.actor });
@@ -331,42 +336,17 @@ export async function gymApi(
     if (first === 'people' && !id) return send(await s.savePerson(body), 201);
     if (first === 'devices') return send(await s.createDevice(body), 201);
     if (first === 'expirations' && id) return send(await s.markRenewal(id, body));
-    if (first === 'visits' && action === 'check-in') return send(await s.checkInVisit(id, body), 201);
-    if (first === 'visits' && action === 'close') return send(await s.closeVisit(id, body));
-    if (first === 'visits' && !id) return send(await s.saveVisit(body), 201);
     if (first === 'blocklist') return send(await s.blockDocument(body), 201);
     if (first === 'alerts' && id === 'read') return send(await s.readAlerts(body));
-    if (first === 'saved-reports') return send(await s.saveReport(body), 201);
-    if (first === 'calendar') return send(await s.saveException(body), 201);
-    if (first === 'periods') return send(await s.setPeriod(body));
-    if (first === 'invitation-batches') {
-      const b = new InvitationBatches(s);
-      if (!id) return send(await b.create(body), 201);
-      if (action === 'append') return send(await b.append(id, body));
-      if (action === 'import') return send(await b.importGuests(id, body));
-      if (action === 'duplicate') return send(await b.duplicate(id, body), 201);
-      if (action === 'templates') return send(await b.saveTemplate(id, body), 201);
-      if (action === 'template') return send(await b.applyTemplate(id, z.string().uuid().parse(body.template_id)));
-    }
   }
   if (method === 'PATCH') {
     if (first === 'people' && id) return send(await s.savePerson(body, id));
     if (first === 'credentials' && id) return send(await s.revokeCredential(id));
     if (first === 'devices' && id) return send(await s.revokeDevice(id));
     if (first === 'settings') return send(await s.updateSettings(body));
-    if (first === 'invitation-batches') {
-      const b = new InvitationBatches(s);
-      if (action === 'archive') return send(await b.archive(id, body));
-      if (action === 'delivery') return send(await b.delivery(id, body));
-      if (id && !action) return send(await b.update(id, body));
-    }
-    if (first === 'visits' && action === 'invitation') return send(await s.personalizeInvitation(id, body));
   }
   if (method === 'DELETE') {
-    if (first === 'invitation-templates' && id) return send(await new InvitationBatches(s).deleteTemplate(id));
-    if (first === 'calendar' && id) return send(await s.deleteException(id));
     if (first === 'blocklist' && id) return send(await s.unblockDocument(decodeURIComponent(id)));
-    if (first === 'saved-reports' && id) return send(await s.deleteReport(id));
     if (first === 'people' && id && !action) return send(await s.deletePerson(id));
   }
   throw new ApiError(404, 'Ruta no encontrada.');

@@ -1,0 +1,38 @@
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-card,
+  .print-card * {
+    visibility: visible;
+  }
+  .print-card {
+    --surface: var(--print-surface);
+    --ink: var(--print-ink);
+    --ink-2: var(--print-ink);
+    --muted: var(--print-ink);
+    --ok: var(--print-ink);
+    --ok-bg: var(--print-surface);
+    background: var(--print-surface);
+    color: var(--print-ink);
+    position: fixed;
+    inset: 15mm auto auto 15mm;
+    width: 54mm;
+    max-width: none;
+    margin: 0;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .modal,
+  .modal-backdrop {
+    position: static;
+    overflow: visible;
+    max-height: none;
+    background: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .toast {
+    display: none;
+  }
+}

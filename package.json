@@ -1,18 +1,36 @@
 {
   "name": "gympass-platform",
-  "version": "4.5.5",
+  "version": "4.5.6",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
-    "check": "node --test scripts/check-namecheap.mjs scripts/check-renewals.mjs scripts/check-permanent-qr.mjs scripts/check-realtime.mjs scripts/check-access-policy.mjs scripts/check-offline-sync.mjs scripts/check-apk-delta.mjs scripts/check-hourly-close.mjs scripts/check-access-feedback.mjs",
+    "check": "node --test scripts/check-namecheap.mjs scripts/check-renewals.mjs scripts/check-permanent-qr.mjs scripts/check-realtime.mjs scripts/check-access-policy.mjs scripts/check-offline-sync.mjs scripts/check-apk-delta.mjs scripts/check-hourly-close.mjs scripts/check-access-feedback.mjs scripts/check-login-limit.mjs scripts/check-retired-routes.mjs",
     "check:realtime-host": "node scripts/check-realtime-host.mjs",
-    "start": "node app.js"
+    "start": "node app.js",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && node scripts/build-web.mjs",
+    "test": "node --test tests/*.test.ts",
+    "verify": "npm run build && npm run check && npm test",
+    "release:retain": "node scripts/retain-web.mjs"
   },
   "dependencies": {
     "ws": "8.22.1",
     "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "lucide-react": "1.57.0",
+    "qrcode-generator": "2.0.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/ws": "^8.18.2",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "6.0.3",
+    "vite": "8.3.4"
   }
 }

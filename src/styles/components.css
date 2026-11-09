@@ -1,0 +1,480 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.btn.primary {
+  background: var(--brand-base);
+  color: var(--on-brand);
+}
+.btn.primary:hover {
+  background: var(--brand-base);
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+.btn.secondary {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.btn.secondary:hover {
+  background: var(--surface-2);
+}
+.btn.small {
+  min-height: 33px;
+  font-size: 13px;
+  padding: 7px 10px;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+.icon-btn:hover {
+  background: var(--surface-2);
+}
+.danger {
+  color: var(--ink-2);
+}
+.text-btn {
+  border: 0;
+  background: transparent;
+  color: var(--green);
+  padding: 12px 0;
+  font-weight: 600;
+}
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 600;
+}
+.eyebrow {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  color: var(--ink-2);
+  margin-bottom: 13px;
+}
+.app-shell {
+  min-height: 100vh;
+}
+nav {
+  display: grid;
+  gap: var(--s5);
+}
+.nav-group {
+  display: grid;
+  gap: 2px;
+}
+nav a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+nav a svg {
+  color: var(--muted);
+  transition: color 0.12s ease;
+}
+nav a:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+nav a:hover svg {
+  color: var(--ink-2);
+}
+/* The accent marks exactly one thing in the sidebar: where you are. */
+nav a.active {
+  color: var(--brand-700);
+  background: var(--brand-100);
+  font-weight: 650;
+}
+nav a.active svg {
+  color: var(--brand-600);
+}
+nav a.active:before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand-600);
+}
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--brand-900);
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 3px 4px var(--shadow-color);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.panel-heading {
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.panel-heading p {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+.panel-heading h2 {
+  margin-bottom: 5px;
+}
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior-x: contain;
+  contain: inline-size;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: auto;
+  text-align: left;
+}
+th {
+  font-size: 13px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  padding: 13px 23px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  white-space: nowrap;
+}
+td {
+  padding: 17px 23px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+tr:last-child td {
+  border-bottom: 0;
+}
+td strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+td small {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+td .normal {
+  font-weight: 400;
+}
+.avatar {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.person-cell {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 160px;
+}
+.movement {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.movement.exit {
+  color: var(--ink-2);
+}
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.row-actions,
+.button-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.summary-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-top: 6px;
+}
+.toolbar {
+  display: flex;
+  padding: 20px 23px;
+  gap: 14px;
+  align-items: center;
+}
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+.search svg {
+  position: absolute;
+  left: 12px;
+  color: var(--ink-2);
+}
+.search input {
+  padding-left: 38px !important;
+  width: 100%;
+}
+.count-label {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+input:not([type='checkbox']),
+select,
+textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 11px 12px;
+  color: var(--ink);
+  min-height: 41px;
+  font-size: 13px;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-2);
+}
+textarea {
+  resize: vertical;
+}
+input[readonly] {
+  background: var(--surface-2);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 17px;
+  min-width: 0;
+}
+.field > span,
+.field > label {
+  font-weight: 600;
+  font-size: 13px;
+}
+.field > small {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 7px;
+}
+.helper {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.form .helper {
+  font-size: 13px;
+}
+.check-list {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.check-list label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--surface-2);
+  padding: 9px 11px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+.check-list input {
+  accent-color: var(--green);
+}
+.error-message {
+  padding: 12px 16px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.panel > .error-message {
+  margin: 16px;
+}
+.empty {
+  text-align: center;
+  padding: 45px 24px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.empty-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 15px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.empty h3 {
+  font-size: 15px;
+  color: var(--ink);
+}
+.empty p {
+  max-width: 380px;
+  margin: 8px auto 18px;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  backdrop-filter: blur(3px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal {
+  background: var(--surface);
+  border-radius: 15px;
+  width: 510px;
+  max-width: 100%;
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  padding: 25px;
+  box-shadow: 0 20px 100px var(--shadow-color);
+}
+.modal.wide {
+  width: 690px;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 22px;
+}
+.modal-head h2 {
+  font-size: 20px;
+  margin: 0;
+}
+.muted {
+  display: flex;
+  color: var(--muted);
+}
+.toast {
+  position: fixed;
+  bottom: 25px;
+  right: 25px;
+  max-width: calc(100vw - 50px);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 5px 25px var(--shadow-color);
+  padding: 12px 15px;
+  z-index: 90;
+  font-size: 13px;
+}
+.toast.error {
+  background: var(--brand-900);
+}
+.toast .icon-btn:hover {
+  background: var(--overlay);
+}
+.loading-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

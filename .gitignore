@@ -11,6 +11,16 @@
 !/lib/
 !/scripts/
 !/dist/
+!/src/
+!/public/
+!/tests/
+!/docs/
+!/web-releases/
+!/index.html
+!/vite.config.ts
+!/tsconfig.json
+!/vendor/
+!/client-releases/
 
 # Dependencias, datos y credenciales se conservan fuera de Git.
 **/node_modules/

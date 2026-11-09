@@ -1,0 +1,194 @@
+@media (orientation: landscape) and (min-width: 600px) and (max-height: 700px) {
+  .platform-operational {
+    --platform-bar-height: 52px;
+  }
+  .platform-operational .platform-context-bar {
+    height: 52px;
+    min-height: 52px;
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 12px;
+  }
+  .platform-operational .platform-context-bar > div:first-child > span:not(.gympass-brand-logo) {
+    display: none;
+  }
+  .platform-operational .platform-context-bar .gympass-brand-logo {
+    width: 112px;
+    height: 30px;
+  }
+  .app-shell .sidebar {
+    width: 240px;
+    height: calc(100dvh - var(--platform-bar-height, 0px));
+    z-index: 40;
+  }
+  .app-shell .workspace {
+    margin-left: 68px;
+    padding-bottom: 0;
+    min-height: calc(100dvh - var(--platform-bar-height, 0px));
+  }
+  .app-shell {
+    min-height: calc(100dvh - var(--platform-bar-height, 0px));
+  }
+  .app-shell .sidebar:not(.open) {
+    transform: translateX(-100%);
+  }
+  .app-shell .topbar {
+    height: 44px;
+    min-height: 44px;
+    padding: 0 12px;
+  }
+  .app-shell .main-content {
+    padding: 10px 12px 16px;
+    max-width: 1600px;
+  }
+  .app-shell .app-footer {
+    padding: 8px 12px;
+  }
+  .app-shell .page-heading,
+  .app-shell .settings-page-heading {
+    margin-bottom: 10px;
+    gap: 8px;
+    flex-direction: row;
+    align-items: center;
+  }
+  .app-shell h1 {
+    font-size: 20px;
+    margin-bottom: 0;
+  }
+  .app-shell .page-heading p,
+  .app-shell .settings-page-heading > p {
+    display: none;
+  }
+  .app-shell .mobile-navigation {
+    position: fixed;
+    inset: var(--platform-bar-height, 0px) auto 0 0;
+    width: 68px;
+    min-height: 0;
+    padding: 2px;
+    display: flex;
+    flex-direction: column;
+    border-top: 0;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    z-index: 24;
+  }
+  .app-shell .mobile-navigation > :is(a, button) {
+    display: flex;
+    flex: 1;
+    min-height: 44px;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    font-size: 11px;
+    line-height: 13px;
+    text-align: center;
+    border: 0;
+    border-radius: 8px;
+    color: var(--ink-2);
+    background: transparent;
+  }
+  .app-shell .mobile-navigation > :is([aria-current='page'], .active) {
+    background: var(--brand-base);
+    color: var(--on-brand);
+  }
+  .app-shell .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: var(--platform-bar-height, 0px) 0 0;
+    z-index: 35;
+    background: var(--overlay);
+  }
+  .app-shell .access-grid:has(> .access-panel:only-child) {
+    margin-inline: auto;
+    max-width: 1000px;
+  }
+  .app-shell .access-panel {
+    padding: 10px;
+    min-height: 0;
+  }
+  .app-shell .access-panel .tabs button {
+    min-height: 36px;
+    padding-block: 6px;
+  }
+  .app-shell .camera-scanner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 150px;
+    gap: 8px 12px;
+    padding-top: 8px;
+  }
+  .app-shell .camera-view {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    height: max(100px, calc(100dvh - var(--platform-bar-height, 0px) - 164px));
+    aspect-ratio: auto;
+    margin-bottom: 0;
+  }
+  .app-shell .camera-guide {
+    width: auto;
+    height: 60%;
+  }
+  .app-shell .camera-actions {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .app-shell .camera-actions > .btn {
+    flex: 0 0 auto;
+    min-height: 44px;
+  }
+  .app-shell .camera-scanner > :not(.camera-view) {
+    grid-column: 2;
+  }
+  .app-shell .scanner-status,
+  .app-shell .camera-select,
+  .app-shell .access-waiting {
+    margin: 0;
+  }
+  .app-shell .camera-caption {
+    padding: 4px;
+    bottom: 4px;
+    font-size: 12px;
+  }
+  .app-shell .access-waiting {
+    margin-top: 8px;
+  }
+  .app-shell .pos-checkout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+  .app-shell .pos-selection,
+  .app-shell .pos-cart {
+    padding: 12px;
+  }
+  .app-shell .pos-items {
+    grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
+    gap: 8px;
+  }
+  .app-shell .pos-item {
+    min-height: 88px;
+    padding: 10px;
+  }
+  .app-shell .pos-tabs {
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .app-shell .pos-cart .form-actions {
+    position: sticky;
+    bottom: 0;
+    padding-block: 8px;
+    background: var(--surface);
+    z-index: 2;
+  }
+  .app-shell .settings-content {
+    padding: 16px;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 600px) and (max-width: 1200px) and (max-height: 450px) {
+  .app-shell .topbar {
+    display: none;
+  }
+}

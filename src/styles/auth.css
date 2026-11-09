@@ -1,0 +1,125 @@
+.auth-layout {
+  min-height: 100dvh;
+}
+.auth-layout .auth-story {
+  background: #000;
+}
+.auth-layout .auth-story .gympass-brand-logo {
+  width: 200px;
+  height: 48px;
+}
+.auth-layout .auth-copy {
+  max-width: 600px;
+}
+.auth-layout .auth-main {
+  min-width: 0;
+  padding: clamp(20px, 4dvh, 44px) clamp(24px, 4vw, 64px);
+}
+.auth-layout .auth-card {
+  max-width: 440px;
+}
+.auth-layout .auth-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 14px;
+}
+.auth-layout .auth-card h2 {
+  font-size: 28px;
+  line-height: 1.2;
+  margin-bottom: 14px;
+}
+.auth-layout .auth-card > p {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+.auth-layout .auth-card .form > fieldset {
+  display: grid;
+  gap: 14px;
+}
+.auth-layout .auth-card .field {
+  gap: 6px;
+  margin: 0;
+}
+.auth-layout .auth-card input:not([type='checkbox']) {
+  min-height: 44px;
+}
+.auth-layout .auth-card .check-inline {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.auth-layout .auth-card input[type='checkbox'] {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+}
+.auth-layout .auth-card .form-actions {
+  margin-top: 16px;
+}
+.auth-layout .auth-card .form-actions .btn {
+  min-height: 44px;
+  margin-top: 0;
+}
+.auth-layout .auth-card > .helper {
+  margin: 12px 0 0;
+}
+.auth-layout .app-downloads {
+  margin-top: 24px;
+  padding-top: 20px;
+}
+.auth-layout .app-downloads > p {
+  line-height: 1.5;
+  margin: 8px 0 12px;
+}
+.auth-layout .app-download {
+  min-height: 68px;
+  padding: 12px;
+}
+.auth-layout .app-downloads > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  margin-top: 8px;
+  padding: 4px 0;
+}
+.auth-layout .auth-note {
+  margin-top: 16px;
+  padding-top: 14px;
+}
+@media (min-width: 901px) and (max-height: 760px) {
+  .auth-layout .auth-main {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+  .auth-layout .auth-icon {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 12px;
+  }
+  .auth-layout .app-downloads {
+    margin-top: 18px;
+    padding-top: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .auth-layout .auth-story {
+    padding: 20px 24px;
+  }
+  .auth-layout .auth-story .gympass-brand-logo {
+    width: 176px;
+    height: 42px;
+  }
+  .auth-layout .auth-main {
+    padding: 28px 24px;
+    min-height: calc(100dvh - 82px);
+  }
+  .auth-layout .auth-card input:not([type='checkbox']),
+  .auth-layout .auth-card .form-actions .btn {
+    min-height: 48px;
+  }
+}

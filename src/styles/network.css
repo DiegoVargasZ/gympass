@@ -1,0 +1,94 @@
+/* Network panel: the addresses a phone can reach this computer on. */
+.automatic-camera {
+  margin-bottom: 24px;
+}
+.automatic-camera-grid {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  align-items: center;
+  gap: 28px;
+}
+.automatic-camera-qr {
+  background: #fff;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.automatic-camera-qr img {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+.automatic-camera ol {
+  padding-left: 22px;
+  line-height: 1.7;
+}
+.automatic-camera li {
+  padding-bottom: 8px;
+}
+.automatic-camera .helper {
+  margin-top: 20px;
+}
+@media (max-width: 700px) {
+  .automatic-camera-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .automatic-camera-qr {
+    max-width: 260px;
+    margin: 0 auto;
+  }
+}
+.address-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.address-row:last-of-type {
+  border-bottom: 0;
+}
+.address-row > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.address-row code {
+  display: block;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.address-row small {
+  display: block;
+  margin-top: 2px;
+}
+
+/* Credentials screen. */
+.pick-column {
+  width: 44px;
+}
+.selection-note {
+  padding: var(--s3);
+  border-radius: var(--r-sm);
+  background: var(--brand-100);
+  color: var(--brand-700);
+  margin: var(--s3) 0 0;
+}
+.btn.whatsapp {
+  background: var(--whatsapp);
+  color: var(--on-whatsapp);
+  border-color: transparent;
+  white-space: nowrap;
+}
+.btn.whatsapp:hover {
+  background: var(--whatsapp-hover);
+}
+.alert-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s1);
+  flex-shrink: 0;
+}

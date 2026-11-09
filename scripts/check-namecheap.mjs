@@ -477,6 +477,7 @@ test("la plataforma inicia, sirve la interfaz y conserva la protección de orige
       ok: true,
       mode: "platform",
       protocol: 1,
+      version: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version,
     });
     const html = await fetch(app.url + "/");
     assert.equal(html.status, 200);

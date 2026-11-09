@@ -13,6 +13,7 @@ startPlatform({
   host: '127.0.0.1',
   publicOrigin: process.env.PUBLIC_ORIGIN,
   maxOpen: Number(process.env.GYMPASS_MAX_OPEN || 32),
+  trustedProxies: process.env.GYMPASS_TRUSTED_PROXIES,
 })
   .then((app) => {
     console.log('GymPASS plataforma:', process.env.PUBLIC_ORIGIN);

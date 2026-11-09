@@ -1,0 +1,609 @@
+/* Queue notices also appear in the regular access screen. */
+.heading-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+.queue-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  margin-bottom: var(--s5);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--info);
+  border-radius: var(--r-md);
+  background: var(--info-bg);
+  color: var(--ink);
+}
+.queue-banner svg {
+  color: var(--info);
+}
+.queue-banner div {
+  flex: 1;
+  min-width: 0;
+}
+.queue-banner strong {
+  display: block;
+  font-size: 13px;
+}
+.queue-banner small {
+  display: block;
+  margin-top: 2px;
+}
+.access-result.queued {
+  background: var(--result-queued);
+  color: var(--result-ink);
+}
+
+body.kiosk-active {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body.kiosk-active .platform-context-bar {
+  display: none;
+}
+body.kiosk-active .platform-operational {
+  --platform-bar-height: 0px;
+  padding-top: 0;
+}
+.kiosk {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.kiosk-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left));
+  padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.kiosk-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.kiosk-identity > div {
+  min-width: 0;
+}
+.kiosk-identity img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex: none;
+  border-radius: 6px;
+}
+.kiosk-identity > svg {
+  color: var(--brand-600);
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+.kiosk-identity h1 {
+  display: block;
+  margin: 0;
+  font-size: clamp(1rem, 2vw, 1.35rem);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.kiosk-identity small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+.kiosk-count {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 1px 6px;
+  padding: 6px 9px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.kiosk-count strong {
+  font-size: 21px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.kiosk-count small {
+  grid-column: 1/-1;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+.kiosk-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.kiosk-tools .icon-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+}
+.kiosk-tools .kiosk-leave {
+  min-height: 48px;
+  padding: 10px;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.kiosk-queue {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: none;
+  min-height: 44px;
+  margin: 8px 12px 0;
+  padding: 9px 12px;
+  border: 1px solid var(--info);
+  border-radius: 8px;
+  background: var(--info-bg);
+  color: var(--info);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.kiosk-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(240px, 1fr) auto;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+  padding: 12px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+}
+.kiosk-camera {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+.kiosk-methods {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.kiosk-methods .btn {
+  flex: 1;
+  min-height: 44px;
+}
+.kiosk-reader {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+  padding: clamp(20px, 4vw, 48px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+.kiosk-reader h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  line-height: 1.2;
+}
+.kiosk-reader > p {
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.kiosk-reader input {
+  min-height: 56px;
+  font-size: 1.1rem;
+}
+.kiosk-instructions {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.kiosk :is(button, input, select, a):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.kiosk .kiosk-scanner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+}
+.kiosk .camera-view {
+  flex: 1;
+  min-height: 230px;
+  aspect-ratio: auto;
+  margin: 0;
+  border-radius: 18px;
+  background: var(--camera-bg);
+}
+.kiosk .camera-view video {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  inset: 0;
+  object-fit: cover;
+}
+.camera-view video[hidden] {
+  display: none;
+}
+.kiosk .camera-guide {
+  width: min(70%, 42dvh, 290px);
+  border: 3px solid #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.38);
+}
+.kiosk .camera-caption {
+  left: 12px;
+  right: 12px;
+  bottom: 14px;
+  padding: 10px;
+  font-size: 14px;
+  line-height: 1.3;
+  border-radius: 8px;
+  background: var(--camera-caption);
+  color: #ffffff;
+}
+.kiosk .camera-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+  color: #ffffff;
+  background: var(--camera-bg);
+}
+.kiosk .camera-empty strong {
+  font-size: 22px;
+  line-height: 1.2;
+}
+.kiosk .camera-empty p {
+  margin: 0;
+  max-width: 30ch;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--hero-muted);
+}
+.kiosk .camera-actions {
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  flex: none;
+}
+.kiosk .camera-actions > .btn {
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: 48px;
+  gap: 8px;
+  padding: 11px 8px;
+  font-size: 14px;
+}
+.kiosk .btn.primary,
+.kiosk .btn.primary:hover {
+  background: var(--brand-base);
+  color: var(--on-brand);
+}
+.kiosk .scanner-status {
+  flex: none;
+  margin: 7px 2px 0;
+  font-size: 12px;
+  line-height: 1.4;
+  min-height: 17px;
+}
+.kiosk .camera-select {
+  flex: none;
+  margin-top: 8px;
+  gap: 10px;
+  font-size: 13px;
+}
+.kiosk .camera-select select {
+  font-size: 16px;
+  min-height: 44px;
+}
+.kiosk .camera-network-note {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+.kiosk .camera-network-note p {
+  margin: 0 0 8px;
+}
+.kiosk .camera-scanner > .error-message {
+  margin: 8px 0 0;
+  flex: none;
+  font-size: 14px;
+}
+.kiosk-feedback {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 8px;
+}
+.kiosk-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 92px;
+  padding: 15px 16px;
+  border-radius: 14px;
+  animation: result-in 180ms ease-out;
+}
+.kiosk-result-copy {
+  min-width: 0;
+  flex: 1;
+}
+.kiosk-result-symbol {
+  flex: none;
+}
+.kiosk-result h2 {
+  margin: 0;
+  font-size: clamp(19px, 4.9vw, 25px);
+  line-height: 1.15;
+  letter-spacing: -0.45px;
+  overflow-wrap: anywhere;
+}
+.kiosk-result p {
+  margin: 5px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.kiosk-result-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+  font-size: 14px;
+  line-height: 1.2;
+}
+.kiosk-result-label svg {
+  flex: none;
+}
+.kiosk-result.idle {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink);
+}
+.kiosk-result.idle > .kiosk-result-symbol {
+  color: var(--ink);
+}
+.kiosk-result.idle p {
+  color: var(--ink-2);
+}
+.kiosk-result.allowed {
+  background: var(--result-ok);
+  color: var(--result-ink);
+}
+.kiosk-result.denied {
+  background: var(--result-danger);
+  color: var(--result-ink);
+}
+.kiosk-result.queued {
+  background: var(--result-queued);
+  color: var(--result-ink);
+}
+.kiosk-result .avatar {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  font-size: 20px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+}
+.kiosk-feedback > .error-message {
+  margin: 0;
+}
+.kiosk-options-modal > .btn {
+  width: 100%;
+  min-height: 48px;
+}
+.kiosk-pin-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+.kiosk-pin-setup .field {
+  margin: 0;
+}
+.kiosk-pin-setup .button-row,
+.kiosk-exit-modal .button-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.kiosk-pin-setup .button-row > .btn,
+.kiosk-exit-modal .button-row > .btn {
+  flex: 1;
+  min-height: 48px;
+}
+.kiosk-options-modal input,
+.kiosk-exit-modal input {
+  font-size: 16px;
+  min-height: 48px;
+}
+.kiosk-pin-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 16px 0;
+}
+.kiosk-pin-summary p {
+  margin: 5px 0 0;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+@media (min-width: 700px) and (min-height: 650px) {
+  .kiosk-bar {
+    gap: 18px;
+    padding-left: max(24px, env(safe-area-inset-left));
+    padding-right: max(24px, env(safe-area-inset-right));
+  }
+  .kiosk-stage {
+    gap: 16px;
+    padding: 16px max(24px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom))
+      max(24px, env(safe-area-inset-left));
+  }
+  .kiosk-result {
+    min-height: 110px;
+    padding: 20px 24px;
+  }
+  .kiosk-result h2 {
+    font-size: 28px;
+  }
+  .kiosk-result p {
+    font-size: 15px;
+  }
+}
+@media (min-width: 1100px), (min-width: 560px) and (orientation: landscape) and (max-height: 650px) {
+  .kiosk-stage {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .kiosk-feedback {
+    justify-content: center;
+  }
+  .kiosk-result {
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+  }
+  .kiosk-result-copy {
+    flex: 0;
+    width: 100%;
+  }
+  .kiosk-result-label {
+    justify-content: center;
+  }
+  .kiosk-result h2 {
+    font-size: clamp(25px, 3vw, 44px);
+  }
+  .kiosk-result p {
+    font-size: 15px;
+  }
+  .kiosk-result .avatar {
+    width: 80px;
+    height: 80px;
+    font-size: 28px;
+  }
+  .kiosk-result-symbol {
+    width: 52px;
+    height: 52px;
+  }
+}
+@media (orientation: landscape) and (max-height: 650px) {
+  .kiosk-bar {
+    padding-top: max(5px, env(safe-area-inset-top));
+    padding-bottom: 5px;
+  }
+  .kiosk-stage {
+    padding-top: 10px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    gap: 12px;
+  }
+  .kiosk .camera-view {
+    min-height: 140px;
+    border-radius: 12px;
+  }
+  .kiosk .camera-guide {
+    width: min(40dvh, 230px);
+    border-radius: 14px;
+  }
+  .kiosk .camera-caption {
+    bottom: 8px;
+    font-size: 12px;
+    padding: 7px;
+  }
+  .kiosk .camera-actions {
+    margin-top: 8px;
+  }
+  .kiosk .camera-actions > .btn {
+    min-height: 44px;
+    padding: 8px;
+    font-size: 13px;
+  }
+  .kiosk .scanner-status {
+    font-size: 11px;
+    line-height: 1.3;
+    margin-top: 5px;
+  }
+  .kiosk-result {
+    padding: 15px;
+    gap: 10px;
+  }
+  .kiosk-result h2 {
+    font-size: 23px;
+  }
+  .kiosk-result p {
+    font-size: 13px;
+  }
+  .kiosk-result .avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+}
+@media (max-width: 350px) {
+  .kiosk-bar {
+    gap: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .kiosk-identity {
+    gap: 6px;
+  }
+  .kiosk-identity > svg {
+    display: none;
+  }
+  .kiosk-identity h1 {
+    font-size: 1rem;
+  }
+  .kiosk-identity small {
+    font-size: 11px;
+  }
+  .kiosk-tools .kiosk-leave span {
+    display: none;
+  }
+  .kiosk-tools .kiosk-leave {
+    width: 48px;
+    min-width: 48px;
+  }
+  .kiosk .camera-actions > .btn {
+    font-size: 13px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kiosk-result {
+    animation: none;
+  }
+}

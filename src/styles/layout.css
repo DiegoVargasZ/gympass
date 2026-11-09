@@ -1,0 +1,143 @@
+.brand {
+  display: flex;
+  align-items: center;
+  font-size: 31px;
+  font-weight: 750;
+  letter-spacing: -1.6px;
+  gap: 9px;
+}
+.brand-mark {
+  width: 37px;
+  height: 37px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--green);
+  border-radius: 10px;
+}
+.brand-period {
+  color: var(--ink-2);
+  margin-left: -8px;
+}
+.sidebar {
+  width: 248px;
+  position: fixed;
+  inset: 0 auto 0 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 33px 20px 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+}
+.sidebar {
+  overflow-y: auto;
+}
+.sidebar .brand {
+  padding-left: 9px;
+}
+.nav-label {
+  display: block;
+  font-size: 13px;
+  letter-spacing: 1.4px;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 0 12px;
+  margin-bottom: 7px;
+}
+.sidebar-bottom {
+  margin-top: auto;
+  padding: 30px 12px 25px;
+  font-size: 13px;
+}
+.sidebar-bottom small {
+  display: block;
+  font-size: 13px;
+  margin: 7px 0 0 13px;
+}
+.user-box {
+  border-top: 1px solid var(--border);
+  padding: 19px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.user-box div {
+  min-width: 0;
+  flex: 1;
+}
+.user-box strong {
+  display: block;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-box small {
+  font-size: 13px;
+}
+.workspace {
+  margin-left: 248px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.topbar {
+  height: 76px;
+  padding: 0 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 13px;
+}
+.breadcrumb {
+  color: var(--ink-2);
+  margin-right: 5px;
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.today-label {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.mobile-menu {
+  display: none;
+}
+.main-content {
+  padding: 38px;
+  max-width: 1630px;
+  width: 100%;
+  margin: 0 auto;
+  flex: 1;
+}
+.page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 29px;
+}
+.page-heading p {
+  color: var(--muted);
+  margin: 0;
+  font-size: 13px;
+}
+.app-footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 21px 38px;
+  color: var(--ink-2);
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+.app-footer span {
+  letter-spacing: 0;
+}
+.sidebar-overlay {
+  display: none;
+}

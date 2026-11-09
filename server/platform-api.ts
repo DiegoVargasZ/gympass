@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ApiError } from '../lib/service.ts';
 import { sessionSeconds } from './auth.ts';
 import { PlatformStore, type Gym, type GymScope } from './platform-store.ts';
+import { createLoginLimiter } from './auth-rate-limit.ts';
 
 export const platformCookieName = 'gympass_platform';
 export function platformRequestToken(req: IncomingMessage) {
@@ -67,8 +68,9 @@ function required(value: unknown, label: string): string {
 
 export function createPlatformApi(
   store: PlatformStore,
-  options: { provisionGym: (gym: Gym) => Promise<void>; secureCookies?: boolean },
+  options: { provisionGym: (gym: Gym) => Promise<void>; secureCookies?: boolean; trustedProxies?: string },
 ) {
+  const limitedLogin = createLoginLimiter(options.trustedProxies);
   const cookie = (req: IncomingMessage, value: string, remember = false, clear = false) =>
     sessionCookie(req, value, remember, clear, options.secureCookies);
   return async (req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> => {
@@ -104,9 +106,9 @@ export function createPlatformApi(
         if (path.endsWith('/mobile-login')) {
           if (input.gym_id !== undefined && typeof input.gym_id !== 'string')
             throw new ApiError(400, 'Gimnasio inválido.');
-          send(res, await store.mobileLogin({ ...credentials, gymId: input.gym_id }));
+          send(res, await limitedLogin(req, res, credentials.email, () => store.mobileLogin({ ...credentials, gymId: input.gym_id })));
         } else {
-          const login = await store.login(credentials);
+          const login = await limitedLogin(req, res, credentials.email, () => store.login(credentials));
           res.setHeader('Set-Cookie', cookie(req, login.token, credentials.remember));
           send(res, { user: login.session.user, gyms: store.listGyms(login.session.user) });
         }

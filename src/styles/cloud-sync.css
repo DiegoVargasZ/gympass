@@ -1,0 +1,77 @@
+.cloud-sync {
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.cloud-sync > h2,
+.cloud-sync > h3,
+.cloud-sync > p,
+.sync-device p,
+.sync-device h3 {
+  margin: 0;
+}
+.cloud-sync > p {
+  max-width: 82ch;
+  line-height: 1.65;
+}
+.sync-explanation {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.sync-explanation > div,
+.sync-device,
+.sync-conflict {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  min-width: 0;
+}
+.sync-explanation h3,
+.sync-explanation p {
+  margin: 0;
+}
+.sync-explanation p {
+  margin-top: 8px;
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+.sync-device {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.sync-device > div {
+  flex: 1;
+  min-width: 180px;
+}
+.sync-device p {
+  color: var(--muted);
+  line-height: 1.6;
+  margin-top: 4px;
+}
+.sync-devices,
+.sync-conflict {
+  display: grid;
+  gap: 12px;
+}
+.sync-conflict {
+  border-inline-start: 3px solid var(--warn);
+}
+.sync-initial {
+  width: min(100%, 520px);
+  margin: 40px auto;
+}
+.sync-initial form {
+  width: 100%;
+}
+@media (max-width: 650px) {
+  .cloud-sync { padding: 18px; }
+  .sync-explanation { grid-template-columns: 1fr; }
+  .sync-initial { margin: 20px auto; }
+  .sync-device > button { width: 100%; }
+}

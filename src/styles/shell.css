@@ -1,0 +1,530 @@
+/*
+ * Application shell: sidebar, top bar, page header, section tabs, panels and tables.
+ * This file is the single source of truth for those pieces and loads after every other
+ * layout sheet. Flat surfaces separated by 1px borders; the brand colour only marks the
+ * current place and the primary action. No gradients, glass, glow or side stripes.
+ * Rules are scoped with .app-shell so older sheets cannot out-rank them.
+ */
+.app-shell {
+  background: var(--bg);
+}
+
+/* ---- Sidebar ---- */
+.app-shell .sidebar {
+  width: 232px;
+  padding: 20px 12px 0;
+  background: var(--surface);
+  color: var(--ink);
+  border-right: 1px solid var(--border);
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.app-shell .sidebar .brand {
+  gap: 4px;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0 8px;
+  font-size: 17px;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+.app-shell .sidebar .brand-text {
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+.app-shell .sidebar .brand-name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.app-shell .sidebar nav {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  margin-top: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  overflow-y: auto;
+  min-height: 0;
+}
+.app-shell .sidebar nav a {
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-2);
+  box-shadow: none;
+  background: none;
+  transform: none;
+}
+.app-shell .sidebar nav a svg {
+  color: var(--muted);
+}
+.app-shell .sidebar nav a:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.app-shell .sidebar nav a.active {
+  background: var(--brand-100);
+  color: var(--ink);
+  font-weight: 650;
+  box-shadow: none;
+}
+.app-shell .sidebar nav a.active svg {
+  color: var(--brand-600);
+}
+.app-shell .sidebar nav a.active::before {
+  display: none;
+}
+.app-shell .sidebar .user-box {
+  margin-top: auto;
+  padding: 14px 8px 16px;
+  border-top: 1px solid var(--border);
+}
+.app-shell .sidebar .user-box strong {
+  font-size: 14px;
+  color: var(--ink);
+}
+.app-shell .sidebar .user-box small {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.app-shell .sidebar .icon-btn {
+  color: var(--ink-2);
+}
+.app-shell .sidebar .icon-btn:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.sidebar-collapsed .sidebar .brand-text {
+  display: none;
+}
+
+/* ---- Top bar ---- */
+.app-shell .topbar {
+  height: 60px;
+  padding: 0 40px;
+  gap: 12px;
+  justify-content: flex-start;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
+}
+.app-shell .topbar .gympass-brand-logo {
+  width: 140px;
+  height: 42px;
+}
+.topbar-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  max-width: 440px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 14px;
+  text-align: left;
+}
+
+@media (max-width: 600px) {
+  .app-shell .topbar {
+    gap: 8px;
+  }
+  .app-shell .topbar .gympass-brand-logo {
+    width: 116px;
+    height: 36px;
+  }
+  .topbar-search {
+    flex: 0 0 44px;
+    padding: 0;
+    justify-content: center;
+  }
+  .topbar-search span {
+    display: none;
+  }
+}
+.topbar-search:hover {
+  border-color: var(--border-strong);
+}
+.topbar-search span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar-search kbd {
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.app-shell .topbar-right {
+  margin-left: auto;
+  gap: 4px;
+}
+.app-shell .workspace {
+  margin-left: 232px;
+}
+
+/* ---- Page ---- */
+.app-shell .main-content {
+  max-width: 1240px;
+  padding: 28px 40px 48px;
+}
+.app-shell .page-heading,
+.app-shell .settings-page-heading {
+  align-items: center;
+  margin-bottom: 24px;
+}
+.app-shell h1 {
+  font-size: 1.75rem;
+  letter-spacing: -0.3px;
+  font-weight: 650;
+  line-height: 1.25;
+  margin-bottom: 4px;
+}
+.app-shell .page-heading p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+.app-shell .eyebrow {
+  display: none;
+}
+.app-shell h2 {
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+/* ---- Section tabs ---- */
+.section-tabs {
+  display: flex;
+  gap: 4px;
+  margin: -4px 0 24px;
+  box-shadow: inset 0 -1px 0 var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.section-tabs a,
+.section-tabs a.active {
+  padding: 10px 14px 10px;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.section-tabs a::before {
+  display: none;
+}
+.section-tabs a:hover {
+  background: none;
+  color: var(--ink);
+}
+.section-tabs a.active {
+  color: var(--ink);
+  font-weight: 650;
+  border-bottom-color: var(--brand-base);
+}
+
+/* ---- Panels, tables, empty states ---- */
+.app-shell .panel,
+.app-shell .stat-card,
+.app-shell .topbar,
+.app-shell .modal {
+  background-image: none;
+  box-shadow: none;
+}
+.app-shell .modal {
+  box-shadow: var(--shadow-3);
+}
+.app-shell .panel {
+  border-radius: var(--r-lg);
+}
+.app-shell .panel-heading p,
+.app-shell .field .hint,
+.app-shell .helper {
+  font-size: 14px;
+}
+.app-shell th {
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 600;
+  padding: 10px 20px;
+}
+.app-shell td {
+  font-size: 14px;
+  padding: 14px 20px;
+}
+.app-shell td strong {
+  font-size: 14px;
+}
+.app-shell td small {
+  font-size: 13px;
+}
+.app-shell .empty-icon {
+  width: auto;
+  height: auto;
+  background: none;
+  color: var(--muted);
+}
+.app-shell .app-footer {
+  font-size: 13px;
+}
+
+@media (max-width: 1200px) {
+  .app-shell .sidebar {
+    width: 220px;
+  }
+  .app-shell .workspace {
+    margin-left: 220px;
+  }
+  .app-shell .main-content {
+    padding: 24px 24px 40px;
+  }
+  .app-shell .topbar {
+    padding: 0 24px;
+  }
+}
+@media (max-width: 850px) {
+  .app-shell .sidebar {
+    width: 280px;
+  }
+  .app-shell .workspace {
+    margin-left: 0;
+  }
+  .app-shell .topbar {
+    height: auto;
+    min-height: 60px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  .topbar-search kbd {
+    display: none;
+  }
+  .app-shell .main-content {
+    padding: 20px max(16px, env(safe-area-inset-left)) 32px max(16px, env(safe-area-inset-right));
+  }
+  .app-shell h1 {
+    font-size: 1.5rem;
+  }
+  .section-tabs {
+    margin-bottom: 20px;
+  }
+}
+
+/* ---- Row actions: two real buttons, the rest as quiet text links ---- */
+.row-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+  flex-basis: 100%;
+}
+.link-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand-700);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+.link-action:hover {
+  text-decoration-color: currentColor;
+}
+.link-action.danger {
+  color: var(--danger);
+}
+
+/* ---- Reception: choose what to register with large, labelled options ---- */
+.movement-choice {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.movement-choice button {
+  display: grid;
+  gap: 2px;
+  min-height: 64px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+}
+.movement-choice button strong {
+  font-size: 16px;
+}
+.movement-choice button small {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.movement-choice button:hover:not(:disabled) {
+  border-color: var(--brand-base);
+}
+.movement-choice button.selected {
+  border-color: var(--brand-base);
+  background: var(--brand-100);
+  box-shadow: inset 0 0 0 1px var(--brand-base);
+}
+@media (max-width: 600px) {
+  .movement-choice {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- Caja: product and plan tiles, filters, tables ---- */
+.app-shell .pos-selection h2 {
+  margin: 20px 0 12px;
+}
+.app-shell .pos-items {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+.app-shell .pos-item {
+  min-height: 124px;
+  padding: 16px 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-color: var(--border);
+  border-radius: var(--r-md);
+  text-align: center;
+}
+.app-shell .pos-item strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.3;
+}
+.app-shell .pos-item span {
+  font-size: 18px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.app-shell .pos-item small {
+  font-size: 13px;
+}
+.app-shell .pos-item:hover:not(:disabled) {
+  border-color: var(--brand-base);
+  background: var(--brand-100);
+}
+.app-shell .pos-catalog-heading,
+.app-shell .pos-history-filters {
+  margin: 0;
+  padding: 20px 24px;
+}
+.app-shell .pos-sales-summary {
+  margin: 0;
+  padding: 16px 24px;
+  border-bottom: 0;
+}
+.app-shell .pos-sales-summary strong {
+  font-size: 17px;
+}
+.app-shell .pos-page td,
+.app-shell .pos-page th {
+  vertical-align: middle;
+}
+.app-shell .pos-page td small {
+  display: block;
+  margin-top: 2px;
+}
+.app-shell .pos-page .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---- Plans and payments of one member ---- */
+.person-memberships h3,
+.person-memberships section > h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 650;
+}
+.membership-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 20px;
+}
+.membership-status span {
+  color: var(--ink-2);
+}
+.app-shell .pos-membership-list li {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.app-shell .pos-membership-list li > div,
+.app-shell .pos-membership-list li > p {
+  margin: 0;
+}
+.membership-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.membership-head strong {
+  font-size: 16px;
+}
+.membership-dates {
+  color: var(--ink-2);
+}
+.membership-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+}
+.membership-actions {
+  margin: 20px 0 28px;
+}
+.app-shell .pos-membership-list li.payment-row {
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 4px 16px;
+}
+@media (max-width: 600px) {
+  .app-shell .pos-membership-list li.payment-row {
+    grid-template-columns: 1fr auto;
+  }
+}

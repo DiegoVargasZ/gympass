@@ -1,0 +1,214 @@
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sidebar-close {
+  display: none;
+}
+.workspace,
+.main-content,
+.panel,
+.access-grid > * {
+  min-width: 0;
+}
+.topbar-right {
+  flex-shrink: 0;
+}
+.camera-network-note {
+  margin: 16px 0 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--info-bg);
+  color: var(--ink);
+}
+.table-scroll {
+  overscroll-behavior-x: contain;
+}
+
+@media (max-width: 850px) {
+  body.kiosk-active {
+    overflow-y: auto;
+  }
+  .sidebar {
+    visibility: hidden;
+    max-width: calc(100vw - 48px);
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: env(safe-area-inset-bottom);
+    overscroll-behavior-y: contain;
+  }
+  .sidebar.open {
+    visibility: visible;
+  }
+  .sidebar-close {
+    display: inline-flex;
+  }
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    min-height: 64px;
+    height: auto;
+    padding-top: env(safe-area-inset-top);
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    gap: 8px;
+  }
+  .topbar-right {
+    gap: 0;
+  }
+  .topbar .icon-btn,
+  .sidebar .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+  .main-content {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  .alerts-panel {
+    position: fixed;
+    top: calc(64px + env(safe-area-inset-top) + 8px);
+    right: max(12px, env(safe-area-inset-right));
+    width: min(380px, calc(100vw - 24px));
+    max-height: calc(100dvh - 100px - env(safe-area-inset-top));
+  }
+}
+
+@media (max-width: 600px) {
+  input:not([type='checkbox']),
+  select,
+  textarea {
+    font-size: 16px;
+    min-width: 0;
+    min-height: 44px;
+  }
+  .btn,
+  .btn.small,
+  .page-heading .btn,
+  .icon-btn,
+  .tabs button,
+  .text-btn {
+    min-height: 44px;
+  }
+  .icon-btn {
+    min-width: 44px;
+  }
+  .btn {
+    white-space: normal;
+    text-align: center;
+  }
+  .page-heading > *,
+  .heading-actions,
+  .form-actions {
+    width: 100%;
+    min-width: 0;
+  }
+  .heading-actions > .btn,
+  .form-actions > .btn {
+    flex: 1;
+  }
+  .form-actions,
+  .pagination,
+  .queue-banner {
+    flex-wrap: wrap;
+  }
+  .form-actions > .btn {
+    flex-basis: 120px;
+  }
+  .pagination > div {
+    flex-wrap: wrap;
+  }
+  .pagination > span {
+    flex-basis: 100%;
+  }
+  .tabs button {
+    min-width: 0;
+    padding: 8px 6px;
+    overflow-wrap: anywhere;
+  }
+  .camera-actions > .btn {
+    flex-basis: 100%;
+  }
+  .camera-select {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .camera-select select {
+    width: 100%;
+  }
+  .report-filters .field {
+    flex-basis: 100%;
+  }
+  .toolbar .search {
+    min-width: 0;
+  }
+  .auth-main {
+    min-height: calc(100dvh - 80px);
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+  .auth-bottom {
+    position: static;
+    margin: 32px 0 0;
+    text-align: center;
+    justify-content: center;
+  }
+  .modal-backdrop {
+    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  }
+  .modal {
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overscroll-behavior-y: contain;
+  }
+  .modal-head {
+    gap: 8px;
+  }
+  .toast {
+    bottom: max(15px, env(safe-area-inset-bottom));
+  }
+  .kiosk-stage > * {
+    min-width: 0;
+  }
+  .kiosk-tools {
+    flex-wrap: wrap;
+  }
+  .kiosk-identity {
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 600px) {
+  .invitations-table {
+    min-width: 0;
+  }
+  .invitations-table thead {
+    display: none;
+  }
+  .invitations-table tbody,
+  .invitations-table tr,
+  .invitations-table td {
+    display: block;
+    width: 100%;
+  }
+  .invitations-table tr {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .invitations-table td {
+    padding: 8px 16px;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .invitations-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .invitations-table .row-actions {
+    flex-wrap: wrap;
+  }
+}

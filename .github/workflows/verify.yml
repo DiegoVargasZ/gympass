@@ -25,8 +25,15 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci --omit=dev --ignore-scripts
+      - run: npm ci --ignore-scripts
+      - run: npm run build
       - run: npm run check
+      - run: npm test
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gympass-web
+          path: dist/
+          retention-days: 14
 
   deploy:
     needs: verify
@@ -45,6 +52,10 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: gympass-web
+          path: verified-dist/
       - name: Preparar el paquete y conectar por SSH
         shell: bash
         run: |
@@ -66,7 +77,7 @@ jobs:
           destination="$NAMECHEAP_USER@$NAMECHEAP_HOST"
           remote_stage="$(ssh "${ssh_opts[@]}" "$destination" 'mktemp -d /tmp/gympass-upload.XXXXXXXX')"
           [[ "$remote_stage" =~ ^/tmp/gympass-upload\.[A-Za-z0-9]+$ ]] || exit 1
-          tar -czf release.tar.gz app.js package.json package-lock.json server lib scripts dist
+          tar --transform='s#^verified-dist#dist#' -czf release.tar.gz app.js package.json package-lock.json server lib scripts verified-dist
           scp -i "$ssh_dir/key" -P "$NAMECHEAP_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$ssh_dir/known_hosts" release.tar.gz "$destination:$remote_stage/release.tar.gz"
           ssh "${ssh_opts[@]}" "$destination" "bash -s -- '$NAMECHEAP_APP_ROOT' '$NAMECHEAP_NODE_ENV' '$remote_stage/release.tar.gz' '$GITHUB_SHA'" < scripts/deploy-namecheap.sh
       - name: Comprobar el dominio al terminar
@@ -74,4 +85,4 @@ jobs:
         run: |
           curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 5 --max-time 15 --dump-header health-headers.txt https://gympass.site/api/health > health.json
           grep -iq '^X-GymPASS-Realtime: 1' health-headers.txt || { echo 'El servidor todavía no ejecuta la versión con tiempo real.' >&2; exit 1; }
-          node -e 'const fs=require("node:fs");const h=JSON.parse(fs.readFileSync("health.json","utf8"));if(!h.ok||h.mode!=="platform")process.exit(1);console.log("GymPASS responde correctamente en el dominio.")'
+          node -e 'const fs=require("node:fs");const h=JSON.parse(fs.readFileSync("health.json","utf8"));if(!h.ok||h.mode!=="platform"||h.version!==require("./package.json").version)process.exit(1);console.log("GymPASS "+h.version+" responde correctamente en el dominio.")'
