@@ -36,7 +36,7 @@ export default function Appearance() {
               updatePreferences({ sound: event.target.checked });
             }}
           />{' '}
-          Sonido al registrar acceso
+          Voz al registrar entrada y salida
         </label>
         <label>
           <input
@@ -52,7 +52,7 @@ export default function Appearance() {
         className="btn secondary"
         onClick={() => {
           prepareAudio();
-          accessFeedback(true, preferences.sound, preferences.vibration);
+          accessFeedback(true, preferences.sound, preferences.vibration, 'entry', 'María Pérez');
         }}
       >
         Probar confirmación

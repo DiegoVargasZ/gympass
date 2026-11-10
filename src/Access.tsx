@@ -102,7 +102,7 @@ export default function Access({ data, reload }: { data: Bootstrap; reload: () =
       const event = outcome.event;
       if (alive.current) {
         setResult(event);
-        accessFeedback(!!event.allowed, preferences.sound, preferences.vibration, event.direction);
+        accessFeedback(!!event.allowed, preferences.sound, preferences.vibration, event.direction, event.person_name);
         if (code.current) {
           code.current.value = '';
           code.current.focus();

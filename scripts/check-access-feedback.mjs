@@ -1,6 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { accessPresentation, feedbackSound, feedbackTiming } from '../lib/access-feedback.ts';
+import { accessPresentation, feedbackAnnouncement, feedbackSound, feedbackTiming, preferredSpanishVoice } from '../lib/access-feedback.ts';
+
+test('la voz anuncia el movimiento y el nombre, priorizando voces naturales en español', () => {
+  assert.equal(feedbackAnnouncement('entry', '  Ana   Pérez  '), 'Entrando, Ana Pérez.');
+  assert.equal(feedbackAnnouncement('exit', 'José Núñez'), 'Saliendo, José Núñez.');
+  assert.equal(feedbackAnnouncement('entry'), 'Entrando.');
+  const local = { name: 'Español', lang: 'es-BO', localService: true, default: true };
+  const natural = { name: 'Microsoft Dalia Online (Natural)', lang: 'es-MX', localService: false, default: false };
+  const english = { ...natural, name: 'English Neural', lang: 'en-US' };
+  assert.equal(preferredSpanishVoice([local, english, natural]), natural);
+  assert.equal(preferredSpanishVoice([local, natural], false), local);
+  assert.equal(preferredSpanishVoice([english]), undefined);
+});
 
 test('los avisos de entrada, salida y rechazo conservan identidad, vigencia y sonidos distintos', () => {
   const event = { allowed: 1, direction: 'entry', person_name: 'Ana Pérez', zone_name: 'General', reason: 'OK',

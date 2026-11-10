@@ -124,7 +124,11 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
       if (preferences.sound) prepareAudio();
     };
     window.addEventListener('pointerdown', prepare);
-    return () => window.removeEventListener('pointerdown', prepare);
+    window.addEventListener('keydown', prepare);
+    return () => {
+      window.removeEventListener('pointerdown', prepare);
+      window.removeEventListener('keydown', prepare);
+    };
   }, [preferences.sound]);
   useEffect(() => {
     if (!result && !queued) return;
@@ -167,7 +171,7 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
           return;
         }
         setResult(outcome.event);
-        accessFeedback(!!outcome.event.allowed, preferences.sound, preferences.vibration, outcome.event.direction);
+        accessFeedback(!!outcome.event.allowed, preferences.sound, preferences.vibration, outcome.event.direction, outcome.event.person_name);
         void reload().catch(() => {});
       } catch (reason) {
         if (alive.current) setError((reason as Error).message);

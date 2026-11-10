@@ -6,6 +6,25 @@ export const feedbackTiming = { enter: 180, hold: 3520, exit: 300, total: 4000, 
 export function feedbackSound(event: Pick<AccessEvent, 'allowed' | 'direction'>) {
   return !event.allowed ? 'denied' : event.direction === 'exit' ? 'exit' : 'entry';
 }
+export function feedbackAnnouncement(direction: string, personName = '') {
+  const name = personName.trim().replace(/\s+/g, ' ');
+  return `${direction === 'exit' ? 'Saliendo' : 'Entrando'}${name ? `, ${name}` : ''}.`;
+}
+
+type FeedbackVoice = { name: string; lang: string; localService: boolean; default: boolean };
+export function preferredSpanishVoice<T extends FeedbackVoice>(voices: T[], online = true): T | undefined {
+  const score = (voice: T) => {
+    const language = voice.lang.replaceAll('_', '-').toLowerCase();
+    return (/natural|neural|premium|enhanced/i.test(voice.name) ? 100 : 0) +
+      (/google/i.test(voice.name) ? 40 : 0) +
+      (!voice.localService ? 20 : 0) +
+      (language === 'es-bo' ? 15 : language === 'es-mx' || language === 'es-419' ? 10 : 0) +
+      (voice.default ? 1 : 0);
+  };
+  return voices
+    .filter((voice) => /^es(?:[-_]|$)/i.test(voice.lang) && (online || voice.localService))
+    .sort((a, b) => score(b) - score(a))[0];
+}
 export function accessPresentation(event: FeedbackEvent) {
   return {
     phase: event.allowed ? 'allowed' : 'denied',
