@@ -2,11 +2,36 @@ import {
   defaultVoiceSettings, feedbackAnnouncement, feedbackSound, normalizeVoiceSettings, preferredSpanishVoice,
   voiceGender, voiceIdentity, type VoiceSettings,
 } from '../lib/access-feedback';
+import { findGympassVoice, type GympassVoice } from '../lib/voice-catalog';
 let context: AudioContext | undefined;
 const buffers = new Map<string, Promise<AudioBuffer>>();
 let playing: AudioBufferSourceNode | undefined;
 let sequence = 0;
 let activeSpeech: { utterance: SpeechSynthesisUtterance; stop: () => void } | undefined;
+
+function deadline<T>(work: Promise<T>, milliseconds: number): Promise<T | undefined> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve(undefined), milliseconds);
+    void work.then((value) => { clearTimeout(timer); resolve(value); }, (error) => { clearTimeout(timer); reject(error); });
+  });
+}
+
+async function playGympassVoice(voice: GympassVoice, text: string, rate: number, current: number, preview: boolean) {
+  try {
+    if (!context || typeof Worker === 'undefined') return false;
+    const engine = await import('./voice-engine');
+    const ready = engine.prepareGympassVoice(voice.preset).then(() => true);
+    if (!(preview ? await ready : await deadline(ready, 1800)) || current !== sequence) return false;
+    const work = engine.renderGympassVoice(voice.preset, text, rate);
+    const audio = preview ? await work : await deadline(work, 3000);
+    if (!audio || current !== sequence || context.state !== 'running') return false;
+    const decoded = context.createBuffer(1, audio.samples.length, audio.sampleRate);
+    decoded.copyToChannel(audio.samples, 0);
+    return playBuffer(decoded);
+  } catch {
+    return false;
+  }
+}
 
 function speechEngine() {
   return typeof window !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined'
@@ -109,6 +134,12 @@ function buffer(name: string) {
   }
   return buffers.get(name)!;
 }
+export function prepareAccessVoice(voiceURI: string) {
+  const voice = findGympassVoice(voiceURI);
+  if (voice && typeof Worker !== 'undefined')
+    void import('./voice-engine').then((engine) => engine.prepareGympassVoice(voice.preset)).catch(() => {});
+}
+
 export function prepareAudio() {
   try {
     // Start loading voices during the user's interaction, before a scan completes.
@@ -122,6 +153,14 @@ export function prepareAudio() {
     /* Audio is optional. */
   }
 }
+function playBuffer(decoded: AudioBuffer) {
+  if (!context || context.state !== 'running') return false;
+  playing = context.createBufferSource();
+  playing.buffer = decoded;
+  playing.connect(context.destination);
+  playing.start();
+  return true;
+}
 export function stopFeedback() {
   ++sequence;
   activeSpeech?.stop();
@@ -130,7 +169,10 @@ export function stopFeedback() {
   playing = undefined;
 }
 
-export function accessFeedback(allowed: boolean, sound: boolean, vibration: boolean, direction = 'entry', personName = '', settings: VoiceSettings = defaultVoiceSettings) {
+export async function accessFeedback(
+  allowed: boolean, sound: boolean, vibration: boolean, direction = 'entry', personName = '',
+  settings: VoiceSettings = defaultVoiceSettings, preview = false,
+): Promise<'gympass' | 'device' | 'tone' | 'none'> {
   if (vibration) {
     try {
       navigator.vibrate?.(allowed ? [80] : [100, 60, 100]);
@@ -138,21 +180,22 @@ export function accessFeedback(allowed: boolean, sound: boolean, vibration: bool
   }
   stopFeedback();
   const current = sequence;
-  if (!sound) return;
+  if (!sound) return 'none';
   prepareAudio();
-  void (async () => {
-    try {
-      if (allowed && await announce(direction, personName, current, normalizeVoiceSettings(settings))) return;
-      if (current !== sequence) return;
-      if (!context) return;
-      const decoded = await buffer(feedbackSound({ allowed: Number(allowed), direction }));
-      if (current !== sequence || context.state !== 'running') return;
-      playing = context.createBufferSource();
-      playing.buffer = decoded;
-      playing.connect(context.destination);
-      playing.start();
-    } catch {
-      /* Audio failure must never interrupt access registration. */
+  try {
+    if (allowed) {
+      const options = normalizeVoiceSettings(settings);
+      const voice = findGympassVoice(options.voiceURI);
+      if (voice && await playGympassVoice(voice, feedbackAnnouncement(direction, personName), options.voiceRate, current, preview))
+        return 'gympass';
+      if (current !== sequence) return 'none';
+      if (await announce(direction, personName, current, options)) return current === sequence ? 'device' : 'none';
     }
-  })();
+    if (current !== sequence || !context) return 'none';
+    const decoded = await buffer(feedbackSound({ allowed: Number(allowed), direction }));
+    if (current === sequence && playBuffer(decoded)) return 'tone';
+  } catch {
+    /* Audio failure must never interrupt access registration. */
+  }
+  return 'none';
 }

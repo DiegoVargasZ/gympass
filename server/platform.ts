@@ -72,9 +72,10 @@ export async function startPlatform(options: Options) {
     res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Permissions-Policy', 'camera=(self), microphone=()');
+    const voiceWorker = /^\/assets\/voice-worker-[\w-]+\.js(?:\?|$)/.test(req.url || '');
     res.setHeader(
       'Content-Security-Policy',
-      `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${origin ? origin.replace(/^https:/, 'wss:') : `ws://${req.headers.host}`}; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
+      `default-src 'self'; script-src 'self'${voiceWorker ? " 'wasm-unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${origin ? origin.replace(/^https:/, 'wss:') : `ws://${req.headers.host}`}${voiceWorker ? ' https://huggingface.co https://*.hf.co' : ''}; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
     );
     if (origin) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     try {

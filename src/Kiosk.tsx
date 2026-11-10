@@ -3,7 +3,7 @@ import { CloudOff, Lock, Maximize, Minimize, Users, Settings2, X } from 'lucide-
 import { type AccessEvent, type Bootstrap, generalAccessId } from '../lib/domain';
 import { submitAccess } from './access-submit';
 import { accessQueueIdentity, flushAccessQueue, useAccessQueue } from './offline';
-import { accessFeedback, prepareAudio } from './feedback';
+import { accessFeedback, prepareAccessVoice, prepareAudio } from './feedback';
 import { usePreferences } from './preferences';
 import { Field, Form, Modal } from './ui';
 import { logoUrl } from './branding';
@@ -120,6 +120,7 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
     return () => document.removeEventListener('fullscreenchange', sync);
   }, []);
   useEffect(() => {
+    if (preferences.sound) prepareAccessVoice(preferences.voiceURI);
     const prepare = () => {
       if (preferences.sound) prepareAudio();
     };
@@ -129,7 +130,7 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
       window.removeEventListener('pointerdown', prepare);
       window.removeEventListener('keydown', prepare);
     };
-  }, [preferences.sound]);
+  }, [preferences.sound, preferences.voiceURI]);
   useEffect(() => {
     if (!result && !queued) return;
     const timer = setTimeout(() => {
@@ -171,7 +172,7 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
           return;
         }
         setResult(outcome.event);
-        accessFeedback(!!outcome.event.allowed, preferences.sound, preferences.vibration, outcome.event.direction, outcome.event.person_name, preferences);
+        void accessFeedback(!!outcome.event.allowed, preferences.sound, preferences.vibration, outcome.event.direction, outcome.event.person_name, preferences);
         void reload().catch(() => {});
       } catch (reason) {
         if (alive.current) setError((reason as Error).message);

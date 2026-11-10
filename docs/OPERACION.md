@@ -40,6 +40,8 @@ El instalador Windows 4.6.0 conserva Electron 45 y requiere Windows 10 o posteri
 
 ## Recepción y caja
 
+En **Configuración → Apariencia** elige una de las diez voces de GymPASS o una voz del dispositivo. Prueba entrada o salida para preparar la voz antes de abrir recepción. La primera prueba de una voz de GymPASS descarga alrededor de 110 MB; el navegador guarda el modelo compartido y sintetiza los nombres localmente. Si la voz está cargando o no se puede reproducir, recepción usa la voz del dispositivo o el tono de confirmación.
+
 Registra al socio con su WhatsApp, crea un plan y confirma el cobro. El primer pago crea su QR permanente de forma atómica; los reintentos no duplican el cobro. La fecha inicial del plan determina cuándo puede entrar. Comparte la credencial existente desde la ficha o comprobante.
 
 Un lector USB debe funcionar como teclado y terminar cada lectura con Enter. Un lector de red utiliza la clave de dispositivo y las rutas mostradas en Configuración → Lectores. Una respuesta HTTP 200 no basta para abrir: el conector debe exigir `allowed: true`.

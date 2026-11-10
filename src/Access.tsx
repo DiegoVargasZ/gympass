@@ -3,7 +3,7 @@ import { CloudOff, Monitor } from 'lucide-react';
 import { type AccessEvent, type Bootstrap, generalAccessId } from '../lib/domain';
 import { EventTable, Field, Form, Badge } from './ui';
 import { usePreferences } from './preferences';
-import { accessFeedback, prepareAudio } from './feedback';
+import { accessFeedback, prepareAccessVoice, prepareAudio } from './feedback';
 import { submitAccess } from './access-submit';
 import { accessQueueIdentity, flushAccessQueue, useAccessQueue } from './offline';
 import QueueReview from './QueueReview';
@@ -58,6 +58,7 @@ export default function Access({ data, reload }: { data: Bootstrap; reload: () =
     return () => clearTimeout(timer);
   }, [queued]);
   useEffect(() => {
+    if (preferences.sound) prepareAccessVoice(preferences.voiceURI);
     const prepare = () => {
       if (preferences.sound) prepareAudio();
     };
@@ -67,7 +68,7 @@ export default function Access({ data, reload }: { data: Bootstrap; reload: () =
       window.removeEventListener('pointerdown', prepare);
       window.removeEventListener('keydown', prepare);
     };
-  }, [preferences.sound]);
+  }, [preferences.sound, preferences.voiceURI]);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -102,7 +103,7 @@ export default function Access({ data, reload }: { data: Bootstrap; reload: () =
       const event = outcome.event;
       if (alive.current) {
         setResult(event);
-        accessFeedback(!!event.allowed, preferences.sound, preferences.vibration, event.direction, event.person_name, preferences);
+        void accessFeedback(!!event.allowed, preferences.sound, preferences.vibration, event.direction, event.person_name, preferences);
         if (code.current) {
           code.current.value = '';
           code.current.focus();
