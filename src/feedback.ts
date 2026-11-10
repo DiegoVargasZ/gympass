@@ -1,4 +1,7 @@
-import { feedbackAnnouncement, feedbackSound, preferredSpanishVoice } from '../lib/access-feedback';
+import {
+  defaultVoiceSettings, feedbackAnnouncement, feedbackSound, normalizeVoiceSettings, preferredSpanishVoice,
+  voiceGender, voiceIdentity, type VoiceSettings,
+} from '../lib/access-feedback';
 let context: AudioContext | undefined;
 const buffers = new Map<string, Promise<AudioBuffer>>();
 let playing: AudioBufferSourceNode | undefined;
@@ -25,41 +28,69 @@ function availableVoices(engine: SpeechSynthesis): Promise<SpeechSynthesisVoice[
   });
 }
 
-async function announce(direction: string, personName: string, current: number): Promise<boolean> {
+export function subscribeAccessVoices(listener: (voices: SpeechSynthesisVoice[]) => void) {
+  const engine = speechEngine();
+  const update = () => {
+    let voices: SpeechSynthesisVoice[] = [];
+    try { voices = engine?.getVoices() || []; } catch {}
+    const seen = new Set<string>();
+    listener(voices.filter((voice) => {
+      const id = voiceIdentity(voice);
+      if (!/^es(?:[-_]|$)/i.test(voice.lang) || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    }));
+  };
+  update();
+  engine?.addEventListener('voiceschanged', update);
+  return () => engine?.removeEventListener('voiceschanged', update);
+}
+
+function speak(engine: SpeechSynthesis, text: string, rate: number, voice?: SpeechSynthesisVoice) {
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = voice?.lang.replaceAll('_', '-') || 'es-BO';
+  if (voice) utterance.voice = voice;
+  utterance.rate = rate;
+  return new Promise<boolean>((resolve) => {
+    const finish = (spoken: boolean) => {
+      clearTimeout(timer);
+      utterance.onstart = utterance.onend = utterance.onerror = null;
+      if (activeSpeech?.utterance === utterance) activeSpeech = undefined;
+      resolve(spoken);
+    };
+    // Some engines fail silently: keep an audible confirmation if speech never starts.
+    const timer = setTimeout(() => {
+      finish(false);
+      try { engine.cancel(); } catch {}
+    }, 3000);
+    activeSpeech = { utterance, stop: () => finish(true) };
+    utterance.onstart = () => clearTimeout(timer);
+    utterance.onend = () => finish(true);
+    utterance.onerror = () => finish(false);
+    try {
+      engine.speak(utterance);
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+async function announce(direction: string, personName: string, current: number, settings: VoiceSettings): Promise<boolean> {
   try {
     const engine = speechEngine();
     if (!engine) return false;
     const voices = await availableVoices(engine);
     if (current !== sequence) return true;
-    const voice = preferredSpanishVoice(voices, navigator.onLine !== false);
-    const utterance = new SpeechSynthesisUtterance(feedbackAnnouncement(direction, personName));
-    utterance.lang = voice?.lang.replaceAll('_', '-') || 'es-BO';
-    if (voice) utterance.voice = voice;
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-    return await new Promise<boolean>((resolve) => {
-      const finish = (spoken: boolean) => {
-        clearTimeout(timer);
-        utterance.onstart = utterance.onend = utterance.onerror = null;
-        if (activeSpeech?.utterance === utterance) activeSpeech = undefined;
-        resolve(spoken);
-      };
-      // Some engines fail silently: keep an audible confirmation if speech never starts.
-      const timer = setTimeout(() => {
-        finish(false);
-        try { engine.cancel(); } catch {}
-      }, 3000);
-      activeSpeech = { utterance, stop: () => finish(true) };
-      utterance.onstart = () => clearTimeout(timer);
-      utterance.onend = () => finish(true);
-      utterance.onerror = () => finish(false);
-      try {
-        engine.speak(utterance);
-      } catch {
-        finish(false);
-      }
-    });
+    const voice = preferredSpanishVoice(voices, navigator.onLine !== false, settings);
+    const text = feedbackAnnouncement(direction, personName);
+    if (await speak(engine, text, settings.voiceRate, voice)) return true;
+    if (current !== sequence) return true;
+    if (voice && !voice.localService) {
+      const gender = voiceGender(voice);
+      const local = preferredSpanishVoice(voices, false, { ...settings, voiceGender: gender === 'auto' ? settings.voiceGender : gender });
+      if (local) return await speak(engine, text, settings.voiceRate, local);
+    }
+    return false;
   } catch {
     return false;
   }
@@ -91,22 +122,27 @@ export function prepareAudio() {
     /* Audio is optional. */
   }
 }
-export function accessFeedback(allowed: boolean, sound: boolean, vibration: boolean, direction = 'entry', personName = '') {
+export function stopFeedback() {
+  ++sequence;
+  activeSpeech?.stop();
+  try { speechEngine()?.cancel(); } catch {}
+  try { playing?.stop(); } catch {}
+  playing = undefined;
+}
+
+export function accessFeedback(allowed: boolean, sound: boolean, vibration: boolean, direction = 'entry', personName = '', settings: VoiceSettings = defaultVoiceSettings) {
   if (vibration) {
     try {
       navigator.vibrate?.(allowed ? [80] : [100, 60, 100]);
     } catch {}
   }
-  const current = ++sequence;
-  activeSpeech?.stop();
-  try { speechEngine()?.cancel(); } catch {}
-  try { playing?.stop(); } catch {}
-  playing = undefined;
+  stopFeedback();
+  const current = sequence;
   if (!sound) return;
   prepareAudio();
   void (async () => {
     try {
-      if (allowed && await announce(direction, personName, current)) return;
+      if (allowed && await announce(direction, personName, current, normalizeVoiceSettings(settings))) return;
       if (current !== sequence) return;
       if (!context) return;
       const decoded = await buffer(feedbackSound({ allowed: Number(allowed), direction }));

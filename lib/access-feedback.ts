@@ -11,19 +11,48 @@ export function feedbackAnnouncement(direction: string, personName = '') {
   return `${direction === 'exit' ? 'Saliendo' : 'Entrando'}${name ? `, ${name}` : ''}.`;
 }
 
-type FeedbackVoice = { name: string; lang: string; localService: boolean; default: boolean };
-export function preferredSpanishVoice<T extends FeedbackVoice>(voices: T[], online = true): T | undefined {
+export type VoiceGender = 'auto' | 'female' | 'male';
+export type VoiceSettings = { voiceURI: string; voiceGender: VoiceGender; voiceRate: number };
+export const defaultVoiceSettings: VoiceSettings = { voiceURI: '', voiceGender: 'auto', voiceRate: 0.98 };
+export function normalizeVoiceSettings(value: Partial<VoiceSettings>): VoiceSettings {
+  return {
+    voiceURI: typeof value.voiceURI === 'string' ? value.voiceURI : '',
+    voiceGender: value.voiceGender === 'female' || value.voiceGender === 'male' ? value.voiceGender : 'auto',
+    voiceRate: typeof value.voiceRate === 'number' && Number.isFinite(value.voiceRate)
+      ? Math.max(0.8, Math.min(1.2, value.voiceRate)) : defaultVoiceSettings.voiceRate,
+  };
+}
+
+type FeedbackVoice = { name: string; lang: string; localService: boolean; default: boolean; voiceURI?: string };
+export function voiceIdentity(voice: FeedbackVoice) {
+  return voice.voiceURI || `${voice.lang}:${voice.name}`;
+}
+export function voiceGender(voice: FeedbackVoice): VoiceGender {
+  // Web Speech has no gender field. Classify known Spanish voices; leave other names unspecified.
+  const name = voice.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/(?:multilingual)?neural\b/g, ' ').replaceAll('_', ' ');
+  if (/\b(female|femenina|dalia|sofia|elena|catalina|salome|maria|belkys|ramona|marta|beatriz|camila|carlota|conchita|helena|hilda|laura|lucia|lupe|mia|monica|paloma|paulina|penelope|sabina|ximena)\b/.test(name)) return 'female';
+  if (/\b(male|masculina|marcelo|tomas|lorenzo|gonzalo|juan|manuel|emilio|enric|alonso|alvaro|andres|carlos|cecilio|gerardo|javier|jeronimo|jorge|julio|leon|luis|luciano|mateo|miguel|pablo|paco|rafael|raul|rodrigo|rogelio|roberto|diego)\b/.test(name)) return 'male';
+  return 'auto';
+}
+export function isNaturalVoice(voice: FeedbackVoice) {
+  return /natural|neural|premium|enhanced/i.test(voice.name);
+}
+export function preferredSpanishVoice<T extends FeedbackVoice>(voices: T[], online = true, choice: Partial<VoiceSettings> = {}): T | undefined {
   const score = (voice: T) => {
     const language = voice.lang.replaceAll('_', '-').toLowerCase();
-    return (/natural|neural|premium|enhanced/i.test(voice.name) ? 100 : 0) +
+    return (isNaturalVoice(voice) ? 100 : 0) +
       (/google/i.test(voice.name) ? 40 : 0) +
       (!voice.localService ? 20 : 0) +
       (language === 'es-bo' ? 15 : language === 'es-mx' || language === 'es-419' ? 10 : 0) +
       (voice.default ? 1 : 0);
   };
-  return voices
-    .filter((voice) => /^es(?:[-_]|$)/i.test(voice.lang) && (online || voice.localService))
-    .sort((a, b) => score(b) - score(a))[0];
+  const available = voices.filter((voice) => /^es(?:[-_]|$)/i.test(voice.lang) && (online || voice.localService));
+  const matching = choice.voiceGender && choice.voiceGender !== 'auto'
+    ? available.filter((voice) => voiceGender(voice) === choice.voiceGender) : available;
+  const selected = choice.voiceURI && matching.find((voice) => voiceIdentity(voice) === choice.voiceURI);
+  if (selected) return selected;
+  return (matching.length ? matching : available).sort((a, b) => score(b) - score(a))[0];
 }
 export function accessPresentation(event: FeedbackEvent) {
   return {

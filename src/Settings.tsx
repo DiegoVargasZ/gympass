@@ -83,7 +83,7 @@ export default function Settings({ data, admin, saved, notify, members, devices,
     {
       id: 'appearance',
       label: 'Apariencia',
-      description: 'Elige el tema Claro o Negro y ajusta tus preferencias de uso.',
+      description: 'Elige el tema, la voz de los avisos de acceso y tus preferencias de uso.',
       group: 'account',
       icon: Palette,
     },

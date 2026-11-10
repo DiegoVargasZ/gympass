@@ -1,19 +1,20 @@
 import { useSyncExternalStore } from 'react';
+import { defaultVoiceSettings, normalizeVoiceSettings, type VoiceSettings } from '../lib/access-feedback';
 
-export type Preferences = {
+export type Preferences = VoiceSettings & {
   theme: 'light' | 'dark';
   density: 'comfortable' | 'compact';
   sound: boolean;
   vibration: boolean;
 };
 const key = 'gympass.preferences';
-const preferencesVersion = 2;
+const preferencesVersion = 3;
 let user = '';
 const listeners = new Set<() => void>();
 function load(): Preferences {
-  const defaults: Preferences = { theme: 'light', density: 'comfortable', sound: false, vibration: false };
+  const defaults: Preferences = { theme: 'light', density: 'comfortable', sound: false, vibration: false, ...defaultVoiceSettings };
   try {
-    const saved = JSON.parse(localStorage.getItem(key) || '{}');
+    const saved = JSON.parse(localStorage.getItem(key) || '{}') || {};
     const theme =
       saved.theme === 'system'
         ? globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches
@@ -25,6 +26,7 @@ function load(): Preferences {
       theme: theme === 'dark' ? 'dark' : 'light',
       sound: saved.sound === true,
       vibration: saved.vibration === true,
+      ...normalizeVoiceSettings(saved),
     };
   } catch {
     return defaults;
@@ -51,7 +53,7 @@ export function setPreferencesUser(email: string) {
   listeners.forEach((listener) => listener());
 }
 export function updatePreferences(change: Partial<Preferences>) {
-  preferences = { ...preferences, ...change };
+  preferences = { ...preferences, ...change, ...normalizeVoiceSettings({ ...preferences, ...change }) };
   try {
     localStorage.setItem(
       key,
@@ -60,6 +62,9 @@ export function updatePreferences(change: Partial<Preferences>) {
         theme: preferences.theme,
         sound: preferences.sound,
         vibration: preferences.vibration,
+        voiceURI: preferences.voiceURI,
+        voiceGender: preferences.voiceGender,
+        voiceRate: preferences.voiceRate,
       }),
     );
     if (change.density) localStorage.setItem('gympass.density.' + user, preferences.density);

@@ -171,7 +171,7 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
           return;
         }
         setResult(outcome.event);
-        accessFeedback(!!outcome.event.allowed, preferences.sound, preferences.vibration, outcome.event.direction, outcome.event.person_name);
+        accessFeedback(!!outcome.event.allowed, preferences.sound, preferences.vibration, outcome.event.direction, outcome.event.person_name, preferences);
         void reload().catch(() => {});
       } catch (reason) {
         if (alive.current) setError((reason as Error).message);
@@ -186,6 +186,9 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
       zone?.name,
       preferences.sound,
       preferences.vibration,
+      preferences.voiceURI,
+      preferences.voiceGender,
+      preferences.voiceRate,
       reload,
       data.installation_id,
       data.user.id,

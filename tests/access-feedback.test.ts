@@ -6,7 +6,7 @@ function fixture(t: test.TestContext, options: { speech?: boolean; audio?: boole
   const spoken: any[] = [];
   const tones: string[] = [];
   const vibration: unknown[] = [];
-  const voice = { name: 'Microsoft Dalia Online (Natural)', lang: 'es-MX', localService: false, default: false };
+  const voice = { name: 'Microsoft Dalia Online (Natural)', lang: 'es-MX', localService: false, default: false, voiceURI: 'dalia' };
   let voices = options.delayedVoices ? [] : [voice];
   let cancellations = 0;
   const engine = Object.assign(new EventTarget(), {
@@ -47,8 +47,8 @@ function fixture(t: test.TestContext, options: { speech?: boolean; audio?: boole
     api, engine, spoken, tones, vibration, voice,
     settle: () => h.settle(),
     get cancellations() { return cancellations; },
-    loadVoices() {
-      voices = [voice];
+    loadVoices(next = [voice]) {
+      voices = next;
       engine.dispatchEvent(new Event('voiceschanged'));
     },
   };
@@ -67,6 +67,39 @@ test('entrada y salida pronuncian el nombre con voz española y conservan la vib
   assert.ok(f.cancellations >= 2);
   assert.deepEqual(f.vibration.map(String), ['80']);
   assert.deepEqual(f.tones, []);
+});
+
+test('el aviso usa la voz exacta y la velocidad seleccionadas', async (t) => {
+  const f = fixture(t);
+  const jorge = { ...f.voice, name: 'Microsoft Jorge Online (Natural)', voiceURI: 'jorge' };
+  const raul = { ...f.voice, name: 'Raúl', voiceURI: 'raul', localService: true };
+  f.loadVoices([f.voice, jorge, raul]);
+  f.api.accessFeedback(true, true, false, 'exit', 'José Núñez', { voiceURI: 'raul', voiceGender: 'male', voiceRate: 0.87 });
+  await f.settle();
+  assert.equal(f.spoken[0].voice, raul);
+  assert.equal(f.spoken[0].rate, 0.87);
+  assert.equal(f.spoken[0].text, 'Saliendo, José Núñez.');
+  f.api.accessFeedback(true, true, false, 'entry', 'José Núñez', { voiceURI: '', voiceGender: 'male', voiceRate: 0.98 });
+  await f.settle();
+  assert.equal(f.spoken[1].voice, jorge);
+});
+
+test('si falla la voz en línea, intenta una voz local del mismo tipo antes de usar el tono', async (t) => {
+  const f = fixture(t);
+  const jorge = { ...f.voice, name: 'Microsoft Jorge Online (Natural)', voiceURI: 'jorge' };
+  const raul = { ...f.voice, name: 'Raúl', voiceURI: 'raul', localService: true };
+  const helena = { ...f.voice, name: 'Helena', voiceURI: 'helena', localService: true, default: true };
+  f.loadVoices([f.voice, jorge, helena, raul]);
+  f.api.accessFeedback(true, true, false, 'entry', 'José', { voiceURI: 'jorge', voiceGender: 'auto', voiceRate: 1 });
+  await f.settle();
+  assert.equal(f.spoken[0].voice, jorge);
+  f.spoken[0].onerror();
+  await f.settle();
+  assert.equal(f.spoken[1].voice, raul);
+  assert.deepEqual(f.tones, []);
+  f.spoken[1].onerror();
+  await f.settle();
+  assert.deepEqual(f.tones, ['/sounds/entry.wav']);
 });
 
 test('las voces tardías sólo anuncian el último acceso y silenciar cancela el aviso', async (t) => {
