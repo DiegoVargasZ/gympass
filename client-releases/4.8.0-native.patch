@@ -247,6 +247,15 @@
    pageHeading: { gap: 4, marginBottom: 8 },
    pageTitle: { color: colors.ink, fontSize: 24, lineHeight: 30, fontWeight: '600', letterSpacing: -0.3 },
    pageDescription: { color: colors.inkSecondary, fontSize: 15, lineHeight: 23 },
+@@ -1020,7 +1032,7 @@
+     borderRadius: 12,
+   },
+   logout: { minWidth: 48, minHeight: 48, justifyContent: 'center', alignItems: 'center' },
+-  logoutText: { color: colors.inkSecondary, fontSize: 14, fontWeight: '600' },
++  logoutText: { color: colors.onChrome, fontSize: 14, fontWeight: '600' },
+   scannerContent: {
+     padding: 16,
+     paddingTop: 20,
 @@ -1100,3 +1112,10 @@
    statValue: { color: colors.ink, fontSize: 24, fontWeight: '600', fontVariant: ['tabular-nums'] },
    statLabel: { color: colors.inkSecondary, fontSize: 13, lineHeight: 18 },
@@ -314,15 +323,16 @@
    "main": "index.ts",
 --- a/mobile/src/GympassApp.tsx
 +++ b/mobile/src/GympassApp.tsx
-@@ -21,6 +21,7 @@
+@@ -21,6 +21,8 @@
  import * as Print from 'expo-print';
  import * as SecureStore from 'expo-secure-store';
  import Reader from '../App';
++import Svg, { Circle, Path } from 'react-native-svg';
 +import { themePalettes } from '../../lib/theme';
  import { loadSession } from './session.ts';
  import {
    DEFAULT_SERVER,
-@@ -61,10 +62,41 @@
+@@ -61,10 +63,41 @@
    // de una que nunca empieza, sin tener que conectar el teléfono al ordenador.
    const [detail, setDetail] = useState('sin respuesta de la vista');
    const [dark, setDark] = useState(false);
@@ -367,7 +377,7 @@
  
    function cancelTransfer() {
      const current = transfer.current;
-@@ -209,7 +241,12 @@
+@@ -209,7 +242,12 @@
        id = message.id;
        switch (message.type) {
          case 'theme':
@@ -381,7 +391,7 @@
            break;
          case 'open-reader':
            navigationChosen.current = true;
-@@ -302,14 +339,14 @@
+@@ -302,14 +340,14 @@
    return (
      <SafeAreaProvider>
        <SafeAreaView style={[styles.root, { backgroundColor: palette.surface }]}>
@@ -398,7 +408,7 @@
              originWhitelist={['*']}
              onShouldStartLoadWithRequest={(request) => {
                if (isGympassUrl(request.url) || request.url === 'about:blank') return true;
-@@ -343,6 +380,7 @@
+@@ -343,6 +381,7 @@
              onLoadEnd={() => {
                pageReady();
                setDetail('página abierta');
@@ -406,7 +416,7 @@
              }}
              onError={(event) =>
                fail(
-@@ -398,9 +436,9 @@
+@@ -398,9 +437,9 @@
                <Pressable
                  accessibilityRole="button"
                  onPress={retry}
@@ -418,7 +428,7 @@
                </Pressable>
                <Text style={[styles.detail, { color: palette.muted }]}>
                  Si ya vinculaste este teléfono, puedes usar su copia local en Lector sin conexión.
-@@ -408,9 +446,9 @@
+@@ -408,9 +447,9 @@
              </View>
            )}
          </View>
@@ -430,7 +440,7 @@
            accessibilityRole="tablist"
          >
            {(['Gestión', 'Lector sin conexión'] as const).map((label, index) => (
-@@ -421,7 +459,7 @@
+@@ -421,7 +460,7 @@
                style={[
                  styles.tab,
                  landscape && styles.tabLandscape,
@@ -439,7 +449,7 @@
                ]}
                onPress={() => {
                  navigationChosen.current = true;
-@@ -432,7 +470,7 @@
+@@ -432,7 +471,7 @@
              >
                <Text
                  style={{
@@ -448,7 +458,7 @@
                    fontWeight: reader === (index === 1) ? '600' : '400',
                  }}
                >
-@@ -440,6 +478,14 @@
+@@ -440,6 +479,16 @@
                </Text>
              </Pressable>
            ))}
@@ -458,7 +468,9 @@
 +            onPress={() => applyTheme(!dark, true)}
 +            style={{ minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}
 +          >
-+            <Text style={{ color: palette.onChrome, fontSize: 24 }}>{dark ? '☀' : '☾'}</Text>
++            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={palette.onChrome} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" accessibilityElementsHidden>
++              {dark ? <><Circle cx={12} cy={12} r={4} /><Path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></> : <Path d="M21 12.8A9 9 0 0 1 11.2 3 9 9 0 1 0 21 12.8Z" />}
++            </Svg>
 +          </Pressable>
          </View>
        </SafeAreaView>
@@ -713,11 +725,13 @@
  
  export type Element = { type: any; props: Record<string, any> };
  export function find(tree: any, predicate: (element: Element) => boolean): Element {
-@@ -83,6 +84,9 @@
+@@ -83,6 +84,11 @@
            if (name === 'react/jsx-runtime') return require(name);
            if (name.endsWith('.png')) return 1;
            if (/lib\/access-feedback$/.test(name)) return feedback;
 +          if (/lib\/theme$/.test(name)) return theme;
++          if (name === 'react-native-svg' && !(name in dependencies))
++            return { __esModule: true, default: 'Svg', Circle: 'Circle', Path: 'Path' };
 +          if (['./theme', './src/theme'].includes(name) && !(name in dependencies))
 +            return { NativeTheme: { Provider: 'ThemeProvider' }, useNativeTheme: () => ({ theme: 'light', colors: theme.themePalettes.light }) };
            if (!(name in dependencies)) throw Error('Dependencia no configurada: ' + name);
@@ -736,7 +750,7 @@
    assert.equal(steps[2].duration, reduced ? 0 : 300);
 --- a/mobile/tests/theme.test.ts
 +++ b/mobile/tests/theme.test.ts
-@@ -1,18 +1,69 @@
+@@ -1,18 +1,81 @@
  ﻿import assert from 'node:assert/strict';
  import { test } from 'node:test';
 -import { readFile } from 'node:fs/promises';
@@ -744,6 +758,7 @@
 +import { find, harness, native } from './component-harness.ts';
 +import * as policy from '../src/web-policy.ts';
 +import * as session from '../src/session.ts';
++import { contrast } from '../../lib/branding.ts';
  
 -test('la app Android y el lector usan la paleta blanca de la web GymPASS', async () => {
 -  const ui = await readFile(new URL('../src/ui.tsx', import.meta.url), 'utf8');
@@ -758,6 +773,17 @@
 -  assert.equal(app.expo.splash.backgroundColor, '#ffffff');
 -  const source = await readFile(new URL('../App.tsx', import.meta.url), 'utf8');
 -  assert.match(source, /<StatusBar barStyle="dark-content"\s*\/>/);
++test('la salida del lector conserva contraste en las cabeceras clara y oscura', t => {
++  const h = harness(); t.after(() => h.cleanup());
++  const dependencies: Record<string, unknown> = { 'react-native': native, './src/ui': { colors: {} }, './src/api': {} };
++  for (const name of ['expo-camera','expo-constants','expo-crypto','expo-secure-store','react-native-safe-area-context','./src/connection','./src/session','./src/pending','./src/poll','./src/ReportScreens','./src/reader-layout','./src/ScanFeedback','./src/access-sounds']) dependencies[name] = {};
++  const { createStyles } = h.load('../App.tsx', dependencies, 'createStyles');
++  for (const colors of Object.values(themePalettes)) {
++    const styles = createStyles(colors);
++    assert.ok(contrast(styles.logoutText.color, styles.toolbar.backgroundColor) >= 4.5);
++  }
+ });
++
 +test('acciones y formularios nativos invierten blanco y negro y conservan verde con texto negro', t => {
 +  const h = harness(); t.after(() => h.cleanup());
 +  let theme: ThemeMode = 'light';
@@ -777,7 +803,7 @@
 +    assert.equal(input.props.style.color, mode === 'light' ? '#000000' : '#ffffff');
 +    assert.equal(input.props.style.backgroundColor, mode === 'light' ? '#ffffff' : '#101010');
 +  }
- });
++});
 +
 +function frame(t: import('node:test').TestContext, saved: Map<string, string>) {
 +  const h = harness(); t.after(() => h.cleanup());
