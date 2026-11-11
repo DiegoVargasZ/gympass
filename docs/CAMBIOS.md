@@ -1,5 +1,14 @@
 # Cambios
 
+## 4.7.0
+
+- Diez voces en español, selección por nombre y pruebas de entrada y salida.
+- Voces optimizadas con descarga paralela, motor comprimido y reutilización de avisos; velocidad entre 50 % y 300 %.
+- Botón Guardar cambios en Apariencia.
+- Importación de archivos .gympassbackup con comprobación de integridad e identidad del gimnasio; restauración confirmada con copia previa.
+- Android (código 4700) y Windows actualizados, conservando la identidad y los datos de las aplicaciones.
+- Se conserva la web 4.6.0 para las sesiones abiertas.
+
 ## 4.6.0
 
 - Consulta de presencia optimizada para reducir el coste del historial en recepción, informes y mantenimiento, conservando el resultado anterior.
