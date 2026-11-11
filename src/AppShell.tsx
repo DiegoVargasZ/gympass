@@ -21,6 +21,7 @@ import { sectionOf, sectionsFor, type Page, type SectionId } from './navigation'
 import MobileNavigation from './MobileNavigation';
 import Alerts from './Alerts';
 import BrandLogo from './BrandLogo';
+import ConnectionStatus from './ConnectionStatus';
 
 const icons: Record<SectionId, typeof Home> = {
   dashboard: Home,
@@ -223,6 +224,7 @@ export default function AppShell({
             <kbd>Ctrl K</kbd>
           </button>
           <div className="topbar-right">
+            <ConnectionStatus platform={!!data.platform} replica={!!data.replica?.linked} />
             <Alerts timezone={data.settings.timezone} />
             <button
               className="icon-btn"

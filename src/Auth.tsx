@@ -8,6 +8,8 @@ import { useState } from 'react';
 import RecoverAccount from './RecoverAccount';
 import BrandLogo from './BrandLogo';
 import AppDownloads from './AppDownloads';
+import ServerAccessLink from './ServerAccessLink';
+import ConnectionStatus from './ConnectionStatus';
 export default function Auth({
   setup,
   onSuccess,
@@ -59,6 +61,7 @@ export default function Auth({
       </section>
       <main className="auth-main">
         <div className="auth-card">
+          <ConnectionStatus />
           <span className="auth-icon">
             <LockKeyhole size={24} />
           </span>
@@ -132,6 +135,7 @@ export default function Auth({
               )}
             </>
           )}
+          <ServerAccessLink />
           {recover && (
             <RecoverAccount
               onClose={() => setRecover(false)}

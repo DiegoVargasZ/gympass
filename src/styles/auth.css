@@ -123,3 +123,12 @@
     min-height: 48px;
   }
 }
+.password-control { position: relative; width: 100%; }
+.password-control input { width: 100%; padding-right: 52px; }
+.password-control > button { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); min-width: 44px; min-height: 44px; }
+.connection-status { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 8px; background: var(--surface, #f1f5f9); color: var(--ink, #334155); font-size: 12px; line-height: 1.4; max-width: 100%; }
+.connection-status svg { flex-shrink: 0; }
+.connection-warning { color: #92400e; background: #fef3c7; }
+.auth-card > .connection-status { margin-bottom: 16px; }
+.server-access { margin-top: 18px; }
+@media (max-width: 600px) { .topbar { flex-wrap: wrap; } .topbar-right { flex-wrap: wrap; } .topbar-right .connection-status { font-size: 11px; } }

@@ -126,6 +126,36 @@ const sale = (person_id, plan) => ({
   lines: [{ kind: "plan", id: plan.id, quantity: 1 }],
 });
 
+test('un gimnasio recién creado permite entrar con su administrador y preparar la copia de escritorio', async t => {
+  const f = await fixture(t);
+  let copy;
+  try {
+    const owner = await f.app.store.login({ email: 'owner@example.test', password: '123456' });
+    const created = await f.request('platform/gyms', 'POST', {
+      name: 'Nuevo gimnasio', slug: 'recien-creado', admin_name: 'Nueva administradora',
+      admin_email: 'nueva@example.test', admin_password: 'nueva-clave',
+    }, owner.token);
+    assert.equal(created.response.status, 201);
+    const login = await f.request('platform/login', 'POST', { email: 'nueva@example.test', password: 'nueva-clave' }, '');
+    assert.equal(login.response.status, 200);
+    assert.equal(login.data.gyms.length, 1);
+    assert.equal(login.data.gyms[0].id, created.data.gym.id);
+    const root = temp(t), db = new SqliteDatabase(join(root, 'gympass.sqlite'));
+    copy = new ReplicaClient(db, root, new Backups(db.raw, join(root, 'gympass.sqlite'), join(root, 'backups')), () => {});
+    process.env.GYMPASS_SYNC_TEST = '1';
+    const result = await copy.link({ server: f.app.url, email: 'nueva@example.test', password: 'nueva-clave', name: 'Recepción nueva' });
+    assert.equal(result.linked, true);
+    assert.equal(copy.status().gym_id, created.data.gym.id);
+    const member = db.raw.prepare('SELECT * FROM members WHERE email=?').get('nueva@example.test');
+    const { verifyPassword } = await import('../server/auth.ts');
+    assert.equal(await verifyPassword('nueva-clave', member.password_hash), true);
+    assert.equal(member.user_id, login.data.user.id);
+  } finally {
+    if (copy) { await copy.stop(); copy.db.close(); }
+    await f.app.close();
+  }
+});
+
 async function whileNetworkWaits(operation) {
   let timer;
   try {

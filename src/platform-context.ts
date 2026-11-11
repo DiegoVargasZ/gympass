@@ -31,7 +31,7 @@ export function assertPlatformGeneration(expected: number) {
 export function apiUrl(path: string) {
   if (/^(?:https?:|data:|blob:|\/\/)/i.test(path)) return path;
   const clean = path.replace(/^\/?api\//, '').replace(/^\//, '');
-  if (!context || clean.startsWith('platform/') || clean.startsWith('gyms/')) return '/api/' + clean;
+  if (!context || clean === 'health' || clean.startsWith('platform/') || clean.startsWith('gyms/')) return '/api/' + clean;
   return '/api/gyms/' + encodeURIComponent(context.gymId) + '/' + clean;
 }
 

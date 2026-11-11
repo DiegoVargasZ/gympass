@@ -1,5 +1,12 @@
 # Cambios
 
+## 4.7.1
+
+- El inicio local permite abrir la cuenta del servidor central sin sustituir la base de la computadora. Windows conserva la conexión directa al reiniciar, evitando volver a una copia vinculada a otra cuenta.
+- La cabecera identifica servidor central, servidor local, copia sincronizada, desconexión y cambios pendientes. La comprobación de salud conserva su ruta central al entrar en un gimnasio.
+- Botón para mostrar y ocultar las contraseñas de acceso, alta, recuperación y configuración en web y Windows; también en el lector nativo Android.
+- Android actualizado al código 4701. Se conservan los recursos web 4.7.0 para las sesiones abiertas.
+
 ## 4.7.0
 
 - Diez voces en español, selección por nombre y pruebas de entrada y salida.

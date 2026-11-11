@@ -1,0 +1,248 @@
+--- a/desktop/main.cjs
++++ b/desktop/main.cjs
+@@ -547,6 +547,7 @@
+     const configuration = mode === 'local'
+       ? { mode: 'replica', server: remoteConfiguration.server || 'https://gympass.site', work: 'local' }
+       : { mode, server: normalizeRemoteServer(action.searchParams.get('server')),
++          ...(mode === 'remote' ? { direct: true } : {}),
+           ...(mode === 'replica' ? { work: work || 'server' } : {}),
+         };
+     const result = await dialog.showMessageBox(window, {
+--- a/mobile/App.tsx
++++ b/mobile/App.tsx
+@@ -97,6 +97,7 @@
+   const [address, setAddress] = useState(initialAddress);
+   const [email, setEmail] = useState('');
+   const [password, setPassword] = useState('');
++  const [passwordVisible, setPasswordVisible] = useState(false);
+   const [busy, setBusy] = useState(false);
+   const [error, setError] = useState('');
+   const [gyms, setGyms] = useState<MobileGym[]>([]);
+@@ -188,7 +189,7 @@
+               resetSelection();
+             }}
+             editable={!busy}
+-            secureTextEntry
++            secureTextEntry={!passwordVisible}
+             autoComplete="password"
+             placeholder="Contraseña de GymPASS"
+             placeholderTextColor={colors.muted}
+@@ -196,6 +197,16 @@
+             style={styles.input}
+             onSubmitEditing={() => void connect()}
+           />
++          <Pressable
++            accessibilityRole="button"
++            accessibilityLabel={passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
++            accessibilityState={{ selected: passwordVisible }}
++            disabled={busy}
++            onPress={() => setPasswordVisible((value) => !value)}
++            style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-end' }}
++          >
++            <Text style={styles.helper}>{passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'}</Text>
++          </Pressable>
+           {gyms.length > 0 && (
+             <View accessibilityRole="radiogroup" style={styles.gymList}>
+               <Text style={styles.label}>Elige el gimnasio para este lector</Text>
+@@ -546,11 +557,10 @@
+         <View style={styles.flex}>
+           {!landscape && <Text style={styles.toolbarTitle}>GymPASS</Text>}
+           {!!gymName && <Text style={styles.toolbarOrg}>{gymName}</Text>}
+-          {syncInfo && (
+-            <Text style={styles.toolbarOrg}>
+-              {syncInfo.offline ? 'Copia local' : 'Conectado'} · {syncInfo.pending} lecturas por sincronizar
+-            </Text>
+-          )}
++          <Text style={styles.toolbarOrg} accessibilityLiveRegion="polite">
++            {syncInfo?.offline ? 'Sin conexión · copia local del teléfono' : session.server_mode === 'platform' ? 'Servidor central' : 'Servidor local · computadora'}
++            {!!syncInfo?.pending && ` · ${syncInfo.pending} lecturas por sincronizar`}
++          </Text>
+           {!!syncInfo?.conflict && (
+             <Text style={styles.helper}>
+               Sincronización pendiente de revisión por el administrador: {syncInfo.conflict}
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "4.7.0",
++  "version": "4.7.1",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "4.7.0",
++  "version": "4.7.1",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-control-acceso",
+-      "version": "4.7.0",
++      "version": "4.7.1",
+       "dependencies": {
+         "lucide-react": "1.57.0",
+         "qrcode-generator": "2.0.4",
+@@ -826,8 +826,8 @@
+       "license": "MIT"
+     },
+     "node_modules/@sindresorhus/is": {
+-      "version": "4.7.0",
+-      "resolved": "https://registry.npmjs.org/@sindresorhus/is/-/is-4.7.0.tgz",
++      "version": "4.7.1",
++      "resolved": "https://registry.npmjs.org/@sindresorhus/is/-/is-4.7.1.tgz",
+       "integrity": "sha512-t09vSN3MdfsyCHoFcTRCH/iUtG7OJ0CsjzB8cjAmKc/va/kIgeDI/TxsigdncE/4be734m0cvIYwNaV4i2XqAw==",
+       "dev": true,
+       "license": "MIT",
+--- a/desktop/package.json
++++ b/desktop/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "gympass-desktop",
+   "productName": "GymPASS",
+-  "version": "4.7.0",
++  "version": "4.7.1",
+   "description": "Entradas, salidas y tiempos de permanencia para gimnasios",
+   "author": "GymPASS",
+   "license": "UNLICENSED",
+--- a/mobile/package.json
++++ b/mobile/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "4.7.0",
++  "version": "4.7.1",
+   "private": true,
+   "type": "module",
+   "main": "index.ts",
+--- a/mobile/package-lock.json
++++ b/mobile/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "4.7.0",
++  "version": "4.7.1",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-mobile",
+-      "version": "4.7.0",
++      "version": "4.7.1",
+       "dependencies": {
+         "expo": "~58.0.21",
+         "expo-audio": "58.0.11",
+--- a/mobile/app.json
++++ b/mobile/app.json
+@@ -6,12 +6,12 @@
+       "ios",
+       "android"
+     ],
+-    "version": "4.7.0",
++    "version": "4.7.1",
+     "orientation": "default",
+     "userInterfaceStyle": "light",
+     "ios": {
+       "bundleIdentifier": "local.gympass.controlacceso.mobile",
+-      "buildNumber": "4700",
++      "buildNumber": "4701",
+       "supportsTablet": true,
+       "infoPlist": {
+         "NSLocalNetworkUsageDescription": "GymPASS se conecta con la computadora de la misma red Wi-Fi para registrar accesos.",
+@@ -24,7 +24,7 @@
+     },
+     "android": {
+       "package": "local.gympass.controlacceso.mobile",
+-      "versionCode": 4700,
++      "versionCode": 4701,
+       "permissions": [
+         "android.permission.CAMERA"
+       ],
+--- a/mobile/src/GympassApp.tsx
++++ b/mobile/src/GympassApp.tsx
+@@ -309,7 +309,7 @@
+             ref={web}
+             source={{ uri: DEFAULT_SERVER }}
+             style={{ flex: 1, backgroundColor: palette.surface }}
+-            applicationNameForUserAgent="GymPASS-Android/4.7.0"
++            applicationNameForUserAgent="GymPASS-Android/4.7.1"
+             originWhitelist={['*']}
+             onShouldStartLoadWithRequest={(request) => {
+               if (isGympassUrl(request.url) || request.url === 'about:blank') return true;
+--- a/tests/release-version.test.ts
++++ b/tests/release-version.test.ts
+@@ -2,14 +2,14 @@
+ import { test } from 'node:test';
+ import { readFile } from 'node:fs/promises';
+ 
+-test('web, Android y Windows usan 4.7.0', async () => {
++test('web, Android y Windows usan 4.7.1', async () => {
+   for (const path of ['package.json', 'desktop/package.json', 'desktop-runtime/package.json']) {
+     const manifest = JSON.parse(await readFile(new URL('../' + path, import.meta.url), 'utf8'));
+-    assert.equal(manifest.version, '4.7.0', path);
++    assert.equal(manifest.version, '4.7.1', path);
+   }
+   const app = JSON.parse(await readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'));
+-  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '4.7.0');
+-  assert.equal(app.expo.version, '4.7.0');
+-  assert.equal(app.expo.android.versionCode, 4700);
+-  assert.equal(app.expo.ios.buildNumber, '4700');
++  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '4.7.1');
++  assert.equal(app.expo.version, '4.7.1');
++  assert.equal(app.expo.android.versionCode, 4701);
++  assert.equal(app.expo.ios.buildNumber, '4701');
+ });
+--- a/tests/desktop-remote.test.ts
++++ b/tests/desktop-remote.test.ts
+@@ -341,6 +341,21 @@
+   }
+ });
+ 
++test('una cuenta central nueva abre el servidor directamente y conserva ese modo al reiniciar', async () => {
++  const fixture = await bootRemote(false, true, 1);
++  try {
++    fixture.windows[0].webContents.emit('will-navigate', { preventDefault() {} },
++      'gympass-connection://apply/?mode=remote&server=https%3A%2F%2Fgym.example.test');
++    for (let turn = 0; turn < 8; turn++) await new Promise<void>((done) => setImmediate(done));
++    const config = remoteModule().readRemoteConfiguration(fixture.directory, {});
++    assert.equal(config.mode, 'remote');
++    assert.equal(config.direct, true);
++    assert.equal(config.server, 'https://gym.example.test');
++    assert.ok(fixture.calls.includes('relaunch'));
++    assert.ok(!fixture.calls.includes('prepare'));
++  } finally { fixture.cleanup(); }
++});
++
+ test('Configuración → Conexión aplica el modo local con confirmación y conserva la base', async () => {
+   const fixture = await bootRemote(false, true, 1);
+   try {
+--- /dev/null
++++ b/mobile/tests/password.test.ts
+@@ -0,0 +1,23 @@
++import assert from 'node:assert/strict';
++import test from 'node:test';
++import { find, harness, native } from './component-harness.ts';
++
++test('el lector muestra y oculta la contraseña sin cambiarla ni iniciar sesión', async t => {
++  const h = harness(); t.after(() => h.cleanup());
++  let logins = 0;
++  const dependencies: Record<string, unknown> = { 'react-native': native, './src/ui': { colors: {} }, './src/api': { login: () => { logins++; } } };
++  for (const name of ['expo-camera', 'expo-constants', 'expo-crypto', 'expo-secure-store', 'react-native-safe-area-context', './src/connection', './src/session', './src/pending', './src/poll', './src/ReportScreens', './src/reader-layout', './src/ScanFeedback', './src/access-sounds']) dependencies[name] = {};
++  const { LoginScreen } = h.load('../App.tsx', dependencies, 'LoginScreen');
++  h.render(() => LoginScreen({ onLogin() {} }));
++  let tree = await h.settle();
++  find(tree, e => e.type === 'TextInput' && e.props.accessibilityLabel === 'Contraseña').props.onChangeText('Mi contraseña');
++  tree = await h.settle();
++  for (const hidden of [true, false, true]) {
++    const input = find(tree, e => e.type === 'TextInput' && e.props.accessibilityLabel === 'Contraseña');
++    assert.equal(input.props.secureTextEntry, hidden);
++    assert.equal(input.props.value, 'Mi contraseña');
++    find(tree, e => e.type === 'Pressable' && e.props.accessibilityLabel === (hidden ? 'Mostrar contraseña' : 'Ocultar contraseña')).props.onPress();
++    tree = await h.settle();
++  }
++  assert.equal(logins, 0);
++});

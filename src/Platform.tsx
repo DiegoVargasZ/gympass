@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import BrandLogo from './BrandLogo';
 import AppDownloads from './AppDownloads';
+import ConnectionStatus from './ConnectionStatus';
 import { api } from './api';
 import { Empty, Field, Form, Modal, Skeleton } from './ui';
 import { setPlatformContext } from './platform-context';
@@ -310,6 +311,7 @@ export default function Platform() {
         </section>
         <main className="auth-main">
           <div className="auth-card">
+            <ConnectionStatus platform />
             <span className="auth-icon">
               <ShieldCheck size={24} aria-hidden="true" />
             </span>
@@ -484,6 +486,7 @@ export default function Platform() {
           <BrandLogo />
         </a>
         <div className="platform-actions">
+          <ConnectionStatus platform />
           <span>{status.user.name}</span>
           <button className="btn secondary" disabled={busy} onClick={() => void logout()}>
             <LogOut size={16} aria-hidden="true" />

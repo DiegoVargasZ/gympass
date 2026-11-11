@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api, download } from './api';
 import { Field, Form } from './ui';
+import ServerAccessLink from './ServerAccessLink';
+import ConnectionStatus from './ConnectionStatus';
 import './styles/cloud-sync.css';
 const stamp = (value: number) => new Date(value).toLocaleString();
 
@@ -53,6 +55,7 @@ export default function CloudSync({ platform = false, initial = false }: { platf
   };
   return (
     <section className={initial ? 'panel cloud-sync sync-initial' : 'panel cloud-sync'}>
+      {initial && <ConnectionStatus />}
       <h2>{initial ? 'Iniciar sesión en GymPASS' : platform ? 'Equipos vinculados' : 'Sincronización'}</h2>
       {initial && (
         <p>
@@ -267,6 +270,7 @@ export default function CloudSync({ platform = false, initial = false }: { platf
           que el administrador los revise.
         </p>
       )}
+      {initial && <ServerAccessLink />}
     </section>
   );
 }

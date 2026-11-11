@@ -1,5 +1,6 @@
 import { apiUrl } from './platform-context';
 import ScopedImage from './ScopedImage';
+import PasswordInput from './PasswordInput';
 import {
   Children,
   cloneElement,
@@ -193,10 +194,12 @@ export function Field({ label, children, hint }: { label: string; children: Reac
       <label htmlFor={id}>{label}</label>
       {Children.map(children, (child) =>
         isValidElement(child) && typeof child.type === 'string' && ['input', 'select', 'textarea'].includes(child.type)
-          ? cloneElement(child as ReactElement<Record<string, unknown>>, {
+          ? (child.type === 'input' && (child.props as Record<string, unknown>).type === 'password'
+            ? <PasswordInput {...(child.props as React.InputHTMLAttributes<HTMLInputElement>)} id={id} aria-describedby={hint ? id + '-hint' : undefined} />
+            : cloneElement(child as ReactElement<Record<string, unknown>>, {
               id,
               'aria-describedby': hint ? id + '-hint' : undefined,
-            })
+            }))
           : child,
       )}
       {hint && <small id={id + '-hint'}>{hint}</small>}

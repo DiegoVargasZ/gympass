@@ -113,6 +113,7 @@ test('Plataforma: las rutas de datos, fotos y exportaciones quedan ligadas al gi
   assert.equal(apiUrl('/api/people/12/photo?v=3'), '/api/gyms/gym-a/people/12/photo?v=3');
   assert.equal(apiUrl('reports/export?month=2026-11'), '/api/gyms/gym-a/reports/export?month=2026-11');
   assert.equal(apiUrl('platform/status'), '/api/platform/status');
+  assert.equal(apiUrl('health'), '/api/health');
   assert.equal(apiUrl('blob:photo'), 'blob:photo');
   assert.deepEqual(getPlatformContext(), { gymId: 'gym-a' });
   setPlatformContext(null);
