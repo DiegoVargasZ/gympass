@@ -38,7 +38,7 @@ export function applyPreferences() {
   document.documentElement.dataset.density = preferences.density;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', preferences.theme === 'dark' ? '#000000' : '#f3f5f8');
+    ?.setAttribute('content', preferences.theme === 'dark' ? '#ffffff' : '#000000');
 }
 export function setPreferencesUser(email: string) {
   user = email;
@@ -87,3 +87,7 @@ export function usePreferences() {
     () => preferences,
   );
 }
+window.addEventListener('gympass-theme', (event) => {
+  const theme = (event as CustomEvent).detail;
+  if (theme === 'light' || theme === 'dark') updatePreferences({ theme });
+});

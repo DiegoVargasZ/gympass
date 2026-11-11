@@ -116,7 +116,7 @@ export function componentHarness(globals: Record<string, unknown> = {}) {
           const dependency = dependencies[name];
           return dependency && 'default' in dependency ? { __esModule: true, ...dependency } : dependency;
         }
-        if (['./ConnectionStatus', './ServerAccessLink', './PasswordInput'].includes(name))
+        if (['./ConnectionStatus', './ServerAccessLink', './PasswordInput', './ThemeToggle'].includes(name))
           return { __esModule: true, default: name.slice(2) };
         throw Error(`Dependencia no configurada: ${name}`);
       },

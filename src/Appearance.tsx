@@ -85,7 +85,7 @@ export default function Appearance() {
             onChange={(event) => edit({ theme: event.target.value as Preferences['theme'] })}
           >
             <option value="light">Claro</option>
-            <option value="dark">Negro</option>
+            <option value="dark">Oscuro</option>
           </select>
         </Field>
         <Field label="Densidad de las tablas" hint="Se recuerda para tu usuario en este navegador.">

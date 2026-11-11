@@ -1,5 +1,12 @@
 # Cambios
 
+## 4.8.0
+
+- Paleta común con blanco como base del tema claro, negro como base del oscuro y verde fosforescente `#B6FF00` como acento. La composición sigue la proporción visual 60/30/10 en superficies, navegación y acciones.
+- Menús, cabeceras, tablas, formularios, caja, socios, recepción, informes y configuración comparten los colores. Los botones verdes usan texto negro; los controles y avisos mantienen contraste legible.
+- Cambio rápido de tema desde la barra y desde el acceso. Android incluye el cambio de tema en su navegación nativa y conserva la elección al volver a abrir el lector sin conexión.
+- Web, Windows y Android actualizados a 4.8.0; Android usa el código 4800. Se conserva la interfaz 4.7.1 para las sesiones abiertas.
+
 ## 4.7.1
 
 - El inicio local permite abrir la cuenta del servidor central sin sustituir la base de la computadora. Windows conserva la conexión directa al reiniciar, evitando volver a una copia vinculada a otra cuenta.

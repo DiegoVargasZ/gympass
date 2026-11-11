@@ -1,0 +1,150 @@
+/* 60% base, 30% opposite surfaces, 10% neon actions and selection. */
+.app-shell .sidebar,
+.app-shell .topbar,
+.platform-header,
+.platform-context-bar,
+.kiosk-bar,
+.app-shell .mobile-navigation {
+  background: var(--chrome);
+  color: var(--on-chrome);
+  border-color: var(--chrome-border);
+  --focus: var(--chrome-focus);
+}
+.app-shell .sidebar .brand,
+.app-shell .sidebar .brand-name,
+.app-shell .sidebar .user-box strong,
+.app-shell .sidebar .user-box small,
+.app-shell .sidebar .icon-btn,
+.app-shell .sidebar nav a,
+.app-shell .sidebar nav a svg,
+.app-shell .topbar .icon-btn,
+.platform-context-bar .btn.secondary,
+.platform-header .btn.secondary,
+.kiosk-bar .btn.secondary {
+  color: var(--on-chrome);
+}
+.app-shell .sidebar .user-box { border-color: var(--chrome-border); }
+.platform-context-bar > div:first-child > span:not(.gympass-brand-logo) { color: var(--chrome-muted); }
+.platform-header > .platform-actions > span { color: var(--on-chrome); }
+.app-shell .sidebar nav a:hover,
+.app-shell .sidebar .icon-btn:hover,
+.app-shell .topbar .icon-btn:hover {
+  background: var(--chrome-hover);
+  color: var(--on-chrome);
+}
+.app-shell .sidebar nav a.active,
+.app-shell .sidebar nav a.active svg {
+  background: var(--brand-base);
+  color: var(--on-brand);
+}
+.app-shell .topbar-search {
+  background: var(--chrome-hover);
+  color: var(--chrome-muted);
+  border-color: var(--chrome-border);
+}
+.app-shell .topbar-search kbd {
+  background: var(--chrome);
+  color: var(--chrome-muted);
+  border-color: var(--chrome-border);
+}
+.alerts-panel { color: var(--ink); --focus: var(--brand-700); }
+.app-shell .topbar .alerts-panel .icon-btn { color: var(--ink); }
+.app-shell .topbar .alerts-panel .icon-btn:hover { background: var(--surface-2); }
+.topbar .gympass-logo-light,
+.platform-header .gympass-logo-light,
+.platform-context-bar .gympass-logo-light,
+.kiosk-bar .gympass-logo-light { display: none; }
+.topbar .gympass-logo-dark,
+.platform-header .gympass-logo-dark,
+.platform-context-bar .gympass-logo-dark,
+.kiosk-bar .gympass-logo-dark { display: block; }
+:root[data-theme='dark'] .topbar .gympass-logo-light,
+:root[data-theme='dark'] .platform-header .gympass-logo-light,
+:root[data-theme='dark'] .platform-context-bar .gympass-logo-light,
+:root[data-theme='dark'] .kiosk-bar .gympass-logo-light { display: block; }
+:root[data-theme='dark'] .topbar .gympass-logo-dark,
+:root[data-theme='dark'] .platform-header .gympass-logo-dark,
+:root[data-theme='dark'] .platform-context-bar .gympass-logo-dark,
+:root[data-theme='dark'] .kiosk-bar .gympass-logo-dark { display: none; }
+.btn.secondary {
+  background: var(--chrome);
+  color: var(--on-chrome);
+  border-color: var(--chrome-border);
+}
+.btn.primary { background: var(--brand-base); color: var(--on-brand); }
+.btn.primary:hover { background: var(--brand-hover); }
+.btn.secondary:hover { background: var(--chrome-hover); }
+.today-summary {
+  --ink: #000000;
+  --ink-2: #1f2a00;
+  --muted: #293800;
+  --info: #000000;
+  --border: #5b7c00;
+  background: var(--brand-base);
+  color: var(--ink);
+}
+.auth-layout .auth-main { background: var(--bg); }
+@media (min-width: 901px) {
+  .auth-layout { grid-template-columns: minmax(0, 35fr) minmax(0, 65fr); }
+  .auth-layout .auth-story { padding-inline: clamp(24px, 3vw, 48px); }
+  .auth-layout .auth-story h1 { font-size: clamp(32px, 3.1vw, 48px); }
+}
+.app-shell .mobile-navigation > a,
+.app-shell .mobile-navigation > button { color: var(--on-chrome); }
+.app-shell .mobile-navigation > [aria-current='page'],
+.app-shell .mobile-navigation > .active {
+  background: var(--brand-base);
+  color: var(--on-brand);
+}
+.app-shell .mobile-navigation svg { color: currentColor; }
+.access-result.queued, .kiosk-result.queued { --result-ink: var(--result-queued-ink); color: var(--result-ink); }
+:root {
+  --nav-bg: var(--chrome);
+  --nav-surface: var(--chrome);
+  --nav-text: var(--on-chrome);
+  --nav-muted: var(--chrome-muted);
+}
+::selection { background: #b6ff00; color: #000000; }
+.section-tabs a.active { border-bottom-width: 4px; }
+.app-shell th,
+thead th {
+  background: var(--chrome);
+  color: var(--on-chrome);
+  border-color: var(--chrome-border);
+  --focus: var(--chrome-focus);
+}
+.connection-status {
+  background: var(--brand-base);
+  color: var(--on-brand);
+}
+.connection-status.connection-warning {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color: var(--brand-700); }
+.auth-icon,
+.automatic-camera-icon,
+.phone-intro-icon {
+  background: var(--brand-base);
+  color: var(--on-brand);
+}
+.auth-layout .auth-story {
+  background: var(--chrome);
+  color: var(--on-chrome);
+}
+.auth-layout .auth-story p,
+.auth-layout .auth-story .auth-features { color: var(--chrome-muted); }
+.auth-layout .auth-story h1 { color: var(--on-chrome); }
+:root[data-theme='dark'] .auth-story .gympass-logo-light { display: block; }
+:root[data-theme='dark'] .auth-story .gympass-logo-dark { display: none; }
+.access-result.allowed,
+.kiosk-result.allowed {
+  --result-ink: var(--result-ok-ink);
+  background: var(--brand-base);
+  color: var(--result-ink);
+}
+.access-result.allowed .avatar,
+.kiosk-result.allowed .avatar { color: #000000; }
+@media print {
+  .app-shell th, thead th { background: #ffffff; color: #000000; border-color: #000000; }
+}

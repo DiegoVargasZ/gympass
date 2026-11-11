@@ -14,6 +14,7 @@ import {
 import BrandLogo from './BrandLogo';
 import AppDownloads from './AppDownloads';
 import ConnectionStatus from './ConnectionStatus';
+import ThemeToggle from './ThemeToggle';
 import { api } from './api';
 import { Empty, Field, Form, Modal, Skeleton } from './ui';
 import { setPlatformContext } from './platform-context';
@@ -311,6 +312,7 @@ export default function Platform() {
         </section>
         <main className="auth-main">
           <div className="auth-card">
+            <ThemeToggle />
             <ConnectionStatus platform />
             <span className="auth-icon">
               <ShieldCheck size={24} aria-hidden="true" />
@@ -487,6 +489,7 @@ export default function Platform() {
         </a>
         <div className="platform-actions">
           <ConnectionStatus platform />
+          <ThemeToggle />
           <span>{status.user.name}</span>
           <button className="btn secondary" disabled={busy} onClick={() => void logout()}>
             <LogOut size={16} aria-hidden="true" />

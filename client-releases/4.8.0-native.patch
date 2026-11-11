@@ -1,0 +1,1012 @@
+--- a/desktop/loading.html
++++ b/desktop/loading.html
+@@ -14,8 +14,8 @@
+         min-height: 100vh;
+         display: grid;
+         place-items: center;
+-        background: #f3f5f8;
+-        color: #1b2733;
++        background: #ffffff;
++        color: #000000;
+         font:
+           16px/1.6 'Segoe UI',
+           Arial,
+@@ -31,15 +31,15 @@
+         margin: 0;
+       }
+       h1 span {
+-        color: #2455a4;
++        color: #365c00;
+       }
+       p {
+-        color: #44525f;
++        color: #333333;
+       }
+       .progress {
+         height: 4px;
+         width: 180px;
+-        background: #e3e6ea;
++        background: #000000;
+         border-radius: 4px;
+         margin: 24px auto;
+         overflow: hidden;
+@@ -49,7 +49,7 @@
+         display: block;
+         width: 50%;
+         height: 100%;
+-        background: #2455a4;
++        background: #b6ff00;
+         animation: move 1s ease-in-out infinite alternate;
+       }
+       @keyframes move {
+@@ -62,6 +62,7 @@
+           animation: none;
+         }
+       }
++      @media (prefers-color-scheme: dark) { body { background: #000000; color: #ffffff; } p { color: #d4d4d4; } input { background: #101010; color: #ffffff; border-color: #8a8a8a; } :focus-visible { outline-color: #b6ff00; } }
+     </style>
+   </head>
+   <body>
+--- a/desktop/main.cjs
++++ b/desktop/main.cjs
+@@ -134,7 +134,7 @@
+     minHeight: 560,
+     title: 'GymPASS',
+     icon: join(__dirname, 'icon.png'),
+-    backgroundColor: '#e8ecf0',
++    backgroundColor: '#ffffff',
+     autoHideMenuBar: true,
+     show: !process.env.GYMPASS_TEST_HEADLESS,
+     ...options,
+--- a/desktop/package.json
++++ b/desktop/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "gympass-desktop",
+   "productName": "GymPASS",
+-  "version": "4.7.1",
++  "version": "4.8.0",
+   "description": "Entradas, salidas y tiempos de permanencia para gimnasios",
+   "author": "GymPASS",
+   "license": "UNLICENSED",
+--- a/desktop/remote.html
++++ b/desktop/remote.html
+@@ -18,8 +18,8 @@
+         display: grid;
+         place-items: center;
+         padding: 28px;
+-        background: #f3f5f8;
+-        color: #1b2733;
++        background: #ffffff;
++        color: #000000;
+         font:
+           16px/1.6 'Segoe UI',
+           Arial,
+@@ -35,7 +35,7 @@
+         line-height: 1.25;
+       }
+       p {
+-        color: #44525f;
++        color: #333333;
+         overflow-wrap: anywhere;
+       }
+       label {
+@@ -46,9 +46,9 @@
+       input {
+         width: 100%;
+         min-height: 48px;
+-        background: #f4f6f7;
+-        color: #1b2733;
+-        border: 1px solid #44525f;
++        background: #ffffff;
++        color: #000000;
++        border: 1px solid #333333;
+         border-radius: 6px;
+         padding: 10px;
+         font: inherit;
+@@ -60,15 +60,15 @@
+         padding: 11px 18px;
+         border: 0;
+         border-radius: 6px;
+-        background: #2455a4;
+-        color: #ffffff;
++        background: #b6ff00;
++        color: #000000;
+         font: inherit;
+         font-weight: 700;
+         cursor: pointer;
+         text-decoration: none;
+       }
+       :focus-visible {
+-        outline: 3px solid #1b2733;
++        outline: 3px solid #000000;
+         outline-offset: 4px;
+       }
+       [hidden] {
+@@ -77,6 +77,7 @@
+       #error {
+         color: #a52019;
+       }
++      @media (prefers-color-scheme: dark) { body { background: #000000; color: #ffffff; } p { color: #d4d4d4; } input { background: #101010; color: #ffffff; border-color: #8a8a8a; } :focus-visible { outline-color: #b6ff00; } }
+     </style>
+   </head>
+   <body>
+--- a/mobile/App.tsx
++++ b/mobile/App.tsx
+@@ -1,4 +1,6 @@
+ import { useCallback, useEffect, useRef, useState } from 'react';
++import { NativeTheme, useNativeTheme } from './src/theme';
++import { themePalettes, type ThemeMode, type ThemePalette } from '../lib/theme';
+ import {
+   ActivityIndicator,
+   Image,
+@@ -73,6 +75,8 @@
+   disabled?: boolean;
+   secondary?: boolean;
+ }) {
++  const { colors } = useNativeTheme();
++  const styles = stylesFor(colors);
+   return (
+     <Pressable
+       accessibilityRole="button"
+@@ -94,6 +98,8 @@
+ }
+ 
+ function LoginScreen({ onLogin }: { onLogin: (session: MobileSession) => void }) {
++  const { colors } = useNativeTheme();
++  const styles = stylesFor(colors);
+   const [address, setAddress] = useState(initialAddress);
+   const [email, setEmail] = useState('');
+   const [password, setPassword] = useState('');
+@@ -263,6 +269,8 @@
+   onLogout: () => void;
+   onExpired: (token: string) => void;
+ }) {
++  const { colors } = useNativeTheme();
++  const styles = stylesFor(colors);
+   const [permission, askPermission] = useCameraPermissions();
+   const playAccessSound = useAccessSounds();
+   const windowSize = useWindowDimensions();
+@@ -857,7 +865,9 @@
+   );
+ }
+ 
+-export default function App({ embedded = false }: { embedded?: boolean } = {}) {
++export default function App({ embedded = false, theme = 'light' }: { embedded?: boolean; theme?: ThemeMode } = {}) {
++  const colors = themePalettes[theme];
++  const styles = stylesFor(colors);
+   const [session, setSession] = useState<MobileSession | null>(null);
+   const [loading, setLoading] = useState(true);
+   const [restoreError, setRestoreError] = useState('');
+@@ -886,9 +896,10 @@
+     await clearSession(token).catch(() => {});
+   }
+   return (
++    <NativeTheme.Provider value={theme}>
+     <SafeAreaProvider>
+       <SafeAreaView style={styles.root} edges={embedded ? [] : ['top', 'bottom']}>
+-        <StatusBar barStyle="dark-content" />
++        <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
+         {loading ? (
+           <ActivityIndicator style={styles.flex} color={colors.brand} />
+         ) : restoreError ? (
+@@ -911,10 +922,11 @@
+         )}
+       </SafeAreaView>
+     </SafeAreaProvider>
++    </NativeTheme.Provider>
+   );
+ }
+ 
+-const styles = StyleSheet.create({
++const createStyles = (colors: ThemePalette) => StyleSheet.create({
+   root: { flex: 1, backgroundColor: colors.canvas },
+   flex: { flex: 1 },
+   loginContent: {
+@@ -967,10 +979,10 @@
+     marginTop: 4,
+   },
+   primaryButton: { backgroundColor: colors.brand },
+-  secondaryButton: { backgroundColor: colors.surface, borderColor: colors.borderStrong, borderWidth: 1 },
++  secondaryButton: { backgroundColor: colors.chrome, borderColor: colors.borderStrong, borderWidth: 1 },
+   buttonText: { fontSize: 15, fontWeight: '600', textAlign: 'center' },
+   primaryButtonText: { color: colors.onBrand },
+-  secondaryButtonText: { color: colors.ink },
++  secondaryButtonText: { color: colors.onChrome },
+   pressed: { opacity: 0.8 },
+   disabled: { opacity: 0.5 },
+   errorText: { color: colors.red, fontSize: 15, lineHeight: 22, marginVertical: 6 },
+@@ -982,14 +994,14 @@
+     paddingVertical: 12,
+     borderBottomWidth: 1,
+     borderColor: colors.border,
+-    backgroundColor: colors.surface,
++    backgroundColor: colors.chrome,
+     gap: 10,
+   },
+   toolbarLogo: { width: 40, height: 40, resizeMode: 'contain' },
+   toolbarLandscape: { paddingVertical: 6 },
+-  toolbarTitle: { fontSize: 17, color: colors.ink, fontWeight: '700' },
+-  toolbarOrg: { color: colors.inkSecondary, fontSize: 13, lineHeight: 18 },
+-  toolbarSub: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
++  toolbarTitle: { fontSize: 17, color: colors.onChrome, fontWeight: '700' },
++  toolbarOrg: { color: colors.onChrome, fontSize: 13, lineHeight: 18 },
++  toolbarSub: { color: colors.chromeMuted, fontSize: 12, lineHeight: 17, marginTop: 2 },
+   tabs: {
+     flexGrow: 0,
+     flexShrink: 0,
+@@ -1005,9 +1017,9 @@
+     borderBottomWidth: 2,
+     borderBottomColor: 'transparent',
+   },
+-  tabSelected: { borderBottomColor: colors.brand },
++  tabSelected: { borderBottomColor: colors.brand, backgroundColor: colors.brand },
+   tabText: { color: colors.inkSecondary, fontSize: 15, fontWeight: '500' },
+-  tabTextSelected: { color: colors.ink, fontWeight: '600' },
++  tabTextSelected: { color: colors.onBrand, fontWeight: '600' },
+   pageHeading: { gap: 4, marginBottom: 8 },
+   pageTitle: { color: colors.ink, fontSize: 24, lineHeight: 30, fontWeight: '600', letterSpacing: -0.3 },
+   pageDescription: { color: colors.inkSecondary, fontSize: 15, lineHeight: 23 },
+@@ -1100,3 +1112,10 @@
+   statValue: { color: colors.ink, fontSize: 24, fontWeight: '600', fontVariant: ['tabular-nums'] },
+   statLabel: { color: colors.inkSecondary, fontSize: 13, lineHeight: 18 },
+ });
++
++const styleCache = new Map<ThemePalette, ReturnType<typeof createStyles>>();
++function stylesFor(colors: ThemePalette) {
++  let value = styleCache.get(colors);
++  if (!value) { value = createStyles(colors); styleCache.set(colors, value); }
++  return value;
++}
+--- a/mobile/app.json
++++ b/mobile/app.json
+@@ -6,12 +6,12 @@
+       "ios",
+       "android"
+     ],
+-    "version": "4.7.1",
++    "version": "4.8.0",
+     "orientation": "default",
+-    "userInterfaceStyle": "light",
++    "userInterfaceStyle": "automatic",
+     "ios": {
+       "bundleIdentifier": "local.gympass.controlacceso.mobile",
+-      "buildNumber": "4701",
++      "buildNumber": "4800",
+       "supportsTablet": true,
+       "infoPlist": {
+         "NSLocalNetworkUsageDescription": "GymPASS se conecta con la computadora de la misma red Wi-Fi para registrar accesos.",
+@@ -24,7 +24,7 @@
+     },
+     "android": {
+       "package": "local.gympass.controlacceso.mobile",
+-      "versionCode": 4701,
++      "versionCode": 4800,
+       "permissions": [
+         "android.permission.CAMERA"
+       ],
+--- a/mobile/package-lock.json
++++ b/mobile/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "4.7.1",
++  "version": "4.8.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-mobile",
+-      "version": "4.7.1",
++      "version": "4.8.0",
+       "dependencies": {
+         "expo": "~58.0.21",
+         "expo-audio": "58.0.11",
+--- a/mobile/package.json
++++ b/mobile/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "4.7.1",
++  "version": "4.8.0",
+   "private": true,
+   "type": "module",
+   "main": "index.ts",
+--- a/mobile/src/GympassApp.tsx
++++ b/mobile/src/GympassApp.tsx
+@@ -21,6 +21,7 @@
+ import * as Print from 'expo-print';
+ import * as SecureStore from 'expo-secure-store';
+ import Reader from '../App';
++import { themePalettes } from '../../lib/theme';
+ import { loadSession } from './session.ts';
+ import {
+   DEFAULT_SERVER,
+@@ -61,10 +62,41 @@
+   // de una que nunca empieza, sin tener que conectar el teléfono al ordenador.
+   const [detail, setDetail] = useState('sin respuesta de la vista');
+   const [dark, setDark] = useState(false);
++  const themeReceived = useRef(false);
++  const pendingTheme = useRef<boolean | null>(null);
+   const [revision, setRevision] = useState(0);
+-  const palette = dark
+-    ? { bg: '#000000', surface: '#111111', ink: '#ffffff', muted: '#b7c2cc', border: '#343434' }
+-    : { bg: '#f3f5f8', surface: '#ffffff', ink: '#1b2733', muted: '#566473', border: '#d5dce4' };
++  const colors = themePalettes[dark ? 'dark' : 'light'];
++  const palette = { ...colors, bg: colors.canvas };
++  useEffect(() => {
++    let active = true;
++    void SecureStore.getItemAsync('gympass.theme').then((saved) => {
++      if (active && !themeReceived.current && (saved === 'dark' || saved === 'light')) {
++        setDark(saved === 'dark');
++        pendingTheme.current = saved === 'dark';
++      }
++    }).catch(() => {});
++    return () => { active = false; };
++  }, []);
++
++  function sendThemeToWeb(value: boolean) {
++    web.current?.injectJavaScript(`(() => {
++      const theme = ${JSON.stringify(value ? 'dark' : 'light')};
++      window.dispatchEvent(new CustomEvent('gympass-theme',{detail:theme}));
++      if (document.documentElement.dataset.theme !== theme) {
++        try {
++          const saved = JSON.parse(localStorage.getItem('gympass.preferences') || '{}');
++          localStorage.setItem('gympass.preferences', JSON.stringify({...saved, theme}));
++        } catch {}
++        document.documentElement.dataset.theme = theme;
++      }
++    })(); true;`);
++  }
++  function applyTheme(value: boolean, native = false) {
++    themeReceived.current = true;
++    setDark(value);
++    void SecureStore.setItemAsync?.('gympass.theme', value ? 'dark' : 'light').catch(() => {});
++    if (native) { pendingTheme.current = value; sendThemeToWeb(value); }
++  }
+ 
+   function cancelTransfer() {
+     const current = transfer.current;
+@@ -209,7 +241,12 @@
+       id = message.id;
+       switch (message.type) {
+         case 'theme':
+-          setDark(message.dark === true);
++          if (pendingTheme.current !== null && pendingTheme.current !== (message.dark === true)) {
++            sendThemeToWeb(pendingTheme.current);
++            break;
++          }
++          pendingTheme.current = null;
++          applyTheme(message.dark === true);
+           break;
+         case 'open-reader':
+           navigationChosen.current = true;
+@@ -302,14 +339,14 @@
+   return (
+     <SafeAreaProvider>
+       <SafeAreaView style={[styles.root, { backgroundColor: palette.surface }]}>
+-        <StatusBar barStyle={dark && !reader ? 'light-content' : 'dark-content'} />
++        <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} />
+         <View style={[styles.page, reader && styles.hidden]}>
+           <WebView<{}>
+             key={revision}
+             ref={web}
+             source={{ uri: DEFAULT_SERVER }}
+             style={{ flex: 1, backgroundColor: palette.surface }}
+-            applicationNameForUserAgent="GymPASS-Android/4.7.1"
++            applicationNameForUserAgent="GymPASS-Android/4.8.0"
+             originWhitelist={['*']}
+             onShouldStartLoadWithRequest={(request) => {
+               if (isGympassUrl(request.url) || request.url === 'about:blank') return true;
+@@ -343,6 +380,7 @@
+             onLoadEnd={() => {
+               pageReady();
+               setDetail('página abierta');
++              if (pendingTheme.current !== null) sendThemeToWeb(pendingTheme.current);
+             }}
+             onError={(event) =>
+               fail(
+@@ -398,9 +436,9 @@
+               <Pressable
+                 accessibilityRole="button"
+                 onPress={retry}
+-                style={[styles.retry, { backgroundColor: palette.ink }]}
++                style={[styles.retry, { backgroundColor: palette.brand }]}
+               >
+-                <Text style={{ color: palette.surface, fontWeight: '600' }}>Reintentar</Text>
++                <Text style={{ color: palette.onBrand, fontWeight: '600' }}>Reintentar</Text>
+               </Pressable>
+               <Text style={[styles.detail, { color: palette.muted }]}>
+                 Si ya vinculaste este teléfono, puedes usar su copia local en Lector sin conexión.
+@@ -408,9 +446,9 @@
+             </View>
+           )}
+         </View>
+-        {reader && <Reader embedded />}
++        {reader && <Reader embedded theme={dark ? 'dark' : 'light'} />}
+         <View
+-          style={[styles.navigation, { backgroundColor: palette.surface, borderColor: palette.border }]}
++          style={[styles.navigation, { backgroundColor: palette.chrome, borderColor: palette.border }]}
+           accessibilityRole="tablist"
+         >
+           {(['Gestión', 'Lector sin conexión'] as const).map((label, index) => (
+@@ -421,7 +459,7 @@
+               style={[
+                 styles.tab,
+                 landscape && styles.tabLandscape,
+-                { borderBottomColor: reader === (index === 1) ? palette.ink : 'transparent' },
++                { borderBottomColor: reader === (index === 1) ? palette.brand : 'transparent', backgroundColor: reader === (index === 1) ? palette.brand : palette.chrome },
+               ]}
+               onPress={() => {
+                 navigationChosen.current = true;
+@@ -432,7 +470,7 @@
+             >
+               <Text
+                 style={{
+-                  color: reader === (index === 1) ? palette.ink : palette.muted,
++                  color: reader === (index === 1) ? palette.onBrand : palette.onChrome,
+                   fontWeight: reader === (index === 1) ? '600' : '400',
+                 }}
+               >
+@@ -440,6 +478,14 @@
+               </Text>
+             </Pressable>
+           ))}
++          <Pressable
++            accessibilityRole="button"
++            accessibilityLabel={dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
++            onPress={() => applyTheme(!dark, true)}
++            style={{ minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}
++          >
++            <Text style={{ color: palette.onChrome, fontSize: 24 }}>{dark ? '☀' : '☾'}</Text>
++          </Pressable>
+         </View>
+       </SafeAreaView>
+     </SafeAreaProvider>
+--- a/mobile/src/ReportScreens.tsx
++++ b/mobile/src/ReportScreens.tsx
+@@ -1,3 +1,4 @@
++import { useNativeTheme } from './theme';
+ import { useState } from 'react';
+ import { Pressable, Text, View } from 'react-native';
+ import type { MobileSession } from './api';
+@@ -12,7 +13,7 @@
+   type SessionsReport,
+ } from './reports';
+ import { useMobileQuery } from './use-mobile-query';
+-import { Action, colors, Input, Pager, Records, reportStyles as s, stamp } from './ui';
++import { Action, colors, Input, Pager, Records, reportStylesFor, stamp } from './ui';
+ 
+ export type SelectedPerson = { id: string; name: string } | null;
+ type Props = { session: MobileSession; onExpired: (token: string) => void; timezone?: string };
+@@ -20,6 +21,8 @@
+   ({ active: 'Activo', suspended: 'Suspendido', inactive: 'Inactivo' })[status] || status;
+ 
+ export function PeopleScreen({ session, onExpired, onPerson }: Props & { onPerson: (person: SelectedPerson) => void }) {
++  const { colors } = useNativeTheme();
++  const s = reportStylesFor(colors);
+   const [draft, setDraft] = useState('');
+   const [q, setQuery] = useState('');
+   const [page, setPage] = useState(1);
+@@ -80,6 +83,8 @@
+ }
+ 
+ export function PresenceScreen({ session, onExpired, timezone }: Props) {
++  const { colors } = useNativeTheme();
++  const s = reportStylesFor(colors);
+   const query = useMobileQuery<PresenceRow[]>(session, 'mobile/presence', onExpired, true);
+   return (
+     <Records
+@@ -104,6 +109,8 @@
+ 
+ export function HistoryScreen({ session, onExpired, timezone }: Props) {
+   const [page, setPage] = useState(1);
++  const { colors } = useNativeTheme();
++  const s = reportStylesFor(colors);
+   const query = useMobileQuery<EventsPage>(session, 'mobile/events?page=' + page, onExpired);
+   return (
+     <Records
+@@ -149,6 +156,8 @@
+   onPerson,
+   today,
+ }: Props & { person: SelectedPerson; onPerson: (person: SelectedPerson) => void; today: string }) {
++  const { colors } = useNativeTheme();
++  const s = reportStylesFor(colors);
+   const [draft, setDraft] = useState<HoursFilters>({
+     from: today,
+     to: today,
+--- a/mobile/src/ScanFeedback.tsx
++++ b/mobile/src/ScanFeedback.tsx
+@@ -1,3 +1,4 @@
++import { neonGreen } from '../../lib/theme';
+ import { useEffect, useRef, useState } from 'react';
+ import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View, Image } from 'react-native';
+ import Svg, { Circle, Path } from 'react-native-svg';
+@@ -13,6 +14,8 @@
+   onDismiss: () => void;
+   compact?: boolean;
+ }) {
++  const foreground = event.allowed ? '#000000' : '#ffffff';
++  const styles = createStyles(foreground);
+   const opacity = useRef(new Animated.Value(0)).current;
+   const scale = useRef(new Animated.Value(0.97)).current;
+   const [visible, setVisible] = useState(true);
+@@ -58,7 +61,7 @@
+       accessibilityLiveRegion="polite"
+       style={[
+         styles.overlay,
+-        { backgroundColor: presentation.color, opacity, transform: [{ scale }] },
++        { backgroundColor: event.allowed ? neonGreen : presentation.color, opacity, transform: [{ scale }] },
+         compact && styles.compact,
+       ]}
+     >
+@@ -105,7 +108,7 @@
+       height={size}
+       viewBox="0 0 24 24"
+       fill="none"
+-      stroke="#ffffff"
++      stroke={allowed ? '#000000' : '#ffffff'}
+       strokeWidth={2}
+       strokeLinecap="round"
+       strokeLinejoin="round"
+@@ -126,7 +129,7 @@
+   );
+ }
+ 
+-const styles = StyleSheet.create({
++const createStyles = (foreground: string) => StyleSheet.create({
+   overlay: {
+     position: 'absolute',
+     top: 0,
+@@ -145,7 +148,7 @@
+     height: 112,
+     borderRadius: 56,
+     borderWidth: 2,
+-    borderColor: '#ffffff',
++    borderColor: foreground,
+     overflow: 'hidden',
+     alignItems: 'center',
+     justifyContent: 'center',
+@@ -153,25 +156,25 @@
+   },
+   compactAvatar: { width: 48, height: 48, borderRadius: 24, marginBottom: 0 },
+   photo: { width: '100%', height: '100%' },
+-  initials: { color: '#ffffff', fontSize: 34 },
++  initials: { color: foreground, fontSize: 34 },
+   compactInitials: { fontSize: 18 },
+   label: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+   compactDetail: { fontSize: 13, lineHeight: 17 },
+-  symbol: { color: '#ffffff', fontSize: 56, lineHeight: 60, fontWeight: '600' },
++  symbol: { color: foreground, fontSize: 56, lineHeight: 60, fontWeight: '600' },
+   compactSymbol: { fontSize: 32, lineHeight: 34 },
+-  title: { color: '#ffffff', fontSize: 20, lineHeight: 26, fontWeight: '700', textAlign: 'center' },
++  title: { color: foreground, fontSize: 20, lineHeight: 26, fontWeight: '700', textAlign: 'center' },
+   compactTitle: { fontSize: 18, lineHeight: 22 },
+-  person: { color: '#ffffff', fontSize: 46, lineHeight: 51, fontWeight: '700', textAlign: 'center' },
++  person: { color: foreground, fontSize: 46, lineHeight: 51, fontWeight: '700', textAlign: 'center' },
+   compactPerson: { fontSize: 18, lineHeight: 22 },
+-  detail: { color: '#ffffff', fontSize: 16, lineHeight: 21, textAlign: 'center' },
++  detail: { color: foreground, fontSize: 16, lineHeight: 21, textAlign: 'center' },
+   continue: {
+     minHeight: 44,
+     justifyContent: 'center',
+     paddingHorizontal: 16,
+     borderWidth: 1,
+-    borderColor: '#ffffff',
++    borderColor: foreground,
+     borderRadius: 8,
+     marginTop: 6,
+   },
+-  continueText: { color: '#ffffff', fontSize: 14, fontWeight: '600' },
++  continueText: { color: foreground, fontSize: 14, fontWeight: '600' },
+ });
+--- a/mobile/src/ui.tsx
++++ b/mobile/src/ui.tsx
+@@ -1,26 +1,9 @@
+ import type { ReactNode } from 'react';
+ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+ 
+-export const colors = {
+-  ink: '#1b2733',
+-  inkSecondary: '#44525f',
+-  muted: '#566473',
+-  surface: '#ffffff',
+-  surfaceSecondary: '#edf0f4',
+-  canvas: '#f3f5f8',
+-  border: '#d5dce4',
+-  borderStrong: '#8a98a8',
+-  brand: '#000000',
+-  brandLight: '#edf0f4',
+-  onBrand: '#ffffff',
+-  green: '#266b43',
+-  greenLight: '#e3f1e8',
+-  red: '#a52019',
+-  redLight: '#fbe6e4',
+-  camera: '#15181c',
+-  cameraCaption: '#11141ae6',
+-  cameraMuted: '#b7c2cc',
+-};
++import { themePalettes, type ThemePalette } from '../../lib/theme';
++import { useNativeTheme } from './theme';
++export const colors = themePalettes.light;
+ 
+ export function Action({
+   label,
+@@ -33,6 +16,8 @@
+   disabled?: boolean;
+   secondary?: boolean;
+ }) {
++  const { colors } = useNativeTheme();
++  const reportStyles = reportStylesFor(colors);
+   return (
+     <Pressable
+       accessibilityRole="button"
+@@ -47,7 +32,7 @@
+       ]}
+     >
+       <Text
+-        style={{ color: secondary ? colors.ink : colors.onBrand, fontSize: 15, fontWeight: '600', textAlign: 'center' }}
++        style={{ color: secondary ? colors.onChrome : colors.onBrand, fontSize: 15, fontWeight: '600', textAlign: 'center' }}
+       >
+         {label}
+       </Text>
+@@ -68,6 +53,8 @@
+   placeholder?: string;
+   maxLength?: number;
+ }) {
++  const { colors } = useNativeTheme();
++  const reportStyles = reportStylesFor(colors);
+   return (
+     <View style={{ gap: 6 }}>
+       <Text style={reportStyles.label}>{label}</Text>
+@@ -100,6 +87,8 @@
+   disabled: boolean;
+ }) {
+   const pages = Math.max(1, Math.ceil(total / pageSize));
++  const { colors } = useNativeTheme();
++  const reportStyles = reportStylesFor(colors);
+   return (
+     <View style={reportStyles.pager}>
+       <Text style={reportStyles.detail}>
+@@ -140,6 +129,8 @@
+   footer?: ReactNode;
+   empty: string;
+ }) {
++  const { colors } = useNativeTheme();
++  const reportStyles = reportStylesFor(colors);
+   return (
+     <FlatList
+       data={error ? [] : rows}
+@@ -181,7 +172,7 @@
+   return new Date(timestamp).toLocaleString('es-BO', { timeZone: timezone });
+ }
+ 
+-export const reportStyles = StyleSheet.create({
++const createReportStyles = (colors: ThemePalette) => StyleSheet.create({
+   list: { padding: 16, gap: 12, paddingBottom: 32, width: '100%', maxWidth: 760, alignSelf: 'center' },
+   heading: { gap: 12, marginBottom: 12 },
+   title: { color: colors.ink, fontSize: 24, lineHeight: 30, fontWeight: '600', letterSpacing: -0.3 },
+@@ -210,7 +201,15 @@
+   },
+   action: { minHeight: 48, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 8, justifyContent: 'center' },
+   primary: { backgroundColor: colors.brand },
+-  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong },
++  secondary: { backgroundColor: colors.chrome, borderWidth: 1, borderColor: colors.borderStrong },
+   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+   pager: { gap: 10, marginTop: 12 },
+ });
++
++const styleCache = new Map<ThemePalette, ReturnType<typeof createReportStyles>>();
++export function reportStylesFor(colors: ThemePalette) {
++  let value = styleCache.get(colors);
++  if (!value) { value = createReportStyles(colors); styleCache.set(colors, value); }
++  return value;
++}
++export const reportStyles = reportStylesFor(themePalettes.light);
+--- a/mobile/tests/component-harness.ts
++++ b/mobile/tests/component-harness.ts
+@@ -3,6 +3,7 @@
+ import { runInNewContext } from 'node:vm';
+ import ts from 'typescript';
+ import * as feedback from '../../lib/access-feedback.ts';
++import * as theme from '../../lib/theme.ts';
+ 
+ export type Element = { type: any; props: Record<string, any> };
+ export function find(tree: any, predicate: (element: Element) => boolean): Element {
+@@ -83,6 +84,9 @@
+           if (name === 'react/jsx-runtime') return require(name);
+           if (name.endsWith('.png')) return 1;
+           if (/lib\/access-feedback$/.test(name)) return feedback;
++          if (/lib\/theme$/.test(name)) return theme;
++          if (['./theme', './src/theme'].includes(name) && !(name in dependencies))
++            return { NativeTheme: { Provider: 'ThemeProvider' }, useNativeTheme: () => ({ theme: 'light', colors: theme.themePalettes.light }) };
+           if (!(name in dependencies)) throw Error('Dependencia no configurada: ' + name);
+           const value = dependencies[name];
+           return value && 'default' in value ? { __esModule: true, ...value } : value;
+--- a/mobile/tests/scan-feedback.test.ts
++++ b/mobile/tests/scan-feedback.test.ts
+@@ -25,7 +25,7 @@
+   h.render(() => Feedback({ event, detail: allowed ? 'Acceso autorizado' : 'Permiso vencido', onDismiss: () => { dismissed = true; } }));
+   let tree = await h.settle();
+   assert.match(textOf(tree), allowed ? /Entrada registrada/ : /Acceso denegado/);
+-  assert.equal(tree.props.style[1].backgroundColor, allowed ? '#2e7d4f' : '#b3261e');
++  assert.equal(tree.props.style[1].backgroundColor, allowed ? '#b6ff00' : '#b3261e');
+   assert.equal(steps[0][0].duration, reduced ? 0 : 180);
+   assert.equal(steps[1].delay, reduced ? 4000 : 3520);
+   assert.equal(steps[2].duration, reduced ? 0 : 300);
+--- a/mobile/tests/theme.test.ts
++++ b/mobile/tests/theme.test.ts
+@@ -1,18 +1,69 @@
+ ﻿import assert from 'node:assert/strict';
+ import { test } from 'node:test';
+-import { readFile } from 'node:fs/promises';
++import { themePalettes, type ThemeMode } from '../../lib/theme.ts';
++import { find, harness, native } from './component-harness.ts';
++import * as policy from '../src/web-policy.ts';
++import * as session from '../src/session.ts';
+ 
+-test('la app Android y el lector usan la paleta blanca de la web GymPASS', async () => {
+-  const ui = await readFile(new URL('../src/ui.tsx', import.meta.url), 'utf8');
+-  assert.match(ui, /ink:\s*'#1b2733'/);
+-  assert.match(ui, /canvas:\s*'#f3f5f8'/);
+-  assert.match(ui, /surface:\s*'#ffffff'/);
+-  assert.match(ui, /brand:\s*'#000000'/);
+-  const app = JSON.parse(await readFile(new URL('../app.json', import.meta.url), 'utf8'));
+-  assert.equal(app.expo.userInterfaceStyle, 'light');
+-  assert.equal(app.expo.orientation, 'default');
+-  assert.equal(app.expo.android.adaptiveIcon.backgroundColor, '#ffffff');
+-  assert.equal(app.expo.splash.backgroundColor, '#ffffff');
+-  const source = await readFile(new URL('../App.tsx', import.meta.url), 'utf8');
+-  assert.match(source, /<StatusBar barStyle="dark-content"\s*\/>/);
++test('acciones y formularios nativos invierten blanco y negro y conservan verde con texto negro', t => {
++  const h = harness(); t.after(() => h.cleanup());
++  let theme: ThemeMode = 'light';
++  const ui = h.load('../src/ui.tsx', {
++    'react-native': native,
++    './theme': { useNativeTheme: () => ({ theme, colors: themePalettes[theme] }) },
++  });
++  for (const mode of ['light', 'dark'] as const) {
++    theme = mode;
++    const action = h.render(() => ui.Action({ label: 'Guardar', onPress() {} }));
++    assert.equal(action.props.style({ pressed: false })[1].backgroundColor, '#b6ff00');
++    assert.equal(find(action, e => e.type === 'Text').props.style.color, '#000000');
++    const secondary = h.render(() => ui.Action({ label: 'Consultar', onPress() {}, secondary: true }));
++    assert.equal(secondary.props.style({ pressed: false })[1].backgroundColor, mode === 'light' ? '#000000' : '#ffffff');
++    const tree = h.render(() => ui.Input({ label: 'Nombre', value: 'Ana', onChangeText() {} }));
++    const input = find(tree, e => e.type === 'TextInput');
++    assert.equal(input.props.style.color, mode === 'light' ? '#000000' : '#ffffff');
++    assert.equal(input.props.style.backgroundColor, mode === 'light' ? '#ffffff' : '#101010');
++  }
+ });
++
++function frame(t: import('node:test').TestContext, saved: Map<string, string>) {
++  const h = harness(); t.after(() => h.cleanup());
++  const { default: App } = h.load('../src/GympassApp.tsx', {
++    'react-native': { ...native, Pressable: 'Pressable', Text: 'Text', BackHandler: { addEventListener: () => ({ remove() {} }) } },
++    'react-native-safe-area-context': { SafeAreaProvider: 'SafeAreaProvider', SafeAreaView: 'SafeAreaView' },
++    'react-native-webview': { WebView: 'WebView' },
++    'expo-file-system': {}, 'expo-file-system/legacy': {}, 'expo-sharing': {}, 'expo-print': {},
++    'expo-secure-store': {
++      getItemAsync: async (key: string) => saved.get(key) || null,
++      setItemAsync: async (key: string, value: string) => { saved.set(key, value); },
++    },
++    './session.ts': session, '../App': { default: 'Reader' }, './web-policy.ts': policy,
++    './web-bridge.ts': { WEB_BRIDGE: '' },
++  });
++  h.render(() => App());
++  return h;
++}
++
++test('el tema recibido de la web se conserva al reiniciar el lector sin conexión', async t => {
++  const saved = new Map([['gympass.theme', 'dark']]);
++  const h = frame(t, saved);
++  let tree = await h.settle();
++  find(tree, e => e.type === 'Pressable' && e.props.accessibilityRole === 'tab' && e.props.children.props.children === 'Lector sin conexión').props.onPress();
++  tree = await h.settle();
++  assert.equal(find(tree, e => e.type === 'Reader').props.theme, 'dark');
++  const web = find(tree, e => e.type === 'WebView');
++  await web.props.onMessage({ nativeEvent: { url: policy.DEFAULT_SERVER, data: JSON.stringify({ id: 'initial-light', type: 'theme', dark: false }) } });
++  assert.equal(find(await h.settle(), e => e.type === 'Reader').props.theme, 'dark', 'La web debe recibir primero la elección guardada del lector.');
++  await web.props.onMessage({ nativeEvent: { url: policy.DEFAULT_SERVER, data: JSON.stringify({ id: 'initial-ack', type: 'theme', dark: true }) } });
++  await web.props.onMessage({ nativeEvent: { url: policy.DEFAULT_SERVER, data: JSON.stringify({ id: 'theme-light', type: 'theme', dark: false }) } });
++  assert.equal(find(await h.settle(), e => e.type === 'Reader').props.theme, 'light');
++  assert.equal(saved.get('gympass.theme'), 'light');
++  const reopened = frame(t, saved);
++  tree = await reopened.settle();
++  find(tree, e => e.type === 'Pressable' && e.props.accessibilityRole === 'tab' && e.props.children.props.children === 'Lector sin conexión').props.onPress();
++  assert.equal(find(await reopened.settle(), e => e.type === 'Reader').props.theme, 'light');
++  tree = await reopened.settle();
++  find(tree, e => e.type === 'Pressable' && e.props.accessibilityLabel === 'Cambiar a modo oscuro').props.onPress();
++  assert.equal(find(await reopened.settle(), e => e.type === 'Reader').props.theme, 'dark');
++  assert.equal(saved.get('gympass.theme'), 'dark');
++});
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "4.7.1",
++  "version": "4.8.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-control-acceso",
+-      "version": "4.7.1",
++      "version": "4.8.0",
+       "dependencies": {
+         "lucide-react": "1.57.0",
+         "qrcode-generator": "2.0.4",
+@@ -826,8 +826,8 @@
+       "license": "MIT"
+     },
+     "node_modules/@sindresorhus/is": {
+-      "version": "4.7.1",
+-      "resolved": "https://registry.npmjs.org/@sindresorhus/is/-/is-4.7.1.tgz",
++      "version": "4.8.0",
++      "resolved": "https://registry.npmjs.org/@sindresorhus/is/-/is-4.8.0.tgz",
+       "integrity": "sha512-t09vSN3MdfsyCHoFcTRCH/iUtG7OJ0CsjzB8cjAmKc/va/kIgeDI/TxsigdncE/4be734m0cvIYwNaV4i2XqAw==",
+       "dev": true,
+       "license": "MIT",
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "4.7.1",
++  "version": "4.8.0",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+--- a/tests/appearance-theme.test.ts
++++ b/tests/appearance-theme.test.ts
+@@ -4,7 +4,7 @@
+ import * as branding from '../lib/branding.ts';
+ import { defaultVoiceSettings } from '../lib/access-feedback.ts';
+ 
+-test('Apariencia ofrece sólo Claro y Negro y permite cambiar tema sin editar colores', async (t) => {
++test('Apariencia ofrece sólo Claro y Oscuro y permite cambiar tema sin editar colores', async (t) => {
+   const changes: unknown[] = [];
+   const requests: unknown[] = [];
+   const h = componentHarness();
+@@ -36,7 +36,7 @@
+     Array.from(options, (option: any) => [option.props.value, elementText(option)]),
+     [
+       ['light', 'Claro'],
+-      ['dark', 'Negro'],
++      ['dark', 'Oscuro'],
+     ],
+   );
+   assert.doesNotMatch(
+@@ -53,7 +53,7 @@
+ });
+ 
+ for (const systemDark of [true, false]) {
+-  test(`la preferencia automática anterior migra a ${systemDark ? 'Negro' : 'Claro'}`, (t) => {
++  test(`la preferencia automática anterior migra a ${systemDark ? 'Oscuro' : 'Claro'}`, (t) => {
+     const dataset: Record<string, string> = {};
+     const h = componentHarness({
+       localStorage: { getItem: () => JSON.stringify({ version: 2, theme: 'system', sound: true }) },
+--- a/tests/component-harness.ts
++++ b/tests/component-harness.ts
+@@ -116,7 +116,7 @@
+           const dependency = dependencies[name];
+           return dependency && 'default' in dependency ? { __esModule: true, ...dependency } : dependency;
+         }
+-        if (['./ConnectionStatus', './ServerAccessLink', './PasswordInput'].includes(name)) return { __esModule: true, default: name.slice(2) };
++        if (['./ConnectionStatus', './ServerAccessLink', './PasswordInput', './ThemeToggle'].includes(name)) return { __esModule: true, default: name.slice(2) };
+         throw Error(`Dependencia no configurada: ${name}`);
+       },
+       window: browser,
+--- a/tests/palette.test.ts
++++ b/tests/palette.test.ts
+@@ -68,7 +68,7 @@
+     test(`Paleta ${theme}: los estados ocupan matices separados`, () => {
+       // Lo que importa entre dos colores de estado no es su contraste mutuo —ninguno se dibuja
+       // sobre el otro— sino que no se confundan como muestras. Eso es distancia de matiz.
+-      const states = ['ok', 'warn', 'danger', 'info'] as const;
++      const states = ['ok', 'warn', 'danger'] as const;
+       for (let i = 0; i < states.length; i++)
+         for (let j = i + 1; j < states.length; j++) {
+           const difference = hueDistance(palette[states[i]], palette[states[j]]);
+@@ -80,7 +80,7 @@
+     });
+ 
+   test(`Paleta ${theme}: las superficies se separan del fondo y del borde`, () => {
+-    assert.notEqual(palette.surface, palette.bg, 'un panel debe distinguirse del fondo');
++    assert.notEqual(palette.border, palette.bg, 'los bordes distinguen paneles y fondo');
+     assert.notEqual(palette.surface, palette['surface-2']);
+     assert.notEqual(palette.border, palette.surface);
+   });
+@@ -90,23 +90,23 @@
+   });
+ }
+ 
+-test('Claro: las acciones principales son negras con texto blanco', () => {
+-  assert.equal(light['brand-base'], '#000000');
+-  assert.equal(light['on-brand'], '#ffffff');
++test('Claro: las acciones principales son verde fosforescente con texto negro', () => {
++  assert.equal(light['brand-base'], '#b6ff00');
++  assert.equal(light['on-brand'], '#000000');
+ });
+ 
+ test('El acceso permitido es verde y el denegado rojo en ambos temas', () => {
+   for (const palette of [light, dark]) {
+-    assert.ok(hueDistance(palette['result-ok'], '#008000') < 40);
++    assert.ok(hueDistance(palette['result-ok'], '#008000') < 50);
+     assert.ok(hueDistance(palette['result-danger'], '#ff0000') < 20);
+-    assert.ok(contrast(palette['result-ok'], palette['result-ink']) >= 4.5);
+-    assert.ok(contrast(palette['result-danger'], palette['result-ink']) >= 4.5);
++    assert.ok(contrast(palette['result-ok'], palette['result-ok-ink']) >= 4.5);
++    assert.ok(contrast(palette['result-danger'], palette['result-danger-ink']) >= 4.5);
+   }
+ });
+ 
+-test('Oscuro: la estructura y las acciones conservan negro, blanco y grises', () => {
+-  for (const [name, value] of Object.entries(dark)) {
+-    if (name === 'result-ok' || name === 'result-danger') continue;
++test('Oscuro: la estructura usa negro, blanco y grises y las acciones usan verde', () => {
++  for (const name of ['bg', 'surface', 'surface-2', 'ink', 'ink-2', 'muted', 'chrome', 'on-chrome']) {
++    const value = dark[name];
+     const [r, g, b] = rgb(value);
+     assert.ok(r === g && g === b, `--${name}: ${value} no es monocromo`);
+   }
+@@ -121,10 +121,10 @@
+   for (const background of ['bg', 'surface', 'surface-2']) {
+     assert.ok(contrast(dark.muted, dark[background]) >= 4.5, `ayuda sobre --${background}`);
+     assert.ok(contrast(dark.focus, dark[background]) >= 3, `foco sobre --${background}`);
+-    assert.ok(contrast(dark.border, dark[background]) >= 3, `controles sobre --${background}`);
++    assert.ok(contrast(dark['border-strong'], dark[background]) >= 3, `controles sobre --${background}`);
+   }
+   for (const result of ['result-ok', 'result-danger', 'result-queued']) {
+-    assert.ok(contrast(dark[result], dark['result-ink'] || light['result-ink']) >= 4.5, result);
++    assert.ok(contrast(dark[result], dark[result+'-ink']) >= 4.5, result);
+   }
+ });
+ 
+@@ -132,9 +132,9 @@
+   assert.deepEqual(tokens(":root[data-theme='system'] {"), dark);
+ });
+ 
+-test('Paleta: el texto blanco sobre los colores de resultado cumple AA', () => {
++test('Paleta: cada resultado usa un primer plano con contraste AA', () => {
+   for (const token of ['result-ok', 'result-danger', 'result-queued']) {
+-    const value = contrast(light[token], light['result-ink']);
++    const value = contrast(light[token], light[token+'-ink']);
+     assert.ok(value >= 4.5, `--${token} con --result-ink: ${value.toFixed(2)}`);
+   }
+ });
+--- a/tests/release-version.test.ts
++++ b/tests/release-version.test.ts
+@@ -2,14 +2,14 @@
+ import { test } from 'node:test';
+ import { readFile } from 'node:fs/promises';
+ 
+-test('web, Android y Windows usan 4.7.1', async () => {
++test('web, Android y Windows usan 4.8.0', async () => {
+   for (const path of ['package.json', 'desktop/package.json', 'desktop-runtime/package.json']) {
+     const manifest = JSON.parse(await readFile(new URL('../' + path, import.meta.url), 'utf8'));
+-    assert.equal(manifest.version, '4.7.1', path);
++    assert.equal(manifest.version, '4.8.0', path);
+   }
+   const app = JSON.parse(await readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'));
+-  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '4.7.1');
+-  assert.equal(app.expo.version, '4.7.1');
+-  assert.equal(app.expo.android.versionCode, 4701);
+-  assert.equal(app.expo.ios.buildNumber, '4701');
++  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '4.8.0');
++  assert.equal(app.expo.version, '4.8.0');
++  assert.equal(app.expo.android.versionCode, 4800);
++  assert.equal(app.expo.ios.buildNumber, '4800');
+ });
+--- /dev/null
++++ b/mobile/src/theme.ts
+@@ -0,0 +1,8 @@
++import { createContext, useContext } from 'react';
++import { themePalettes, type ThemeMode } from '../../lib/theme';
++
++export const NativeTheme = createContext<ThemeMode>('light');
++export function useNativeTheme() {
++  const theme = useContext(NativeTheme);
++  return { theme, colors: themePalettes[theme] };
++}

@@ -3,6 +3,7 @@ import { api, download } from './api';
 import { Field, Form } from './ui';
 import ServerAccessLink from './ServerAccessLink';
 import ConnectionStatus from './ConnectionStatus';
+import ThemeToggle from './ThemeToggle';
 import './styles/cloud-sync.css';
 const stamp = (value: number) => new Date(value).toLocaleString();
 
@@ -56,6 +57,7 @@ export default function CloudSync({ platform = false, initial = false }: { platf
   return (
     <section className={initial ? 'panel cloud-sync sync-initial' : 'panel cloud-sync'}>
       {initial && <ConnectionStatus />}
+      {initial && <ThemeToggle />}
       <h2>{initial ? 'Iniciar sesión en GymPASS' : platform ? 'Equipos vinculados' : 'Sincronización'}</h2>
       {initial && (
         <p>

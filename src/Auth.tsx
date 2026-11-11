@@ -10,6 +10,7 @@ import BrandLogo from './BrandLogo';
 import AppDownloads from './AppDownloads';
 import ServerAccessLink from './ServerAccessLink';
 import ConnectionStatus from './ConnectionStatus';
+import ThemeToggle from './ThemeToggle';
 export default function Auth({
   setup,
   onSuccess,
@@ -62,6 +63,7 @@ export default function Auth({
       <main className="auth-main">
         <div className="auth-card">
           <ConnectionStatus />
+          <ThemeToggle />
           <span className="auth-icon">
             <LockKeyhole size={24} />
           </span>

@@ -22,6 +22,7 @@ import MobileNavigation from './MobileNavigation';
 import Alerts from './Alerts';
 import BrandLogo from './BrandLogo';
 import ConnectionStatus from './ConnectionStatus';
+import ThemeToggle from './ThemeToggle';
 
 const icons: Record<SectionId, typeof Home> = {
   dashboard: Home,
@@ -226,6 +227,7 @@ export default function AppShell({
           <div className="topbar-right">
             <ConnectionStatus platform={!!data.platform} replica={!!data.replica?.linked} />
             <Alerts timezone={data.settings.timezone} />
+            <ThemeToggle />
             <button
               className="icon-btn"
               disabled={busy}
