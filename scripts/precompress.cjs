@@ -5,7 +5,7 @@ const { extname, join, resolve } = require('node:path');
 // LiteSpeed sirve el servidor Node por proxy y no comprime su respuesta, asi que el paquete
 // viaja con las variantes ya comprimidas y server/static-files.ts elige la que acepte el navegador.
 const directory = process.argv[2] ? resolve(process.argv[2]) : resolve(__dirname, '..', 'dist');
-const extensions = new Set(['.html', '.js', '.css', '.json', '.svg', '.webmanifest']);
+const extensions = new Set(['.html', '.js', '.css', '.json', '.svg', '.webmanifest', '.wasm']);
 // Debajo de este tamano la cabecera y el viaje extra se comen la ganancia.
 const minimum = 1024;
 
@@ -37,19 +37,20 @@ for (const path of files(directory)) {
   if (!extensions.has(extname(path))) continue;
   const original = readFileSync(path);
   if (original.length < minimum) continue;
+  const wasm = extname(path) === '.wasm';
   const size = write(
     path,
     '.br',
     brotliCompressSync(original, {
       params: {
-        [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY,
+        [constants.BROTLI_PARAM_QUALITY]: wasm ? 5 : constants.BROTLI_MAX_QUALITY,
         [constants.BROTLI_PARAM_SIZE_HINT]: original.length,
       },
     }),
     original,
   );
   // gzip para los navegadores o proxies que no negocian brotli.
-  write(path, '.gz', gzipSync(original, { level: 9 }), original);
+  write(path, '.gz', gzipSync(original, { level: wasm ? 6 : 9 }), original);
   raw += original.length;
   brotli += size || original.length;
   count++;

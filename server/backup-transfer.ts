@@ -1,9 +1,13 @@
 import { createHash } from 'node:crypto';
+import type { IncomingMessage } from 'node:http';
+import { mkdtemp, open, rm } from 'node:fs/promises';
 import {
-  existsSync,
+  closeSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
+  readSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -11,6 +15,7 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { ApiError } from '../lib/service.ts';
+import { maxBackupTransferBytes } from '../lib/backup-limits.ts';
 import {
   canonicalBackupFile,
   inspectBackup,
@@ -19,7 +24,7 @@ import {
   type Manifest,
 } from './backups.ts';
 
-export const maxBackupTransferBytes = 256 * 1024 * 1024;
+export { maxBackupTransferBytes };
 const magic = Buffer.from('GYMPASSBACKUP1\n');
 const maxHeaderBytes = 4 * 1024 * 1024;
 type Entry = { path: string; size: number };
@@ -76,15 +81,44 @@ export function importBackupCopy(
   if (!(input instanceof Uint8Array) || input.byteLength > maxBackupTransferBytes)
     throw new ApiError(413, 'La copia supera el límite de importación de 256 MiB.');
   const bytes = Buffer.from(input.buffer, input.byteOffset, input.byteLength);
-  if (bytes.length < magic.length + 4 || !bytes.subarray(0, magic.length).equals(magic))
+  return importBackup(directory, bytes.length, (start, length) => bytes.subarray(start, start + length), maxSchema);
+}
+
+export function importBackupFile(directory: string, file: string, maxSchema: number, owner: string) {
+  const info = lstatSync(file);
+  if (!info.isFile() || info.isSymbolicLink() || info.size > maxBackupTransferBytes)
+    throw new ApiError(413, 'El archivo no es un respaldo de hasta 256 MiB.');
+  const source = openSync(file, 'r');
+  try {
+    return importBackup(directory, info.size, (position, length) => {
+      const bytes = Buffer.allocUnsafe(length);
+      let offset = 0;
+      while (offset < length) {
+        const read = readSync(source, bytes, offset, length - offset, position + offset);
+        if (!read) throw new ApiError(400, 'El respaldo está truncado.');
+        offset += read;
+      }
+      return bytes;
+    }, maxSchema, owner);
+  } finally {
+    closeSync(source);
+  }
+}
+
+function importBackup(
+  directory: string, size: number, read: (start: number, length: number) => Buffer, maxSchema: number, owner?: string,
+) {
+  const prefixLength = magic.length + 4;
+  const prefix = read(0, Math.min(size, prefixLength));
+  if (prefix.length < prefixLength || !prefix.subarray(0, magic.length).equals(magic))
     throw new ApiError(400, 'Selecciona un archivo .gympassbackup exportado desde GymPASS.');
-  const headerSize = bytes.readUInt32BE(magic.length);
-  const start = magic.length + 4 + headerSize;
-  if (headerSize < 2 || headerSize > maxHeaderBytes || start > bytes.length)
+  const headerSize = prefix.readUInt32BE(magic.length);
+  const start = prefixLength + headerSize;
+  if (headerSize < 2 || headerSize > maxHeaderBytes || start > size)
     throw new ApiError(400, 'La cabecera del respaldo está incompleta o excede el límite.');
   let header: { format: number; manifest: Manifest; entries: Entry[] };
   try {
-    header = JSON.parse(bytes.subarray(magic.length + 4, start).toString('utf8'));
+    header = JSON.parse(read(prefixLength, headerSize).toString('utf8'));
   } catch {
     throw new ApiError(400, 'La cabecera del respaldo no es válida.');
   }
@@ -101,25 +135,17 @@ export function importBackupCopy(
     if (path !== entry.path || seen.has(path.toLowerCase()) || !Object.hasOwn(manifest.files, path))
       throw new ApiError(400, 'El índice del respaldo contiene rutas duplicadas o inválidas.');
     seen.add(path.toLowerCase());
-    if (entry.size > bytes.length - offset) throw new ApiError(400, 'El respaldo está truncado.');
-    if (digest(bytes.subarray(offset, offset + entry.size)) !== manifest.files[path])
-      throw new ApiError(409, 'El respaldo está dañado: un archivo no coincide con su hash.');
+    if (entry.size > size - offset) throw new ApiError(400, 'El respaldo está truncado.');
     offset += entry.size;
     entries.push({ path, size: entry.size });
   }
-  if (offset !== bytes.length || entries.length !== Object.keys(manifest.files).length)
+  if (offset !== size || entries.length !== Object.keys(manifest.files).length)
     throw new ApiError(400, 'El respaldo contiene archivos faltantes o datos adicionales.');
   const sorted = entries.map(({ path }) => path.toLowerCase()).sort();
   if (sorted.some((path, index) => index > 0 && path.startsWith(sorted[index - 1] + '/')))
     throw new ApiError(400, 'Una ruta del respaldo se usa como archivo y carpeta.');
   const root = safeBackupDirectory(directory, true);
   const destination = join(root, manifest.id);
-  if (lstatSync(destination, { throwIfNoEntry: false })) {
-    const existing = readManifest(root, manifest.id, maxSchema);
-    if (!sameBackup(existing, manifest))
-      throw new ApiError(409, 'Ya existe una copia diferente con este identificador.');
-    return inspectBackup(root, manifest.id, maxSchema);
-  }
   const temporary = mkdtempSync(join(root, '.import-'));
   const staged = join(temporary, manifest.id);
   try {
@@ -129,13 +155,30 @@ export function importBackupCopy(
       const file = resolve(staged, ...entry.path.split('/'));
       if (!file.startsWith(resolve(staged) + sep)) throw new ApiError(400, 'Ruta fuera del respaldo.');
       mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, bytes.subarray(position, position + entry.size), { flag: 'wx', mode: 0o600 });
+      const target = openSync(file, 'wx', 0o600);
+      const hash = createHash('sha256');
+      try {
+        for (let offset = 0; offset < entry.size; offset += 1024 * 1024) {
+          const bytes = read(position + offset, Math.min(entry.size - offset, 1024 * 1024));
+          hash.update(bytes);
+          writeFileSync(target, bytes);
+        }
+      } finally {
+        closeSync(target);
+      }
+      if (hash.digest('hex') !== manifest.files[entry.path])
+        throw new ApiError(409, 'El respaldo está dañado: un archivo no coincide con su hash.');
       position += entry.size;
     }
     writeFileSync(join(staged, 'manifest.json'), JSON.stringify(manifest, null, 2), { flag: 'wx', mode: 0o600 });
-    const preview = inspectBackup(temporary, manifest.id, maxSchema);
+    const preview = inspectBackup(temporary, manifest.id, maxSchema, owner);
     safeBackupDirectory(root);
-    if (existsSync(destination)) throw new ApiError(409, 'La copia ya existe. Vuelve a consultar los respaldos.');
+    if (lstatSync(destination, { throwIfNoEntry: false })) {
+      const existing = readManifest(root, manifest.id, maxSchema);
+      if (!sameBackup(existing, manifest))
+        throw new ApiError(409, 'Ya existe una copia diferente con este identificador.');
+      return inspectBackup(root, manifest.id, maxSchema, owner);
+    }
     renameSync(staged, destination);
     return preview;
   } catch (error) {
@@ -144,5 +187,35 @@ export function importBackupCopy(
   } finally {
     if (dirname(resolve(temporary)) !== root) throw new ApiError(400, 'Ruta temporal inválida.');
     rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+/** Receive the archive outside the gym's database queue and clean up even on disconnect. */
+export async function withBackupUpload<T>(req: IncomingMessage, directory: string, consume: (file: string) => Promise<T>) {
+  if (req.headers['content-type']?.split(';')[0].trim() !== 'application/octet-stream')
+    throw new ApiError(415, 'Selecciona un archivo .gympassbackup.');
+  const declared = req.headers['content-length'];
+  if (declared && (Number(declared) > maxBackupTransferBytes || Number(declared) <= 0))
+    throw new ApiError(413, 'El archivo debe contener un respaldo de hasta 256 MiB.');
+  const root = safeBackupDirectory(directory);
+  const temp = await mkdtemp(join(root, '.backup-upload-'));
+  try {
+    const path = join(temp, 'archive');
+    const file = await open(path, 'wx', 0o600);
+    let size = 0;
+    try {
+      for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+        size += chunk.length;
+        if (size > maxBackupTransferBytes) throw new ApiError(413, 'La copia supera el límite de 256 MiB.');
+        await file.writeFile(chunk);
+      }
+    } finally {
+      await file.close();
+    }
+    if (!size || !req.complete || (declared && size !== Number(declared)))
+      throw new ApiError(400, 'El respaldo no se recibió completo.');
+    return await consume(path);
+  } finally {
+    if (dirname(resolve(temp)) === root) await rm(temp, { recursive: true, force: true });
   }
 }

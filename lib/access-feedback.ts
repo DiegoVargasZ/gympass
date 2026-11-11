@@ -13,13 +13,14 @@ export function feedbackAnnouncement(direction: string, personName = '') {
 
 export type VoiceGender = 'auto' | 'female' | 'male';
 export type VoiceSettings = { voiceURI: string; voiceGender: VoiceGender; voiceRate: number };
+export const voiceRateLimits = { min: 0.5, max: 3, step: 0.01 } as const;
 export const defaultVoiceSettings: VoiceSettings = { voiceURI: '', voiceGender: 'auto', voiceRate: 0.98 };
 export function normalizeVoiceSettings(value: Partial<VoiceSettings>): VoiceSettings {
   return {
     voiceURI: typeof value.voiceURI === 'string' ? value.voiceURI : '',
     voiceGender: value.voiceGender === 'female' || value.voiceGender === 'male' ? value.voiceGender : 'auto',
     voiceRate: typeof value.voiceRate === 'number' && Number.isFinite(value.voiceRate)
-      ? Math.max(0.8, Math.min(1.2, value.voiceRate)) : defaultVoiceSettings.voiceRate,
+      ? Math.max(voiceRateLimits.min, Math.min(voiceRateLimits.max, value.voiceRate)) : defaultVoiceSettings.voiceRate,
   };
 }
 

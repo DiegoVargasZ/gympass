@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync, renameSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { gunzipSync } from "node:zlib";
@@ -511,6 +511,70 @@ test("administradores descargan sus respaldos; cajeros y otros gimnasios no reci
       (await f.request("platform/backups", "GET")).response.status,
       403,
     );
+  } finally {
+    await f.app.close();
+  }
+});
+
+test("un respaldo descargado se verifica, se importa y se restaura con una copia previa", async (t) => {
+  const f = await fixture(t);
+  try {
+    const endpoint = `gyms/${f.gym.id}/backups`;
+    await f.cloud((s) => s.savePerson(person("ANTES")));
+    const created = await f.request(endpoint, "POST", {});
+    assert.equal(created.response.status, 201);
+    const id = created.data.id;
+    const exported = await f.request(`${endpoint}/${id}/export`);
+    assert.equal(exported.response.status, 200);
+    const archive = Buffer.from(await exported.response.arrayBuffer());
+    await f.cloud(async (s, ctx) => {
+      await s.savePerson(person("DESPUES"));
+      const original = join(ctx.backups.directory, id);
+      renameSync(original, original + "-fuera-de-lista");
+    });
+    const upload = (body, token = f.admin.token) => fetch(f.app.url + "/api/" + endpoint + "/import", {
+      method: "POST", body,
+      headers: {
+        Origin: f.app.url, "Content-Type": "application/octet-stream", "X-Requested-With": "GymPASS",
+        Cookie: "gympass_platform=" + token,
+      },
+    });
+    const operator = await f.app.store.login({ email: "operator@example.test", password: "123456" });
+    assert.equal((await upload(archive, operator.token)).status, 403);
+    const other = f.app.store.createGym(f.owner, { name: "Otro gimnasio", slug: "otro-backup" });
+    f.app.tenants.provision(other);
+    f.app.store.markGymProvisioned(other.id);
+    const foreign = await f.app.tenants.withTenant(other, async (ctx) => ctx.backups.exportCopy(ctx.backups.create().id));
+    const rejected = await upload(foreign.bytes);
+    assert.equal(rejected.status, 409);
+    assert.match((await rejected.json()).error, /otro gimnasio/);
+    assert.equal((await upload(archive.subarray(0, archive.length - 1))).status, 400);
+    assert.equal((await f.request(endpoint)).data.copies.length, 0);
+    assert.ok(readdirSync(f.app.tenants.root).every((name) => !name.startsWith(".backup-upload-")));
+    const imported = await upload(archive);
+    assert.equal(imported.status, 201);
+    const preview = await imported.json();
+    assert.equal(preview.id, id);
+    assert.equal(preview.people, 1);
+    assert.equal((await upload(archive)).status, 201);
+    assert.equal((await f.request(endpoint)).data.copies.length, 1);
+    assert.equal(await f.cloud(async (_s, ctx) => ctx.db.raw.prepare("SELECT COUNT(*) n FROM people").get().n), 2);
+    const owner = await f.app.store.login({ email: "owner@example.test", password: "123456" });
+    const support = await f.app.store.createSupport(owner.token, f.gym.id, "Recuperación de prueba");
+    const restore = (password) => fetch(f.app.url + "/api/" + endpoint + "/" + id + "/restore", {
+      method: "POST", body: JSON.stringify({ confirm: "RESTAURAR", password }),
+      headers: {
+        Origin: f.app.url, "Content-Type": "application/json", "X-Requested-With": "GymPASS",
+        Cookie: "gympass_platform=" + owner.token, "X-GymPASS-Support": support.support_token,
+      },
+    });
+    assert.equal((await restore("incorrecta")).status, 403);
+    const restored = await restore("123456");
+    assert.equal(restored.status, 200);
+    const { safety } = await restored.json();
+    assert.ok(safety);
+    assert.equal(await f.cloud(async (_s, ctx) => ctx.db.raw.prepare("SELECT COUNT(*) n FROM people").get().n), 1);
+    assert.equal((await f.request(`${endpoint}/${safety}/inspect`)).data.people, 2);
   } finally {
     await f.app.close();
   }

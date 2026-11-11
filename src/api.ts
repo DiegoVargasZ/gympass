@@ -90,6 +90,24 @@ export async function download(path: string, name: string) {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+export async function uploadBackup<T>(file: File): Promise<T> {
+  const revision = sessionRevision;
+  const generation = getPlatformGeneration();
+  const response = await platformFetch('backups/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream', 'X-Requested-With': 'GymPASS' },
+    body: file,
+    signal: AbortSignal.timeout(120000),
+  });
+  const data = await response.json().catch(() => null);
+  assertPlatformGeneration(generation);
+  if (!response.ok) {
+    if (response.status === 401) expireSession(revision);
+    throw new HttpError(response.status, data?.error || 'No se pudo importar el respaldo.');
+  }
+  if (!data) throw new NetworkError('El servidor no confirmó la importación.');
+  return data as T;
+}
 export async function upload(path: string, file: Blob) {
   const revision = sessionRevision;
   const generation = getPlatformGeneration();

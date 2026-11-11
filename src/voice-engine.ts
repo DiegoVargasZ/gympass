@@ -10,6 +10,10 @@ let worker: Worker | undefined;
 let nextId = 0;
 const pending = new Map<number, Pending>();
 const prepared = new Map<Preset, Promise<void>>();
+const rendered = new Map<string, VoiceAudio>();
+const rendering = new Map<string, Promise<VoiceAudio | undefined>>();
+const maxCacheBytes = 16 * 1024 * 1024;
+let cachedBytes = 0;
 
 function reset() {
   worker?.terminate();
@@ -63,5 +67,27 @@ export async function prepareGympassVoice(preset: Preset) {
 }
 
 export async function renderGympassVoice(preset: Preset, text: string, rate: number) {
-  return await send({ preset, text, rate });
+  const key = JSON.stringify([preset, text, rate]);
+  const cached = rendered.get(key);
+  if (cached) {
+    rendered.delete(key);
+    rendered.set(key, cached);
+    return cached;
+  }
+  const active = rendering.get(key);
+  if (active) return await active;
+  const work = send({ preset, text, rate }).then((audio) => {
+    if (audio && audio.samples.byteLength <= maxCacheBytes) {
+      while (rendered.size && (rendered.size >= 64 || cachedBytes + audio.samples.byteLength > maxCacheBytes)) {
+        const oldest = rendered.keys().next().value!;
+        cachedBytes -= rendered.get(oldest)!.samples.byteLength;
+        rendered.delete(oldest);
+      }
+      rendered.set(key, audio);
+      cachedBytes += audio.samples.byteLength;
+    }
+    return audio;
+  }).finally(() => rendering.delete(key));
+  rendering.set(key, work);
+  return await work;
 }

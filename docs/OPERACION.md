@@ -28,6 +28,8 @@ Tras publicar, comprueba `/api/health`, `/release.json` y el login. `npm run che
 
 El administrador descarga la copia de su gimnasio desde **Configuración → Respaldos**. El superadministrador crea y descarga una copia completa desde **Copia de plataforma**. Guarda además una copia fuera del hosting.
 
+Para recuperar una copia descargada de un gimnasio, abre **Configuración → Respaldos → Usar respaldo descargado** y selecciona el archivo `.gympassbackup` del mismo gimnasio. Importar verifica el archivo y lo agrega a la lista sin cambiar los datos actuales. Para aplicarlo, el superadministrador debe entrar en modo soporte, confirmar la restauración con su contraseña y conservar la copia previa que crea GymPASS.
+
 Para restaurar la plataforma, extrae el `.tar.gz` en un directorio nuevo y utiliza `scripts/platform-restore.ts`. Conserva las claves y fotos junto a las bases. No modifiques ni elimines migraciones publicadas ni reduzcas `schema_version`.
 
 ## Aplicaciones y trabajo sin conexión
@@ -40,7 +42,7 @@ El instalador Windows 4.6.0 conserva Electron 45 y requiere Windows 10 o posteri
 
 ## Recepción y caja
 
-En **Configuración → Apariencia** elige una de las diez voces de GymPASS o una voz del dispositivo. Prueba entrada o salida para preparar la voz antes de abrir recepción. La primera prueba de una voz de GymPASS descarga alrededor de 110 MB; el navegador guarda el modelo compartido y sintetiza los nombres localmente. Si la voz está cargando o no se puede reproducir, recepción usa la voz del dispositivo o el tono de confirmación.
+En **Configuración → Apariencia** elige una de las diez voces de GymPASS o una voz del dispositivo y ajusta la velocidad entre 50 % y 300 %. Puedes probar entrada o salida antes de pulsar **Guardar cambios**. El navegador descarga el modelo compartido una vez (alrededor de 110 MB), sintetiza los nombres localmente y reutiliza los últimos avisos de esa sesión. Si la voz está cargando o no se puede reproducir, recepción usa la voz del dispositivo o el tono de confirmación.
 
 Registra al socio con su WhatsApp, crea un plan y confirma el cobro. El primer pago crea su QR permanente de forma atómica; los reintentos no duplican el cobro. La fecha inicial del plan determina cuándo puede entrar. Comparte la credencial existente desde la ficha o comprobante.
 

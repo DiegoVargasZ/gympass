@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import {
+  closeSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -12,12 +13,14 @@ import {
   rmSync,
   lstatSync,
   mkdtempSync,
+  openSync,
+  readSync,
   unlinkSync,
 } from 'node:fs';
 import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 import { ApiError } from '../lib/service.ts';
 import { replaceFileSync } from './atomic-file.ts';
-import { exportBackupCopy, importBackupCopy, sameBackup } from './backup-transfer.ts';
+import { exportBackupCopy, importBackupCopy, importBackupFile, sameBackup } from './backup-transfer.ts';
 
 export const applicationVersion: string = JSON.parse(
   readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
@@ -44,7 +47,18 @@ export type Manifest = {
   kind: Kind;
   files: Record<string, string>;
 };
-const digest = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
+const digest = (path: string) => {
+  const source = openSync(path, 'r');
+  const buffer = Buffer.allocUnsafe(128 * 1024);
+  const hash = createHash('sha256');
+  try {
+    for (let read = readSync(source, buffer); read; read = readSync(source, buffer))
+      hash.update(buffer.subarray(0, read));
+    return hash.digest('hex');
+  } finally {
+    closeSync(source);
+  }
+};
 function safeTree(root: string, relative = ''): string[] {
   if (!relative) safeBackupDirectory(root);
   const result: string[] = [];
@@ -218,7 +232,7 @@ function safeTreeIfDirectory(path: string) {
   if (lstatSync(path).isSymbolicLink()) throw Error('No se respaldan enlaces de archivos.');
   if (statSync(path).isDirectory()) safeTree(path);
 }
-export function inspectBackup(dir: string, id: string, maxSchema: number) {
+export function inspectBackup(dir: string, id: string, maxSchema: number, owner?: string) {
   if (!idPattern.test(id)) throw new ApiError(400, 'Respaldo inválido.');
   safeBackupDirectory(dir);
   const root = confined(dir, id);
@@ -256,6 +270,8 @@ export function inspectBackup(dir: string, id: string, maxSchema: number) {
     const schema = Number(db.prepare('SELECT MAX(version) n FROM schema_version').get()?.n || 0);
     if (schema !== manifest.schema || schema > maxSchema)
       throw new ApiError(409, 'La versión de la base del respaldo no es compatible.');
+    if (owner && db.prepare('SELECT owner FROM settings WHERE id=1').get()?.owner !== owner)
+      throw new ApiError(409, 'El respaldo pertenece a otro gimnasio.');
     const hasCipher = db
       .prepare('PRAGMA table_info(credentials)')
       .all()
@@ -535,6 +551,9 @@ export class Backups {
   }
   importCopy(bytes: Uint8Array) {
     return importBackupCopy(this.directory, bytes, this.maxSchema());
+  }
+  importFile(path: string, owner: string) {
+    return importBackupFile(this.directory, path, this.maxSchema(), owner);
   }
   restore(id: string) {
     const preview = this.inspect(id),

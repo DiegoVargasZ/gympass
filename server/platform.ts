@@ -17,6 +17,7 @@ import { createRealtime, changeTopics } from './realtime.ts';
 import { platformCopies, exportPlatformCopy } from './platform-backup-export.ts';
 import { replicationApi } from './replication-api.ts';
 import { applicationVersion } from './backups.ts';
+import { withBackupUpload } from './backup-transfer.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 type Options = {
@@ -48,6 +49,7 @@ export async function startPlatform(options: Options) {
   });
   const limits = new Map<string, { count: number; until: number }>();
   let maintenanceWork: Promise<void> | null = null;
+  let backupUploadInProgress = false;
   let realtime: ReturnType<typeof createRealtime> | undefined;
   const server = createServer(async (req, res) => {
     res.once('finish', () => {
@@ -232,6 +234,28 @@ export async function startPlatform(options: Options) {
           req.headers['x-gympass-support'] || (imageGet ? cookieValue(req, 'gympass_support') : '') || '',
         );
         const auth = await store.authorize(token, gymId, support, operationalWrite, kioskRoute);
+        if (method === 'POST' && path.join('/') === 'backups/import') {
+          if (auth.actor.role !== 'admin') throw new ApiError(403, 'Solo un administrador puede importar un respaldo.');
+          if (backupUploadInProgress) throw new ApiError(429, 'Ya se está subiendo un respaldo. Inténtalo en unos instantes.');
+          backupUploadInProgress = true;
+          let copy;
+          try {
+            copy = await withBackupUpload(req, tenants.root, async (file) =>
+              await tenants.withTenant(auth.gym, async (ctx) => {
+                const current = store.authorizeSync(token, gymId, support, true);
+                if (current.actor.role !== 'admin') throw new ApiError(403, 'Solo un administrador puede importar un respaldo.');
+                if (res.destroyed) return;
+                const copy = ctx.backups.importFile(file, ctx.id);
+                store.audit(current.user.id, 'backup.imported', gymId, copy.id);
+                return copy;
+              }),
+            );
+          } finally {
+            backupUploadInProgress = false;
+          }
+          if (copy) return json(res, copy, 201);
+          return;
+        }
         if (path[0] === 'auth' && ['logout', 'password'].includes(path[1])) {
           const alias = new URL(url);
           alias.pathname = '/api/platform/' + path[1];

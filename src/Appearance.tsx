@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { isNaturalVoice, voiceGender, voiceIdentity, type VoiceSettings } from '../lib/access-feedback';
+import { isNaturalVoice, voiceGender, voiceIdentity, voiceRateLimits } from '../lib/access-feedback';
 import { findGympassVoice, gympassVoiceId, gympassVoices } from '../lib/voice-catalog';
 import { Field } from './ui';
-import { usePreferences, updatePreferences } from './preferences';
-import { accessFeedback, prepareAudio, stopFeedback, subscribeAccessVoices } from './feedback';
+import { usePreferences, updatePreferences, type Preferences } from './preferences';
+import { accessFeedback, prepareAccessVoice, prepareAudio, stopFeedback, subscribeAccessVoices } from './feedback';
 import './styles/appearance.css';
 
 const voiceGroups = [
@@ -13,6 +13,10 @@ const voiceGroups = [
 
 export default function Appearance() {
   const preferences = usePreferences();
+  const [changes, setChanges] = useState<Partial<Preferences>>({});
+  const [saveMessage, setSaveMessage] = useState('');
+  const draft = { ...preferences, ...changes };
+  const dirty = Object.entries(changes).some(([key, value]) => preferences[key as keyof Preferences] !== value);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [sampleName, setSampleName] = useState('María Pérez');
   const [testing, setTesting] = useState(false);
@@ -27,8 +31,8 @@ export default function Appearance() {
     };
   }, []);
 
-  const gympassVoice = findGympassVoice(preferences.voiceURI);
-  const selected = gympassVoice || voices.some((voice) => voiceIdentity(voice) === preferences.voiceURI);
+  const gympassVoice = findGympassVoice(draft.voiceURI);
+  const selected = gympassVoice || voices.some((voice) => voiceIdentity(voice) === draft.voiceURI);
   const voiceHint = gympassVoice
     ? 'La primera prueba descarga unos 110 MB. Después, la voz se genera en este dispositivo.'
     : 'Elige una voz de GymPASS o usa las voces en español de tu dispositivo.';
@@ -38,9 +42,24 @@ export default function Appearance() {
     setPreviewMessage('');
     stopFeedback();
   };
-  const changeVoice = (change: Partial<VoiceSettings>) => {
+  const edit = (change: Partial<Preferences>) => {
+    setSaveMessage('');
+    setChanges((current) => ({ ...current, ...change }));
+  };
+  const changeVoice = (change: Partial<Preferences>) => {
     cancelPreview();
-    updatePreferences(change);
+    edit(change);
+  };
+  const save = () => {
+    if (!dirty) return;
+    if (!draft.sound) cancelPreview();
+    else {
+      prepareAudio();
+      prepareAccessVoice(draft.voiceURI);
+    }
+    const stored = updatePreferences(changes);
+    setChanges({});
+    setSaveMessage(stored ? 'Cambios guardados en este navegador.' : 'Cambios aplicados durante esta sesión.');
   };
   const selectVoice = (id: string) => {
     const voice = voices.find((choice) => voiceIdentity(choice) === id);
@@ -50,7 +69,7 @@ export default function Appearance() {
     const id = ++previewId.current;
     setTesting(true);
     setPreviewMessage(gympassVoice ? `Preparando la voz de ${gympassVoice.name}…` : 'Probando la voz…');
-    const played = await accessFeedback(true, true, false, direction, sampleName.trim() || 'María Pérez', preferences, true);
+    const played = await accessFeedback(true, true, false, direction, sampleName.trim() || 'María Pérez', draft, true);
     if (id !== previewId.current) return;
     setTesting(false);
     setPreviewMessage(played === 'none' ? 'No se pudo reproducir el aviso. Comprueba el audio del dispositivo.'
@@ -62,8 +81,8 @@ export default function Appearance() {
       <div className="form-grid">
         <Field label="Tema">
           <select
-            value={preferences.theme}
-            onChange={(event) => updatePreferences({ theme: event.target.value as typeof preferences.theme })}
+            value={draft.theme}
+            onChange={(event) => edit({ theme: event.target.value as Preferences['theme'] })}
           >
             <option value="light">Claro</option>
             <option value="dark">Negro</option>
@@ -71,8 +90,8 @@ export default function Appearance() {
         </Field>
         <Field label="Densidad de las tablas" hint="Se recuerda para tu usuario en este navegador.">
           <select
-            value={preferences.density}
-            onChange={(event) => updatePreferences({ density: event.target.value as typeof preferences.density })}
+            value={draft.density}
+            onChange={(event) => edit({ density: event.target.value as Preferences['density'] })}
           >
             <option value="comfortable">Cómoda</option>
             <option value="compact">Compacta</option>
@@ -83,20 +102,16 @@ export default function Appearance() {
         <label>
           <input
             type="checkbox"
-            checked={preferences.sound}
-            onChange={(event) => {
-              if (event.target.checked) prepareAudio();
-              else cancelPreview();
-              updatePreferences({ sound: event.target.checked });
-            }}
+            checked={draft.sound}
+            onChange={(event) => edit({ sound: event.target.checked })}
           />{' '}
           Voz al registrar entrada y salida
         </label>
         <label>
           <input
             type="checkbox"
-            checked={preferences.vibration}
-            onChange={(event) => updatePreferences({ vibration: event.target.checked })}
+            checked={draft.vibration}
+            onChange={(event) => edit({ vibration: event.target.checked })}
           />{' '}
           Vibración al registrar acceso
         </label>
@@ -105,7 +120,7 @@ export default function Appearance() {
         <h3>Personaliza la voz</h3>
         <div className="form-grid">
           <Field label="Voz de los avisos" hint={voiceHint}>
-            <select value={selected ? preferences.voiceURI : ''} onChange={(event) => selectVoice(event.target.value)}>
+            <select value={selected ? draft.voiceURI : ''} onChange={(event) => selectVoice(event.target.value)}>
               <option value="">Automática (voz del dispositivo)</option>
               {voiceGroups.map(({ gender, label }) => (
                 <optgroup key={gender} label={label}>
@@ -125,8 +140,8 @@ export default function Appearance() {
               )}
             </select>
           </Field>
-          <Field label={`Velocidad de voz (${Math.round(preferences.voiceRate * 100)} %)`}>
-            <input type="range" min="0.8" max="1.2" step="0.01" value={preferences.voiceRate} onChange={(event) => changeVoice({ voiceRate: event.target.valueAsNumber })} />
+          <Field label={`Velocidad de voz (${Math.round(draft.voiceRate * 100)} %)`} hint="De 50 % a 300 %. 100 % es la velocidad normal.">
+            <input type="range" {...voiceRateLimits} value={draft.voiceRate} onChange={(event) => changeVoice({ voiceRate: event.target.valueAsNumber })} />
           </Field>
           <Field label="Nombre para probar">
             <input value={sampleName} maxLength={80} onChange={(event) => setSampleName(event.target.value)} />
@@ -138,7 +153,10 @@ export default function Appearance() {
           {testing && <button type="button" className="btn secondary" onClick={cancelPreview}>Detener prueba</button>}
         </div>
         {previewMessage && <p className="helper" role="status">{previewMessage}</p>}
-        <p className="helper">La elección se guarda en este navegador.</p>
+        <div className="appearance-save">
+          <button type="button" className="btn primary" disabled={!dirty} onClick={save}>Guardar cambios</button>
+          <p className="helper" role="status">{saveMessage || (dirty ? 'Tienes cambios sin guardar.' : 'Los ajustes se guardan en este navegador.')}</p>
+        </div>
       </section>
     </section>
   );

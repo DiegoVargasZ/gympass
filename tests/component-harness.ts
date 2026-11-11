@@ -4,6 +4,7 @@ import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import * as feedback from '../lib/access-feedback.ts';
 import * as voiceCatalog from '../lib/voice-catalog.ts';
+import * as backupLimits from '../lib/backup-limits.ts';
 
 export type Element = { type: unknown; props: Record<string, any> };
 
@@ -110,6 +111,7 @@ export function componentHarness(globals: Record<string, unknown> = {}) {
         if (name === 'react/jsx-runtime') return require(name);
         if (/lib\/access-feedback$/.test(name)) return feedback;
         if (/lib\/voice-catalog$/.test(name)) return voiceCatalog;
+        if (/lib\/backup-limits$/.test(name)) return backupLimits;
         if (name in dependencies) {
           const dependency = dependencies[name];
           return dependency && 'default' in dependency ? { __esModule: true, ...dependency } : dependency;

@@ -16,18 +16,20 @@ async function asset(url: string) {
   if (stored) return stored;
   const response = await fetch(url, { credentials: 'omit' });
   if (!response.ok) throw new Error('Recurso de voz no disponible.');
-  if (cache) await cache.put(url, response.clone()).catch(() => {});
+  if (cache) void cache.put(url, response.clone()).catch(() => {});
   return response;
 }
 
 let model: Promise<TextToSpeech> | undefined;
 async function loadModel() {
-  const [cfg, index] = await Promise.all([asset(quantized + 'tts.json'), asset(quantized + 'unicode_indexer.bin')]);
+  const names = ['tts.json', 'unicode_indexer.bin', ...['duration_predictor', 'text_encoder', 'vector_estimator', 'vocoder'].map((name) => name + '.int8.onnx')];
+  // Start all downloads together; compile sessions in order without retaining all model buffers.
+  const [cfg, index, ...models] = await Promise.all(names.map((name) => asset(quantized + name)));
   const processor = new UnicodeProcessor(new Int32Array(await index.arrayBuffer()));
   const sessions: InferenceSession[] = [];
   try {
-    for (const name of ['duration_predictor', 'text_encoder', 'vector_estimator', 'vocoder']) {
-      const bytes = await (await asset(quantized + name + '.int8.onnx')).arrayBuffer();
+    for (const response of models) {
+      const bytes = await response.arrayBuffer();
       sessions.push(await InferenceSession.create(bytes, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' }));
     }
     return new TextToSpeech(await cfg.json(), processor, ...sessions);
@@ -75,7 +77,9 @@ self.onmessage = ({ data }: MessageEvent<Request>) => {
         const { wav, duration } = await tts.call(data.text.slice(0, 180), 'es', voice, 6, data.rate ?? 0.98);
         const length = Math.min(wav.length, Math.ceil(duration[0] * tts.sampleRate));
         if (!(length > 0)) throw new Error('La voz no produjo audio.');
-        const samples = Float32Array.from(wav.slice(0, length));
+        const samples = new Float32Array(length);
+        if (wav instanceof Float32Array) samples.set(wav.subarray(0, length));
+        else for (let i = 0; i < length; i++) samples[i] = wav[i];
         (self as unknown as Worker).postMessage({ id: data.id, audio: { samples, sampleRate: tts.sampleRate } }, [samples.buffer]);
       } else {
         self.postMessage({ id: data.id });

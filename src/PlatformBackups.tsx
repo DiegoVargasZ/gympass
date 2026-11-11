@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, HardDrive, RefreshCw } from 'lucide-react';
-import { api, download } from './api';
+import { Download, HardDrive, RefreshCw, Upload } from 'lucide-react';
+import { maxBackupTransferBytes } from '../lib/backup-limits';
+import { api, download, uploadBackup } from './api';
 import { Empty, Field, Form, Modal, Skeleton } from './ui';
 
 type Copy = {
@@ -31,6 +32,7 @@ export default function PlatformBackups({
 }) {
   const [data, setData] = useState<Backups | null>(null);
   const [restore, setRestore] = useState<Copy | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -85,6 +87,12 @@ export default function PlatformBackups({
             <RefreshCw size={16} aria-hidden="true" />
           </button>
           {!global && (
+            <button className="btn secondary" disabled={busy || suspended} onClick={() => setImportOpen(true)}>
+              <Upload size={16} aria-hidden="true" />
+              Usar respaldo descargado
+            </button>
+          )}
+          {!global && (
             <button
               className="btn primary"
               disabled={busy}
@@ -104,8 +112,8 @@ export default function PlatformBackups({
       </div>
       {suspended && (
         <p className="helper">
-          El gimnasio está suspendido. Puedes crear, consultar y descargar copias. Reactívalo para restaurar un
-          respaldo.
+          El gimnasio está suspendido. Puedes crear, consultar y descargar copias. Reactívalo para importar o restaurar
+          un respaldo.
         </p>
       )}
       {error && (
@@ -186,6 +194,38 @@ export default function PlatformBackups({
             </table>
           </div>
         ))}
+      {importOpen && (
+        <Modal title="Usar respaldo descargado" onClose={() => { if (!busy) setImportOpen(false); }}>
+          <p>Selecciona un archivo .gympassbackup de este gimnasio. Se verificará antes de añadirlo a la lista de respaldos.</p>
+          <p className="helper">Importar conserva los datos actuales. El archivo puede pesar hasta 256 MiB.</p>
+          <Form
+            label="Importar y verificar"
+            onCancel={() => { if (!busy) setImportOpen(false); }}
+            onSubmit={async (form) => {
+              const file = form.get('backup');
+              if (!file || typeof file === 'string' || !/\.gympassbackup$/i.test(file.name))
+                throw Error('Selecciona un archivo .gympassbackup.');
+              if (!file.size || file.size > maxBackupTransferBytes)
+                throw Error('El archivo debe contener un respaldo de hasta 256 MiB.');
+              setBusy(true);
+              setNotice('');
+              try {
+                const copy = await uploadBackup<Copy>(file);
+                setImportOpen(false);
+                await refresh();
+                if (canRestore && !suspended) setRestore(copy);
+                else setNotice('Respaldo importado y verificado. Un superadministrador en modo soporte puede restaurarlo.');
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <Field label="Archivo de respaldo">
+              <input name="backup" type="file" accept=".gympassbackup" required />
+            </Field>
+          </Form>
+        </Modal>
+      )}
       {restore && (
         <Modal title={'Restaurar ' + gymName} onClose={() => setRestore(null)}>
           <p>

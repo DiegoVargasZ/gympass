@@ -54,6 +54,7 @@ export function setPreferencesUser(email: string) {
 }
 export function updatePreferences(change: Partial<Preferences>) {
   preferences = { ...preferences, ...change, ...normalizeVoiceSettings({ ...preferences, ...change }) };
+  let stored = true;
   try {
     localStorage.setItem(
       key,
@@ -69,10 +70,11 @@ export function updatePreferences(change: Partial<Preferences>) {
     );
     if (change.density) localStorage.setItem('gympass.density.' + user, preferences.density);
   } catch {
-    /* Private browsing may disable storage; preferences still work for this session. */
+    stored = false;
   }
   applyPreferences();
   listeners.forEach((listener) => listener());
+  return stored;
 }
 export function usePreferences() {
   return useSyncExternalStore(

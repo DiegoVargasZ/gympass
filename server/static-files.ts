@@ -22,7 +22,7 @@ const mime: Record<string, string> = {
 export const streamThreshold = 4 * 1024 * 1024;
 
 /** Extensiones con variante precomprimida. PNG, WebP y WOFF2 ya vienen comprimidos. */
-export const compressible = new Set(['.html', '.js', '.css', '.json', '.svg', '.webmanifest']);
+export const compressible = new Set(['.html', '.js', '.css', '.json', '.svg', '.webmanifest', '.wasm']);
 
 /** De mejor a peor compresión; `npm run build` deja las dos variantes junto al original. */
 const variants = [
