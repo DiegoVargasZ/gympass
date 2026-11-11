@@ -28,6 +28,11 @@ test('Apariencia prueba voces sin guardarlas y confirma ajustes de hasta 300 %',
     './styles/appearance.css': {},
   });
   h.render(Appearance);
+  const darkTheme = findElement(await h.settle(), element => element.type === 'button' && elementText(element).startsWith('Oscuro'));
+  assert.equal(darkTheme.props['aria-pressed'], false);
+  darkTheme.props.onClick();
+  assert.equal(preferences.theme, 'light');
+  assert.equal(findElement(h.render(Appearance), element => element.type === 'button' && elementText(element).startsWith('Oscuro')).props['aria-pressed'], true);
   const picker = (tree: unknown) => findElement(tree, (element) => element.type === 'Field' && element.props.label === 'Voz de los avisos').props.children;
   const initial = picker(await h.settle());
   assert.notEqual(initial.props.disabled, true);
@@ -62,5 +67,6 @@ test('Apariencia prueba voces sin guardarlas y confirma ajustes de hasta 300 %',
   assert.equal(preferences.voiceURI, 'gympass:M4');
   assert.equal(preferences.voiceGender, 'male');
   assert.equal(preferences.voiceRate, 3);
+  assert.equal(preferences.theme, 'dark');
   assert.match(elementText(tree), /Cambios guardados en este navegador/);
 });

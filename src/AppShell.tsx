@@ -128,7 +128,6 @@ export default function AppShell({
       >
         <div className="sidebar-brand">
           <a href="#dashboard" className="brand" aria-label={data.settings.name + ' · Inicio'}>
-            {collapsed && <img className="gympass-brand-mark" src="/gympass-mark.svg" alt="" />}
             <span className="brand-text">
               <strong className="brand-name">{data.settings.name}</strong>
             </span>

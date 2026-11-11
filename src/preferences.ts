@@ -38,7 +38,7 @@ export function applyPreferences() {
   document.documentElement.dataset.density = preferences.density;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', preferences.theme === 'dark' ? '#ffffff' : '#000000');
+    ?.setAttribute('content', preferences.theme === 'dark' ? '#111111' : '#ffffff');
 }
 export function setPreferencesUser(email: string) {
   user = email;

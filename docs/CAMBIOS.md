@@ -1,5 +1,13 @@
 # Cambios
 
+## 4.8.1
+
+- Verde oliva `#636B2F` en los botones principales de web, Windows y Android, con texto blanco legible.
+- Restauradas las superficies anteriores de los temas claro y oscuro, sin invertir los colores de las barras de navegación.
+- Apariencia muestra vistas previas de ambos temas y agrupa los avisos y sus controles de voz.
+- La barra lateral contraída deja de mostrar el QR sobre los iconos; el menú móvil conserva el nombre del gimnasio.
+- Web, Windows y Android actualizados a 4.8.1; Android usa el código 4801. Se conserva la interfaz publicada 4.8.0 para las sesiones abiertas.
+
 ## 4.8.0
 
 - Paleta común con blanco como base del tema claro, negro como base del oscuro y verde fosforescente `#B6FF00` como acento. La composición sigue la proporción visual 60/30/10 en superficies, navegación y acciones.

@@ -90,9 +90,13 @@ for (const [theme, palette] of [
   });
 }
 
-test('Claro: las acciones principales son verde fosforescente con texto negro', () => {
-  assert.equal(light['brand-base'], '#b6ff00');
-  assert.equal(light['on-brand'], '#000000');
+test('Ambos temas conservan botones verde oliva con texto blanco legible', () => {
+  for (const palette of [light, dark]) {
+    assert.equal(palette['brand-base'], '#636b2f');
+    assert.equal(palette['on-brand'], '#ffffff');
+    for (const token of ['brand-base', 'brand-hover'])
+      assert.ok(contrast(palette[token], palette['on-brand']) >= 4.5, token);
+  }
 });
 
 test('El acceso permitido es verde y el denegado rojo en ambos temas', () => {
@@ -105,7 +109,7 @@ test('El acceso permitido es verde y el denegado rojo en ambos temas', () => {
 });
 
 test('Oscuro: la estructura usa negro, blanco y grises y las acciones usan verde', () => {
-  for (const name of ['bg', 'surface', 'surface-2', 'ink', 'ink-2', 'muted', 'chrome', 'on-chrome']) {
+  for (const name of ['bg', 'surface', 'surface-2', 'ink', 'ink-2', 'muted', 'nav-bg', 'nav-text']) {
     const value = dark[name];
     const [r, g, b] = rgb(value);
     assert.ok(r === g && g === b, `--${name}: ${value} no es monocromo`);

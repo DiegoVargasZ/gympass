@@ -78,16 +78,36 @@ export default function Appearance() {
   };
   return (
     <section className="panel padded appearance-panel">
-      <div className="form-grid">
-        <Field label="Tema">
-          <select
-            value={draft.theme}
-            onChange={(event) => edit({ theme: event.target.value as Preferences['theme'] })}
-          >
-            <option value="light">Claro</option>
-            <option value="dark">Oscuro</option>
-          </select>
-        </Field>
+      <fieldset className="appearance-themes">
+        <legend>Tema de la interfaz</legend>
+        <p className="helper">Elige cómo quieres ver GymPASS en este dispositivo.</p>
+        <div className="appearance-theme-options">
+          {([
+            ['light', 'Claro', 'Superficies claras y fondo suave.'],
+            ['dark', 'Oscuro', 'Fondos negros y superficies discretas.'],
+          ] as const).map(([theme, label, description]) => (
+            <button
+              key={theme}
+              type="button"
+              className="appearance-theme-option"
+              aria-pressed={draft.theme === theme}
+              onClick={() => edit({ theme })}
+            >
+              <span className={`appearance-theme-preview ${theme}`} aria-hidden="true">
+                <span className="appearance-preview-sidebar"><i /><i /><i /></span>
+                <span className="appearance-preview-content"><i /><i /><span /></span>
+              </span>
+              <span className="appearance-theme-caption">
+                <strong>{label}</strong>
+                <span className="appearance-theme-check" aria-hidden="true">{draft.theme === theme ? '✓' : ''}</span>
+                <small>{description}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="appearance-accent"><span aria-hidden="true" />Verde oliva en los botones de ambos temas.</p>
+      </fieldset>
+      <div className="form-grid appearance-density">
         <Field label="Densidad de las tablas" hint="Se recuerda para tu usuario en este navegador.">
           <select
             value={draft.density}
@@ -98,7 +118,9 @@ export default function Appearance() {
           </select>
         </Field>
       </div>
-      <div className="check-list">
+      <section className="access-voice-settings" aria-label="Avisos de acceso">
+        <h3>Avisos de acceso</h3>
+        <div className="check-list">
         <label>
           <input
             type="checkbox"
@@ -115,7 +137,8 @@ export default function Appearance() {
           />{' '}
           Vibración al registrar acceso
         </label>
-      </div>
+        </div>
+      </section>
       <section className="access-voice-settings" aria-label="Avisos de voz">
         <h3>Personaliza la voz</h3>
         <div className="form-grid">
@@ -153,11 +176,11 @@ export default function Appearance() {
           {testing && <button type="button" className="btn secondary" onClick={cancelPreview}>Detener prueba</button>}
         </div>
         {previewMessage && <p className="helper" role="status">{previewMessage}</p>}
-        <div className="appearance-save">
-          <button type="button" className="btn primary" disabled={!dirty} onClick={save}>Guardar cambios</button>
-          <p className="helper" role="status">{saveMessage || (dirty ? 'Tienes cambios sin guardar.' : 'Los ajustes se guardan en este navegador.')}</p>
-        </div>
       </section>
+      <div className="appearance-save">
+        <button type="button" className="btn primary" disabled={!dirty} onClick={save}>Guardar cambios</button>
+        <p className="helper" role="status">{saveMessage || (dirty ? 'Tienes cambios sin guardar.' : 'Los ajustes se guardan en este navegador.')}</p>
+      </div>
     </section>
   );
 }

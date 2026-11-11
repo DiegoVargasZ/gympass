@@ -12,11 +12,13 @@ function contrast(a: string, b: string) {
   return (values[0] + 0.05) / (values[1] + 0.05);
 }
 
-test('ambos temas mantienen contraste legible en texto, botones verdes y superficies opuestas', () => {
+test('ambos temas mantienen contraste legible en texto, botones oliva y superficies', () => {
   for (const palette of Object.values(themePalettes)) {
     for (const [ink, background] of [[palette.ink,palette.surface],[palette.muted,palette.surface],[palette.brandText,palette.surface],[palette.onBrand,palette.brand],[palette.onChrome,palette.chrome]])
       assert.ok(contrast(ink, background) >= 4.5, `${ink} sobre ${background}`);
-    assert.equal(palette.brand, '#b6ff00');
+    assert.equal(palette.brand, '#636b2f');
+    assert.ok(contrast(palette.onBrand, palette.brandHover) >= 4.5);
+    assert.equal(palette.chrome, palette.surface);
   }
 });
 

@@ -1,0 +1,1302 @@
+--- a/index.html
++++ b/index.html
+@@ -3,7 +3,7 @@
+   <head>
+     <meta charset="UTF-8" />
+     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+-    <meta name="theme-color" content="#000000" />
++    <meta name="theme-color" content="#ffffff" />
+     <meta name="description" content="Entradas y salidas del gimnasio, credenciales y tiempo por visita." />
+     <link rel="icon" type="image/svg+xml" href="/gympass-mark.svg" />
+     <link rel="manifest" href="/manifest.webmanifest" />
+--- a/public/manifest.webmanifest
++++ b/public/manifest.webmanifest
+@@ -4,8 +4,8 @@
+   "start_url": "/#access",
+   "scope": "/",
+   "display": "standalone",
+-  "background_color": "#ffffff",
+-  "theme_color": "#000000",
++  "background_color": "#f3f5f8",
++  "theme_color": "#ffffff",
+   "icons": [
+     { "src": "/gympass-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+     { "src": "/gympass-icon.png", "sizes": "192x192", "type": "image/png" },
+--- a/lib/theme.ts
++++ b/lib/theme.ts
+@@ -1,10 +1,10 @@
+ export type ThemeMode = 'light' | 'dark';
+-export const neonGreen = '#b6ff00';
++export const oliveGreen = '#636b2f';
+ 
+ const common = {
+-  brand: neonGreen,
+-  brandHover: '#a3e600',
+-  onBrand: '#000000',
++  brand: oliveGreen,
++  brandHover: '#535a27',
++  onBrand: '#ffffff',
+   camera: '#000000',
+   cameraCaption: '#000000e6',
+   cameraMuted: '#ffffff',
+@@ -12,21 +12,21 @@
+ export const themePalettes = {
+   light: {
+     ...common,
+-    ink: '#000000', inkSecondary: '#333333', muted: '#555555',
+-    surface: '#ffffff', surfaceSecondary: '#f2f2f2', canvas: '#ffffff',
+-    border: '#d4d4d4', borderStrong: '#767676',
+-    chrome: '#000000', onChrome: '#ffffff', chromeMuted: '#d4d4d4', chromeHover: '#242424',
+-    brandLight: '#efffd1', brandText: '#365c00',
+-    green: '#365c00', greenLight: '#efffd1', red: '#a52019', redLight: '#fbe6e4',
++    ink: '#1b2733', inkSecondary: '#44525f', muted: '#566473',
++    surface: '#ffffff', surfaceSecondary: '#edf0f4', canvas: '#f3f5f8',
++    border: '#d5dce4', borderStrong: '#8a98a8',
++    chrome: '#ffffff', onChrome: '#1b2733', chromeMuted: '#566473', chromeHover: '#edf0f4',
++    brandLight: '#f0f1e5', brandText: oliveGreen,
++    green: '#266b43', greenLight: '#e3f1e8', red: '#a52019', redLight: '#fbe6e4',
+   },
+   dark: {
+     ...common,
+-    ink: '#ffffff', inkSecondary: '#e5e5e5', muted: '#bdbdbd',
+-    surface: '#101010', surfaceSecondary: '#1c1c1c', canvas: '#000000',
+-    border: '#454545', borderStrong: '#8a8a8a',
+-    chrome: '#ffffff', onChrome: '#000000', chromeMuted: '#333333', chromeHover: '#e5e5e5',
+-    brandLight: '#1c2d00', brandText: neonGreen,
+-    green: neonGreen, greenLight: '#1c2d00', red: '#ffb4ab', redLight: '#381714',
++    ink: '#ffffff', inkSecondary: '#dedede', muted: '#b3b3b3',
++    surface: '#111111', surfaceSecondary: '#1c1c1c', canvas: '#000000',
++    border: '#707070', borderStrong: '#999999',
++    chrome: '#111111', onChrome: '#ffffff', chromeMuted: '#b3b3b3', chromeHover: '#1c1c1c',
++    brandLight: '#282c1c', brandText: '#bfc98a',
++    green: '#f5f5f5', greenLight: '#222222', red: '#ffffff', redLight: '#303030',
+   },
+ } satisfies Record<ThemeMode, Record<string, string>>;
+ export type ThemePalette = { [K in keyof typeof themePalettes.light]: string };
+--- a/src/AppShell.tsx
++++ b/src/AppShell.tsx
+@@ -128,7 +128,6 @@
+       >
+         <div className="sidebar-brand">
+           <a href="#dashboard" className="brand" aria-label={data.settings.name + ' · Inicio'}>
+-            {collapsed && <img className="gympass-brand-mark" src="/gympass-mark.svg" alt="" />}
+             <span className="brand-text">
+               <strong className="brand-name">{data.settings.name}</strong>
+             </span>
+--- a/src/Appearance.tsx
++++ b/src/Appearance.tsx
+@@ -78,16 +78,36 @@
+   };
+   return (
+     <section className="panel padded appearance-panel">
+-      <div className="form-grid">
+-        <Field label="Tema">
+-          <select
+-            value={draft.theme}
+-            onChange={(event) => edit({ theme: event.target.value as Preferences['theme'] })}
+-          >
+-            <option value="light">Claro</option>
+-            <option value="dark">Oscuro</option>
+-          </select>
+-        </Field>
++      <fieldset className="appearance-themes">
++        <legend>Tema de la interfaz</legend>
++        <p className="helper">Elige cómo quieres ver GymPASS en este dispositivo.</p>
++        <div className="appearance-theme-options">
++          {([
++            ['light', 'Claro', 'Superficies claras y fondo suave.'],
++            ['dark', 'Oscuro', 'Fondos negros y superficies discretas.'],
++          ] as const).map(([theme, label, description]) => (
++            <button
++              key={theme}
++              type="button"
++              className="appearance-theme-option"
++              aria-pressed={draft.theme === theme}
++              onClick={() => edit({ theme })}
++            >
++              <span className={`appearance-theme-preview ${theme}`} aria-hidden="true">
++                <span className="appearance-preview-sidebar"><i /><i /><i /></span>
++                <span className="appearance-preview-content"><i /><i /><span /></span>
++              </span>
++              <span className="appearance-theme-caption">
++                <strong>{label}</strong>
++                <span className="appearance-theme-check" aria-hidden="true">{draft.theme === theme ? '✓' : ''}</span>
++                <small>{description}</small>
++              </span>
++            </button>
++          ))}
++        </div>
++        <p className="appearance-accent"><span aria-hidden="true" />Verde oliva en los botones de ambos temas.</p>
++      </fieldset>
++      <div className="form-grid appearance-density">
+         <Field label="Densidad de las tablas" hint="Se recuerda para tu usuario en este navegador.">
+           <select
+             value={draft.density}
+@@ -98,7 +118,9 @@
+           </select>
+         </Field>
+       </div>
+-      <div className="check-list">
++      <section className="access-voice-settings" aria-label="Avisos de acceso">
++        <h3>Avisos de acceso</h3>
++        <div className="check-list">
+         <label>
+           <input
+             type="checkbox"
+@@ -115,7 +137,8 @@
+           />{' '}
+           Vibración al registrar acceso
+         </label>
+-      </div>
++        </div>
++      </section>
+       <section className="access-voice-settings" aria-label="Avisos de voz">
+         <h3>Personaliza la voz</h3>
+         <div className="form-grid">
+@@ -153,11 +176,11 @@
+           {testing && <button type="button" className="btn secondary" onClick={cancelPreview}>Detener prueba</button>}
+         </div>
+         {previewMessage && <p className="helper" role="status">{previewMessage}</p>}
+-        <div className="appearance-save">
+-          <button type="button" className="btn primary" disabled={!dirty} onClick={save}>Guardar cambios</button>
+-          <p className="helper" role="status">{saveMessage || (dirty ? 'Tienes cambios sin guardar.' : 'Los ajustes se guardan en este navegador.')}</p>
+-        </div>
+       </section>
++      <div className="appearance-save">
++        <button type="button" className="btn primary" disabled={!dirty} onClick={save}>Guardar cambios</button>
++        <p className="helper" role="status">{saveMessage || (dirty ? 'Tienes cambios sin guardar.' : 'Los ajustes se guardan en este navegador.')}</p>
++      </div>
+     </section>
+   );
+ }
+--- a/src/preferences.ts
++++ b/src/preferences.ts
+@@ -38,7 +38,7 @@
+   document.documentElement.dataset.density = preferences.density;
+   document
+     .querySelector('meta[name="theme-color"]')
+-    ?.setAttribute('content', preferences.theme === 'dark' ? '#ffffff' : '#000000');
++    ?.setAttribute('content', preferences.theme === 'dark' ? '#111111' : '#ffffff');
+ }
+ export function setPreferencesUser(email: string) {
+   user = email;
+--- a/src/styles/appearance.css
++++ b/src/styles/appearance.css
+@@ -1,3 +1,127 @@
++.appearance-themes {
++  min-width: 0;
++  margin: 0;
++  padding: 0;
++  border: 0;
++}
++.appearance-themes legend {
++  padding: 0;
++  font-size: 17px;
++  font-weight: 650;
++}
++.appearance-themes > .helper { margin: 6px 0 16px; }
++.appearance-theme-options {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  gap: 16px;
++  max-width: 640px;
++}
++.appearance-theme-option {
++  min-width: 0;
++  padding: 8px;
++  border: 1px solid var(--border-strong);
++  border-radius: var(--r-lg);
++  background: var(--surface);
++  color: var(--ink);
++  text-align: left;
++}
++.appearance-theme-option:hover { border-color: var(--brand-700); }
++.appearance-theme-option[aria-pressed='true'] {
++  border-color: var(--brand-700);
++  box-shadow: 0 0 0 1px var(--brand-700);
++}
++.appearance-theme-option:focus-visible {
++  outline: 3px solid var(--focus);
++  outline-offset: 4px;
++}
++.appearance-theme-preview {
++  --preview-bg: #f3f5f8;
++  --preview-surface: #ffffff;
++  --preview-line: #d5dce4;
++  display: grid;
++  grid-template-columns: 28% 1fr;
++  height: 110px;
++  overflow: hidden;
++  border: 1px solid var(--preview-line);
++  border-radius: var(--r-sm);
++  background: var(--preview-bg);
++}
++.appearance-theme-preview.dark {
++  --preview-bg: #000000;
++  --preview-surface: #111111;
++  --preview-line: #707070;
++}
++.appearance-preview-sidebar {
++  display: grid;
++  align-content: start;
++  gap: 10px;
++  padding: 16px 8px;
++  border-right: 1px solid var(--preview-line);
++  background: var(--preview-surface);
++}
++.appearance-preview-sidebar i,
++.appearance-preview-content > i {
++  height: 5px;
++  border-radius: 2px;
++  background: var(--preview-line);
++}
++.appearance-preview-sidebar i:first-child { background: var(--brand-base); }
++.appearance-preview-content {
++  display: grid;
++  align-content: start;
++  gap: 12px;
++  padding: 18px 14px;
++}
++.appearance-preview-content > i:nth-child(2) { width: 65%; }
++.appearance-preview-content > span {
++  width: 52%;
++  height: 22px;
++  border-radius: 4px;
++  background: var(--brand-base);
++}
++.appearance-theme-caption {
++  display: grid;
++  grid-template-columns: 1fr auto;
++  align-items: center;
++  gap: 4px 8px;
++  padding: 12px 6px 6px;
++}
++.appearance-theme-caption small {
++  grid-column: 1 / -1;
++  color: var(--muted);
++  font-size: 13px;
++  line-height: 1.5;
++}
++.appearance-theme-check {
++  display: grid;
++  place-items: center;
++  width: 22px;
++  height: 22px;
++  border: 1px solid var(--border-strong);
++  border-radius: 50%;
++}
++[aria-pressed='true'] .appearance-theme-check {
++  background: var(--brand-base);
++  border-color: var(--brand-base);
++  color: var(--on-brand);
++}
++.appearance-accent {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  margin: 16px 0 24px;
++  color: var(--muted);
++  font-size: 13px;
++}
++.appearance-accent > span {
++  width: 14px;
++  height: 14px;
++  flex-shrink: 0;
++  border-radius: 50%;
++  background: var(--brand-base);
++}
++.appearance-density { max-width: 640px; }
++
+ .brand-presets {
+   display: grid;
+   grid-template-columns: repeat(3, minmax(0, 1fr));
+@@ -84,7 +208,9 @@
+   align-items: center;
+   flex-wrap: wrap;
+   gap: var(--s3);
+-  margin: var(--s4) 0 var(--s5);
++  margin: var(--s5) 0 0;
++  padding-top: var(--s4);
++  border-top: 1px solid var(--border);
+ }
+ 
+ .appearance-save .helper {
+@@ -101,7 +227,7 @@
+   min-width: 0;
+ }
+ .access-voice-settings input[type='range'] {
+-  accent-color: var(--green);
++  accent-color: var(--brand-base);
+ }
+ .voice-preview-actions {
+   display: flex;
+@@ -116,6 +242,10 @@
+ }
+ 
+ @media (max-width: 580px) {
++  .appearance-theme-options { gap: 10px; }
++  .appearance-theme-preview { height: 88px; }
++  .appearance-theme-caption { padding-inline: 2px; }
++  .appearance-save .btn { width: 100%; }
+   .brand-presets {
+     grid-template-columns: minmax(0, 1fr);
+   }
+--- a/src/styles/palette.css
++++ b/src/styles/palette.css
+@@ -1,151 +1,33 @@
+-/* 60% base, 30% opposite surfaces, 10% neon actions and selection. */
+-.app-shell .sidebar,
+-.app-shell .topbar,
+-.platform-header,
+-.platform-context-bar,
+-.kiosk-bar,
+-.app-shell .mobile-navigation {
+-  background: var(--chrome);
+-  color: var(--on-chrome);
+-  border-color: var(--chrome-border);
+-  --focus: var(--chrome-focus);
++/* Keep the original light and dark surfaces; olive marks actions and selection. */
++.btn.primary {
++  background: var(--brand-base);
++  color: var(--on-brand);
+ }
+-.app-shell .sidebar .brand,
+-.app-shell .sidebar .brand-name,
+-.app-shell .sidebar .user-box strong,
+-.app-shell .sidebar .user-box small,
+-.app-shell .sidebar .icon-btn,
+-.app-shell .sidebar nav a,
+-.app-shell .sidebar nav a svg,
+-.app-shell .topbar .icon-btn,
+-.platform-context-bar .btn.secondary,
+-.platform-header .btn.secondary,
+-.kiosk-bar .btn.secondary {
+-  color: var(--on-chrome);
++.btn.primary:hover {
++  background: var(--brand-hover);
++  border-color: var(--brand-hover);
+ }
+-.app-shell .sidebar .user-box { border-color: var(--chrome-border); }
+-.platform-context-bar > div:first-child > span:not(.gympass-brand-logo) { color: var(--chrome-muted); }
+-.platform-header > .platform-actions > span { color: var(--on-chrome); }
+-.app-shell .sidebar nav a:hover,
+-.app-shell .sidebar .icon-btn:hover,
+-.app-shell .topbar .icon-btn:hover {
+-  background: var(--chrome-hover);
+-  color: var(--on-chrome);
++.btn.secondary {
++  background: var(--surface);
++  color: var(--ink);
++  border-color: var(--border-strong);
+ }
++.btn.secondary:hover { background: var(--surface-2); }
+ .app-shell .sidebar nav a.active,
+ .app-shell .sidebar nav a.active svg {
+   background: var(--brand-base);
+   color: var(--on-brand);
+ }
+-.app-shell .topbar-search {
+-  background: var(--chrome-hover);
+-  color: var(--chrome-muted);
+-  border-color: var(--chrome-border);
+-}
+-.app-shell .topbar-search kbd {
+-  background: var(--chrome);
+-  color: var(--chrome-muted);
+-  border-color: var(--chrome-border);
+-}
+-.alerts-panel { color: var(--ink); --focus: var(--brand-700); }
+-.app-shell .topbar .alerts-panel .icon-btn { color: var(--ink); }
+-.app-shell .topbar .alerts-panel .icon-btn:hover { background: var(--surface-2); }
+-.topbar .gympass-logo-light,
+-.platform-header .gympass-logo-light,
+-.platform-context-bar .gympass-logo-light,
+-.kiosk-bar .gympass-logo-light { display: none; }
+-.topbar .gympass-logo-dark,
+-.platform-header .gympass-logo-dark,
+-.platform-context-bar .gympass-logo-dark,
+-.kiosk-bar .gympass-logo-dark { display: block; }
+-:root[data-theme='dark'] .topbar .gympass-logo-light,
+-:root[data-theme='dark'] .platform-header .gympass-logo-light,
+-:root[data-theme='dark'] .platform-context-bar .gympass-logo-light,
+-:root[data-theme='dark'] .kiosk-bar .gympass-logo-light { display: block; }
+-:root[data-theme='dark'] .topbar .gympass-logo-dark,
+-:root[data-theme='dark'] .platform-header .gympass-logo-dark,
+-:root[data-theme='dark'] .platform-context-bar .gympass-logo-dark,
+-:root[data-theme='dark'] .kiosk-bar .gympass-logo-dark { display: none; }
+-.btn.secondary {
+-  background: var(--chrome);
+-  color: var(--on-chrome);
+-  border-color: var(--chrome-border);
+-}
+-.btn.primary { background: var(--brand-base); color: var(--on-brand); }
+-.btn.primary:hover { background: var(--brand-hover); }
+-.btn.secondary:hover { background: var(--chrome-hover); }
+-.today-summary {
+-  --ink: #000000;
+-  --ink-2: #1f2a00;
+-  --muted: #293800;
+-  --info: #000000;
+-  --border: #5b7c00;
+-  background: var(--brand-base);
+-  color: var(--ink);
+-}
+-.auth-layout .auth-main { background: var(--bg); }
+-@media (min-width: 901px) {
+-  .auth-layout { grid-template-columns: minmax(0, 35fr) minmax(0, 65fr); }
+-  .auth-layout .auth-story { padding-inline: clamp(24px, 3vw, 48px); }
+-  .auth-layout .auth-story h1 { font-size: clamp(32px, 3.1vw, 48px); }
+-}
+-.app-shell .mobile-navigation > a,
+-.app-shell .mobile-navigation > button { color: var(--on-chrome); }
+ .app-shell .mobile-navigation > [aria-current='page'],
+ .app-shell .mobile-navigation > .active {
+   background: var(--brand-base);
+   color: var(--on-brand);
+ }
+ .app-shell .mobile-navigation svg { color: currentColor; }
+-.digital-card .card-brand { color: var(--on-chrome); --ink-2: var(--chrome-muted); }
+-.access-result.queued, .kiosk-result.queued { --result-ink: var(--result-queued-ink); color: var(--result-ink); }
+-:root {
+-  --nav-bg: var(--chrome);
+-  --nav-surface: var(--chrome);
+-  --nav-text: var(--on-chrome);
+-  --nav-muted: var(--chrome-muted);
++.digital-card .card-brand {
++  color: var(--nav-text);
++  --ink-2: var(--nav-muted);
+ }
+-::selection { background: #b6ff00; color: #000000; }
+-.section-tabs a.active { border-bottom-width: 4px; }
+-.app-shell th,
+-thead th {
+-  background: var(--chrome);
+-  color: var(--on-chrome);
+-  border-color: var(--chrome-border);
+-  --focus: var(--chrome-focus);
+-}
+-.connection-status {
+-  background: var(--brand-base);
+-  color: var(--on-brand);
+-}
+-.connection-status.connection-warning {
+-  background: var(--warn-bg);
+-  color: var(--warn);
+-}
+-input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color: var(--brand-700); }
+-.auth-icon,
+-.automatic-camera-icon,
+-.phone-intro-icon {
+-  background: var(--brand-base);
+-  color: var(--on-brand);
+-}
+-.auth-layout .auth-story {
+-  background: var(--chrome);
+-  color: var(--on-chrome);
+-}
+-.auth-layout .auth-story p,
+-.auth-layout .auth-story .auth-features { color: var(--chrome-muted); }
+-.auth-layout .auth-story h1 { color: var(--on-chrome); }
+-:root[data-theme='dark'] .auth-story .gympass-logo-light { display: block; }
+-:root[data-theme='dark'] .auth-story .gympass-logo-dark { display: none; }
+-.access-result.allowed,
+-.kiosk-result.allowed {
+-  --result-ink: var(--result-ok-ink);
+-  background: var(--brand-base);
+-  color: var(--result-ink);
+-}
+-.access-result.allowed .avatar,
+-.kiosk-result.allowed .avatar { color: #000000; }
+-@media print {
+-  .app-shell th, thead th { background: #ffffff; color: #000000; border-color: #000000; }
+-}
++.platform-header > .platform-actions > span { color: var(--ink); }
++::selection { background: var(--brand-base); color: var(--on-brand); }
++input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color: var(--brand-base); }
+--- a/src/styles/shell.css
++++ b/src/styles/shell.css
+@@ -104,8 +104,10 @@
+   background: var(--surface-2);
+   color: var(--ink);
+ }
+-.sidebar-collapsed .sidebar .brand-text {
+-  display: none;
++@media (min-width: 851px) {
++  .sidebar-collapsed .sidebar .sidebar-brand {
++    display: none;
++  }
+ }
+ 
+ /* ---- Top bar ---- */
+--- a/src/styles/tokens.css
++++ b/src/styles/tokens.css
+@@ -13,78 +13,74 @@
+   color: var(--ink);
+   background: var(--bg);
+ 
+-  --brand-base: #b6ff00;
+-  --brand-900: #365c00;
+-  --brand-700: #365c00;
+-  --brand-600: #365c00;
+-  --brand-100: #efffd1;
+-  --brand-hover: #a3e600;
+-  --on-brand: #000000;
+-  --accent: #b6ff00;
+-  --bg: #ffffff;
++  /* Brand accent — actions and active state only. */
++  --brand-base: #636b2f;
++  --brand-900: #454b21;
++  --brand-700: #636b2f;
++  --brand-600: #636b2f;
++  /* Equivale a mezclar 9% de --brand-base sobre --surface, ya resuelto:
++     color-mix() necesita Chrome 111 y los equipos con Windows 7 llegan a 109. */
++  --brand-100: #f0f1e5;
++  --brand-hover: #535a27;
++  --surface-glass: rgb(255 255 255 / 0.94);
++  --surface-2-glass: rgb(237 240 244 / 0.92);
++  --row-hover: rgb(237 240 244 / 0.52);
++  --on-brand: #ffffff;
++  --accent: #636b2f;
++
++  /* Structure — cool neutral greys. */
++  --bg: #f3f5f8;
+   --surface: #ffffff;
+-  --surface-2: #f2f2f2;
+-  --border: #d4d4d4;
+-  --border-strong: #767676;
+-  --ink: #000000;
+-  --ink-2: #333333;
+-  --muted: #555555;
+-  --chrome: #000000;
+-  --on-chrome: #ffffff;
+-  --chrome-muted: #d4d4d4;
+-  --chrome-hover: #242424;
+-  --chrome-border: #454545;
+-  --chrome-focus: #b6ff00;
+-  --nav-bg: #000000;
+-  --nav-surface: #000000;
+-  --nav-hover: #242424;
+-  --nav-border: #454545;
+-  --nav-text: #ffffff;
+-  --nav-muted: #d4d4d4;
+-  --surface-glass: rgb(255 255 255 / 0.96);
+-  --surface-2-glass: rgb(242 242 242 / 0.96);
+-  --row-hover: #f2f2f2;
++  --surface-2: #edf0f4;
++  --border: #d5dce4;
++  --border-strong: #8a98a8;
++  --ink: #1b2733;
++  --ink-2: #44525f;
++  --muted: #566473;
+   --metal-edge: transparent;
+   --metal-shade: transparent;
+-  --ok: #365c00;
+-  --ok-bg: #efffd1;
+-  --warn: #805000;
+-  --warn-bg: #fff1d6;
++
++  /* Semantic — results only. */
++  --ok: #266b43;
++  --ok-bg: #e3f1e8;
++  /* Amber rather than orange: far enough from --danger in hue that late and absent stay
++     distinct swatches in the attendance matrix. */
++  --warn: #8a5205;
++  --warn-bg: #fbeedd;
+   --danger: #a52019;
+   --danger-bg: #fbe6e4;
+-  --info: #000000;
+-  --info-bg: #f2f2f2;
+-  --purple: #333333;
+-  --purple-bg: #f2f2f2;
+-  --green: #365c00;
+-  --result-ok: #b6ff00;
++  --info: #2455a4;
++  --info-bg: #e4ecf8;
++  --purple: #6b4f86;
++  --purple-bg: #eee8f4;
++
++  --result-ok: #2e7d4f;
+   --result-danger: #b3261e;
+-  --result-queued: #000000;
++  --result-queued: #2455a4;
+   --result-ink: #ffffff;
+-  --result-ok-ink: #000000;
+-  --result-danger-ink: #ffffff;
+-  --result-queued-ink: #ffffff;
+-  --hero-ink: #ffffff;
+-  --hero-muted: #d4d4d4;
+-  --camera-bg: #000000;
+-  --camera-guide: #b6ff00;
+-  --camera-caption: #000000e6;
+-  --overlay: rgb(0 0 0 / 0.66);
+-  --shadow-color: rgb(0 0 0 / 0.08);
+-  --focus: #365c00;
+-  --chart-entries: #365c00;
+-  --chart-exits: #000000;
+-  --print-ink: #000000;
++  --hero-ink: #e2e8ed;
++  --hero-muted: #b7c2cc;
++  --camera-bg: #15181c;
++  --camera-guide: #636b2f;
++  --camera-caption: #11141ae6;
++  --overlay: rgb(16 19 24 / 0.5);
++  --shadow-color: rgb(27 39 51 / 0.08);
++  --focus: #636b2f;
++  --chart-entries: #266b43;
++  --chart-exits: #2455a4;
++  --print-ink: #081b31;
+   --print-surface: #ffffff;
+-  --whatsapp: #b6ff00;
+-  --whatsapp-hover: #a3e600;
+-  --on-whatsapp: #000000;
+-  --viz-1: #365c00;
+-  --viz-2: #000000;
+-  --viz-3: #5e7400;
+-  --viz-4: #555555;
+-  --viz-5: #767676;
+-  --viz-other: #555555;
++  --green: var(--ok);
++  /* Sharing buttons use the same olive accent as the other actions. */
++  --whatsapp: #636b2f;
++  --whatsapp-hover: #535a27;
++  --on-whatsapp: #ffffff;
++  --viz-1: #2a78d6;
++  --viz-2: #eb6834;
++  --viz-3: #1baf7a;
++  --viz-4: #eda100;
++  --viz-5: #e87ba4;
++  --viz-other: #8a98a8;
+ 
+   --s1: 4px;
+   --s2: 8px;
+@@ -100,158 +96,145 @@
+   --shadow-1: none;
+   --shadow-2: 0 2px 8px var(--shadow-color);
+   --shadow-3: 0 12px 32px -8px rgb(27 39 51 / 0.22);
+-}
+-
+-:root[data-theme='dark'] {
+-  color-scheme: dark;
+-  --brand-base: #b6ff00;
+-  --brand-900: #b6ff00;
+-  --brand-700: #b6ff00;
+-  --brand-600: #b6ff00;
+-  --brand-100: #1c2d00;
+-  --brand-hover: #a3e600;
+-  --on-brand: #000000;
+-  --accent: #b6ff00;
+-  --bg: #000000;
+-  --surface: #101010;
+-  --surface-2: #1c1c1c;
+-  --border: #454545;
+-  --border-strong: #8a8a8a;
+-  --ink: #ffffff;
+-  --ink-2: #e5e5e5;
+-  --muted: #bdbdbd;
+-  --chrome: #ffffff;
+-  --on-chrome: #000000;
+-  --chrome-muted: #333333;
+-  --chrome-hover: #e5e5e5;
+-  --chrome-border: #bdbdbd;
+-  --chrome-focus: #365c00;
+-  --nav-bg: #ffffff;
+-  --nav-surface: #ffffff;
+-  --nav-hover: #e5e5e5;
+-  --nav-border: #bdbdbd;
+-  --nav-text: #000000;
+-  --nav-muted: #333333;
+-  --surface-glass: rgb(16 16 16 / 0.96);
+-  --surface-2-glass: rgb(28 28 28 / 0.96);
+-  --row-hover: #1c1c1c;
+-  --metal-edge: transparent;
+-  --metal-shade: transparent;
+-  --ok: #b6ff00;
+-  --ok-bg: #1c2d00;
+-  --warn: #ffd382;
+-  --warn-bg: #332400;
+-  --danger: #ffb4ab;
+-  --danger-bg: #381714;
+-  --info: #ffffff;
+-  --info-bg: #1c1c1c;
+-  --purple: #e5e5e5;
+-  --purple-bg: #1c1c1c;
+-  --green: #b6ff00;
+-  --result-ok: #b6ff00;
+-  --result-danger: #b3261e;
+-  --result-queued: #ffffff;
+-  --result-ink: #ffffff;
+-  --result-ok-ink: #000000;
++  --result-ok-ink: #ffffff;
+   --result-danger-ink: #ffffff;
+-  --result-queued-ink: #000000;
+-  --hero-ink: #000000;
+-  --hero-muted: #333333;
+-  --camera-bg: #000000;
+-  --camera-guide: #b6ff00;
+-  --camera-caption: #000000e6;
+-  --overlay: rgb(0 0 0 / 0.66);
+-  --shadow-color: rgb(0 0 0 / 0.4);
+-  --focus: #b6ff00;
+-  --chart-entries: #b6ff00;
+-  --chart-exits: #ffffff;
+-  --print-ink: #000000;
+-  --print-surface: #ffffff;
+-  --whatsapp: #b6ff00;
+-  --whatsapp-hover: #a3e600;
+-  --on-whatsapp: #000000;
+-  --viz-1: #b6ff00;
+-  --viz-2: #ffffff;
+-  --viz-3: #d6ff80;
+-  --viz-4: #bdbdbd;
+-  --viz-5: #999999;
+-  --viz-other: #bdbdbd;
++  --result-queued-ink: #ffffff;
+ }
+ 
+ @media (prefers-color-scheme: dark) {
+   :root[data-theme='system'] {
+     color-scheme: dark;
+-    --brand-base: #b6ff00;
+-    --brand-900: #b6ff00;
+-    --brand-700: #b6ff00;
+-    --brand-600: #b6ff00;
+-    --brand-100: #1c2d00;
+-    --brand-hover: #a3e600;
+-    --on-brand: #000000;
+-    --accent: #b6ff00;
+-    --bg: #000000;
+-    --surface: #101010;
+-    --surface-2: #1c1c1c;
+-    --border: #454545;
+-    --border-strong: #8a8a8a;
+-    --ink: #ffffff;
+-    --ink-2: #e5e5e5;
+-    --muted: #bdbdbd;
+-    --chrome: #ffffff;
+-    --on-chrome: #000000;
+-    --chrome-muted: #333333;
+-    --chrome-hover: #e5e5e5;
+-    --chrome-border: #bdbdbd;
+-    --chrome-focus: #365c00;
+-    --nav-bg: #ffffff;
+-    --nav-surface: #ffffff;
+-    --nav-hover: #e5e5e5;
+-    --nav-border: #bdbdbd;
+-    --nav-text: #000000;
+-    --nav-muted: #333333;
+-    --surface-glass: rgb(16 16 16 / 0.96);
+-    --surface-2-glass: rgb(28 28 28 / 0.96);
+-    --row-hover: #1c1c1c;
++    --brand-base: #636b2f;
++    --brand-900: #d3d9ae;
++    --brand-700: #bfc98a;
++    --brand-600: #bfc98a;
++    --brand-100: #282c1c;
++    --brand-hover: #535a27;
++    --surface-glass: rgb(17 17 17 / 0.94);
++    --surface-2-glass: rgb(28 28 28 / 0.92);
++    --row-hover: rgb(28 28 28 / 0.52);
++    --on-brand: #ffffff;
+     --metal-edge: transparent;
+     --metal-shade: transparent;
+-    --ok: #b6ff00;
+-    --ok-bg: #1c2d00;
+-    --warn: #ffd382;
+-    --warn-bg: #332400;
+-    --danger: #ffb4ab;
+-    --danger-bg: #381714;
+-    --info: #ffffff;
+-    --info-bg: #1c1c1c;
+-    --purple: #e5e5e5;
+-    --purple-bg: #1c1c1c;
+-    --green: #b6ff00;
+-    --result-ok: #b6ff00;
++    --bg: #000000;
++    --surface: #111111;
++    --surface-2: #1c1c1c;
++    --border: #707070;
++    --border-strong: #999999;
++    --ink: #ffffff;
++    --ink-2: #dedede;
++    --muted: #b3b3b3;
++    --ok: #f5f5f5;
++    --ok-bg: #222222;
++    --warn: #ffffff;
++    --warn-bg: #2a2a2a;
++    --danger: #ffffff;
++    --danger-bg: #303030;
++    --info: #f5f5f5;
++    --info-bg: #242424;
++    --purple: #eeeeee;
++    --purple-bg: #282828;
++    --result-ok: #2e7d4f;
+     --result-danger: #b3261e;
+-    --result-queued: #ffffff;
++    --result-queued: #353535;
+     --result-ink: #ffffff;
+-    --result-ok-ink: #000000;
+-    --result-danger-ink: #ffffff;
+-    --result-queued-ink: #000000;
+-    --hero-ink: #000000;
+-    --hero-muted: #333333;
++    --hero-ink: #ffffff;
++    --hero-muted: #dedede;
++    --nav-bg: #000000;
++    --nav-surface: #111111;
++    --nav-hover: #1c1c1c;
++    --nav-border: #707070;
++    --nav-text: #ffffff;
++    --nav-muted: #dedede;
++    --focus: #bfc98a;
++    --chart-entries: #ffffff;
++    --chart-exits: #a6a6a6;
+     --camera-bg: #000000;
+-    --camera-guide: #b6ff00;
+-    --camera-caption: #000000e6;
++    --camera-guide: #bfc98a;
++    --camera-caption: #111111e6;
++    --whatsapp: #636b2f;
++    --whatsapp-hover: #535a27;
++    --on-whatsapp: #ffffff;
++    --viz-1: #ffffff;
++    --viz-2: #d6d6d6;
++    --viz-3: #b3b3b3;
++    --viz-4: #999999;
++    --viz-5: #808080;
++    --viz-other: #707070;
+     --overlay: rgb(0 0 0 / 0.66);
+     --shadow-color: rgb(0 0 0 / 0.4);
+-    --focus: #b6ff00;
+-    --chart-entries: #b6ff00;
+-    --chart-exits: #ffffff;
+-    --print-ink: #000000;
+-    --print-surface: #ffffff;
+-    --whatsapp: #b6ff00;
+-    --whatsapp-hover: #a3e600;
+-    --on-whatsapp: #000000;
+-    --viz-1: #b6ff00;
+-    --viz-2: #ffffff;
+-    --viz-3: #d6ff80;
+-    --viz-4: #bdbdbd;
+-    --viz-5: #999999;
+-    --viz-other: #bdbdbd;
++    --shadow-3: 0 18px 46px -14px rgb(0 0 0 / 0.6);
++    --accent: #636b2f;
++    --result-ok-ink: #ffffff;
++    --result-danger-ink: #ffffff;
++    --result-queued-ink: #ffffff;
+   }
+ }
++
++:root[data-theme='dark'] {
++  color-scheme: dark;
++  --brand-base: #636b2f;
++  --brand-900: #d3d9ae;
++  --brand-700: #bfc98a;
++  --brand-600: #bfc98a;
++  --brand-100: #282c1c;
++  --brand-hover: #535a27;
++  --surface-glass: rgb(17 17 17 / 0.94);
++  --surface-2-glass: rgb(28 28 28 / 0.92);
++  --row-hover: rgb(28 28 28 / 0.52);
++  --on-brand: #ffffff;
++  --metal-edge: transparent;
++  --metal-shade: transparent;
++  --bg: #000000;
++  --surface: #111111;
++  --surface-2: #1c1c1c;
++  --border: #707070;
++  --border-strong: #999999;
++  --ink: #ffffff;
++  --ink-2: #dedede;
++  --muted: #b3b3b3;
++  --ok: #f5f5f5;
++  --ok-bg: #222222;
++  --warn: #ffffff;
++  --warn-bg: #2a2a2a;
++  --danger: #ffffff;
++  --danger-bg: #303030;
++  --info: #f5f5f5;
++  --info-bg: #242424;
++  --purple: #eeeeee;
++  --purple-bg: #282828;
++  --result-ok: #2e7d4f;
++  --result-danger: #b3261e;
++  --result-queued: #353535;
++  --result-ink: #ffffff;
++  --hero-ink: #ffffff;
++  --hero-muted: #dedede;
++  --nav-bg: #000000;
++  --nav-surface: #111111;
++  --nav-hover: #1c1c1c;
++  --nav-border: #707070;
++  --nav-text: #ffffff;
++  --nav-muted: #dedede;
++  --focus: #bfc98a;
++  --chart-entries: #ffffff;
++  --chart-exits: #a6a6a6;
++  --camera-bg: #000000;
++  --camera-guide: #bfc98a;
++  --camera-caption: #111111e6;
++  --whatsapp: #636b2f;
++  --whatsapp-hover: #535a27;
++  --on-whatsapp: #ffffff;
++  --viz-1: #ffffff;
++  --viz-2: #d6d6d6;
++  --viz-3: #b3b3b3;
++  --viz-4: #999999;
++  --viz-5: #808080;
++  --viz-other: #707070;
++  --overlay: rgb(0 0 0 / 0.66);
++  --shadow-color: rgb(0 0 0 / 0.4);
++  --shadow-3: 0 18px 46px -14px rgb(0 0 0 / 0.6);
++  --accent: #636b2f;
++  --result-ok-ink: #ffffff;
++  --result-danger-ink: #ffffff;
++  --result-queued-ink: #ffffff;
++}
+--- a/tests/palette.test.ts
++++ b/tests/palette.test.ts
+@@ -90,9 +90,13 @@
+   });
+ }
+ 
+-test('Claro: las acciones principales son verde fosforescente con texto negro', () => {
+-  assert.equal(light['brand-base'], '#b6ff00');
+-  assert.equal(light['on-brand'], '#000000');
++test('Ambos temas conservan botones verde oliva con texto blanco legible', () => {
++  for (const palette of [light, dark]) {
++    assert.equal(palette['brand-base'], '#636b2f');
++    assert.equal(palette['on-brand'], '#ffffff');
++    for (const token of ['brand-base', 'brand-hover'])
++      assert.ok(contrast(palette[token], palette['on-brand']) >= 4.5, token);
++  }
+ });
+ 
+ test('El acceso permitido es verde y el denegado rojo en ambos temas', () => {
+@@ -105,7 +109,7 @@
+ });
+ 
+ test('Oscuro: la estructura usa negro, blanco y grises y las acciones usan verde', () => {
+-  for (const name of ['bg', 'surface', 'surface-2', 'ink', 'ink-2', 'muted', 'chrome', 'on-chrome']) {
++  for (const name of ['bg', 'surface', 'surface-2', 'ink', 'ink-2', 'muted', 'nav-bg', 'nav-text']) {
+     const value = dark[name];
+     const [r, g, b] = rgb(value);
+     assert.ok(r === g && g === b, `--${name}: ${value} no es monocromo`);
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "4.8.0",
++  "version": "4.8.1",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "4.8.0",
++  "version": "4.8.1",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-control-acceso",
+-      "version": "4.8.0",
++      "version": "4.8.1",
+       "dependencies": {
+         "lucide-react": "1.57.0",
+         "qrcode-generator": "2.0.4",
+--- a/desktop/package.json
++++ b/desktop/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "gympass-desktop",
+   "productName": "GymPASS",
+-  "version": "4.8.0",
++  "version": "4.8.1",
+   "description": "Entradas, salidas y tiempos de permanencia para gimnasios",
+   "author": "GymPASS",
+   "license": "UNLICENSED",
+--- a/desktop/loading.html
++++ b/desktop/loading.html
+@@ -14,8 +14,8 @@
+         min-height: 100vh;
+         display: grid;
+         place-items: center;
+-        background: #ffffff;
+-        color: #000000;
++        background: #f3f5f8;
++        color: #1b2733;
+         font:
+           16px/1.6 'Segoe UI',
+           Arial,
+@@ -31,7 +31,7 @@
+         margin: 0;
+       }
+       h1 span {
+-        color: #365c00;
++        color: #636b2f;
+       }
+       p {
+         color: #333333;
+@@ -49,7 +49,7 @@
+         display: block;
+         width: 50%;
+         height: 100%;
+-        background: #b6ff00;
++        background: #636b2f;
+         animation: move 1s ease-in-out infinite alternate;
+       }
+       @keyframes move {
+@@ -62,7 +62,7 @@
+           animation: none;
+         }
+       }
+-      @media (prefers-color-scheme: dark) { body { background: #000000; color: #ffffff; } p { color: #d4d4d4; } input { background: #101010; color: #ffffff; border-color: #8a8a8a; } :focus-visible { outline-color: #b6ff00; } }
++      @media (prefers-color-scheme: dark) { body { background: #000000; color: #ffffff; } p { color: #d4d4d4; } input { background: #101010; color: #ffffff; border-color: #8a8a8a; } :focus-visible { outline-color: #bfc98a; } }
+     </style>
+   </head>
+   <body>
+--- a/desktop/remote.html
++++ b/desktop/remote.html
+@@ -18,8 +18,8 @@
+         display: grid;
+         place-items: center;
+         padding: 28px;
+-        background: #ffffff;
+-        color: #000000;
++        background: #f3f5f8;
++        color: #1b2733;
+         font:
+           16px/1.6 'Segoe UI',
+           Arial,
+@@ -60,8 +60,8 @@
+         padding: 11px 18px;
+         border: 0;
+         border-radius: 6px;
+-        background: #b6ff00;
+-        color: #000000;
++        background: #636b2f;
++        color: #ffffff;
+         font: inherit;
+         font-weight: 700;
+         cursor: pointer;
+@@ -77,7 +77,7 @@
+       #error {
+         color: #a52019;
+       }
+-      @media (prefers-color-scheme: dark) { body { background: #000000; color: #ffffff; } p { color: #d4d4d4; } input { background: #101010; color: #ffffff; border-color: #8a8a8a; } :focus-visible { outline-color: #b6ff00; } }
++      @media (prefers-color-scheme: dark) { body { background: #000000; color: #ffffff; } p { color: #d4d4d4; } input { background: #101010; color: #ffffff; border-color: #8a8a8a; } :focus-visible { outline-color: #bfc98a; } }
+     </style>
+   </head>
+   <body>
+--- a/mobile/package.json
++++ b/mobile/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "4.8.0",
++  "version": "4.8.1",
+   "private": true,
+   "type": "module",
+   "main": "index.ts",
+--- a/mobile/package-lock.json
++++ b/mobile/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "4.8.0",
++  "version": "4.8.1",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-mobile",
+-      "version": "4.8.0",
++      "version": "4.8.1",
+       "dependencies": {
+         "expo": "~58.0.21",
+         "expo-audio": "58.0.11",
+--- a/mobile/app.json
++++ b/mobile/app.json
+@@ -6,12 +6,12 @@
+       "ios",
+       "android"
+     ],
+-    "version": "4.8.0",
++    "version": "4.8.1",
+     "orientation": "default",
+     "userInterfaceStyle": "automatic",
+     "ios": {
+       "bundleIdentifier": "local.gympass.controlacceso.mobile",
+-      "buildNumber": "4800",
++      "buildNumber": "4801",
+       "supportsTablet": true,
+       "infoPlist": {
+         "NSLocalNetworkUsageDescription": "GymPASS se conecta con la computadora de la misma red Wi-Fi para registrar accesos.",
+@@ -24,7 +24,7 @@
+     },
+     "android": {
+       "package": "local.gympass.controlacceso.mobile",
+-      "versionCode": 4800,
++      "versionCode": 4801,
+       "permissions": [
+         "android.permission.CAMERA"
+       ],
+--- a/mobile/src/GympassApp.tsx
++++ b/mobile/src/GympassApp.tsx
+@@ -347,7 +347,7 @@
+             ref={web}
+             source={{ uri: DEFAULT_SERVER }}
+             style={{ flex: 1, backgroundColor: palette.surface }}
+-            applicationNameForUserAgent="GymPASS-Android/4.8.0"
++            applicationNameForUserAgent="GymPASS-Android/4.8.1"
+             originWhitelist={['*']}
+             onShouldStartLoadWithRequest={(request) => {
+               if (isGympassUrl(request.url) || request.url === 'about:blank') return true;
+--- a/mobile/src/ScanFeedback.tsx
++++ b/mobile/src/ScanFeedback.tsx
+@@ -1,4 +1,4 @@
+-import { neonGreen } from '../../lib/theme';
++import { oliveGreen } from '../../lib/theme';
+ import { useEffect, useRef, useState } from 'react';
+ import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View, Image } from 'react-native';
+ import Svg, { Circle, Path } from 'react-native-svg';
+@@ -14,7 +14,7 @@
+   onDismiss: () => void;
+   compact?: boolean;
+ }) {
+-  const foreground = event.allowed ? '#000000' : '#ffffff';
++  const foreground = '#ffffff';
+   const styles = createStyles(foreground);
+   const opacity = useRef(new Animated.Value(0)).current;
+   const scale = useRef(new Animated.Value(0.97)).current;
+@@ -61,7 +61,7 @@
+       accessibilityLiveRegion="polite"
+       style={[
+         styles.overlay,
+-        { backgroundColor: event.allowed ? neonGreen : presentation.color, opacity, transform: [{ scale }] },
++        { backgroundColor: event.allowed ? oliveGreen : presentation.color, opacity, transform: [{ scale }] },
+         compact && styles.compact,
+       ]}
+     >
+@@ -108,7 +108,7 @@
+       height={size}
+       viewBox="0 0 24 24"
+       fill="none"
+-      stroke={allowed ? '#000000' : '#ffffff'}
++      stroke={'#ffffff'}
+       strokeWidth={2}
+       strokeLinecap="round"
+       strokeLinejoin="round"
+--- a/mobile/tests/theme.test.ts
++++ b/mobile/tests/theme.test.ts
+@@ -17,7 +17,7 @@
+   }
+ });
+ 
+-test('acciones y formularios nativos invierten blanco y negro y conservan verde con texto negro', t => {
++test('acciones y formularios nativos recuperan sus superficies y conservan botones oliva con texto blanco', t => {
+   const h = harness(); t.after(() => h.cleanup());
+   let theme: ThemeMode = 'light';
+   const ui = h.load('../src/ui.tsx', {
+@@ -27,14 +27,14 @@
+   for (const mode of ['light', 'dark'] as const) {
+     theme = mode;
+     const action = h.render(() => ui.Action({ label: 'Guardar', onPress() {} }));
+-    assert.equal(action.props.style({ pressed: false })[1].backgroundColor, '#b6ff00');
+-    assert.equal(find(action, e => e.type === 'Text').props.style.color, '#000000');
++    assert.equal(action.props.style({ pressed: false })[1].backgroundColor, '#636b2f');
++    assert.equal(find(action, e => e.type === 'Text').props.style.color, '#ffffff');
+     const secondary = h.render(() => ui.Action({ label: 'Consultar', onPress() {}, secondary: true }));
+-    assert.equal(secondary.props.style({ pressed: false })[1].backgroundColor, mode === 'light' ? '#000000' : '#ffffff');
++    assert.equal(secondary.props.style({ pressed: false })[1].backgroundColor, mode === 'light' ? '#ffffff' : '#111111');
+     const tree = h.render(() => ui.Input({ label: 'Nombre', value: 'Ana', onChangeText() {} }));
+     const input = find(tree, e => e.type === 'TextInput');
+-    assert.equal(input.props.style.color, mode === 'light' ? '#000000' : '#ffffff');
+-    assert.equal(input.props.style.backgroundColor, mode === 'light' ? '#ffffff' : '#101010');
++    assert.equal(input.props.style.color, mode === 'light' ? '#1b2733' : '#ffffff');
++    assert.equal(input.props.style.backgroundColor, mode === 'light' ? '#ffffff' : '#111111');
+   }
+ });
+ 
+--- a/mobile/tests/scan-feedback.test.ts
++++ b/mobile/tests/scan-feedback.test.ts
+@@ -25,7 +25,7 @@
+   h.render(() => Feedback({ event, detail: allowed ? 'Acceso autorizado' : 'Permiso vencido', onDismiss: () => { dismissed = true; } }));
+   let tree = await h.settle();
+   assert.match(textOf(tree), allowed ? /Entrada registrada/ : /Acceso denegado/);
+-  assert.equal(tree.props.style[1].backgroundColor, allowed ? '#b6ff00' : '#b3261e');
++  assert.equal(tree.props.style[1].backgroundColor, allowed ? '#636b2f' : '#b3261e');
+   assert.equal(steps[0][0].duration, reduced ? 0 : 180);
+   assert.equal(steps[1].delay, reduced ? 4000 : 3520);
+   assert.equal(steps[2].duration, reduced ? 0 : 300);
+--- a/tests/appearance-theme.test.ts
++++ b/tests/appearance-theme.test.ts
+@@ -30,21 +30,16 @@
+       notify() {},
+     }),
+   );
+-  const select = findElement(tree, (element) => element.type === 'select' && element.props.value === 'light');
+-  const options = select.props.children;
+-  assert.deepEqual(
+-    Array.from(options, (option: any) => [option.props.value, elementText(option)]),
+-    [
+-      ['light', 'Claro'],
+-      ['dark', 'Oscuro'],
+-    ],
+-  );
++  const light = findElement(tree, element => element.type === 'button' && elementText(element).startsWith('Claro'));
++  const dark = findElement(tree, element => element.type === 'button' && elementText(element).startsWith('Oscuro'));
++  assert.equal(light.props['aria-pressed'], true);
++  assert.equal(dark.props['aria-pressed'], false);
+   assert.doesNotMatch(
+     elementText(tree),
+     /Marca de la organización|Elige un acento|Color personalizado|Guardar apariencia/,
+   );
+   assert.throws(() => findElement(tree, (element) => element.type === 'input' && element.props.type === 'color'));
+-  select.props.onChange({ target: { value: 'dark' } });
++  dark.props.onClick();
+   assert.deepEqual(changes, []);
+   const edited = await h.settle();
+   findElement(edited, (element) => element.type === 'button' && elementText(element) === 'Guardar cambios').props.onClick();
+--- a/tests/release-version.test.ts
++++ b/tests/release-version.test.ts
+@@ -2,14 +2,14 @@
+ import { test } from 'node:test';
+ import { readFile } from 'node:fs/promises';
+ 
+-test('web, Android y Windows usan 4.8.0', async () => {
++test('web, Android y Windows usan 4.8.1', async () => {
+   for (const path of ['package.json', 'desktop/package.json', 'desktop-runtime/package.json']) {
+     const manifest = JSON.parse(await readFile(new URL('../' + path, import.meta.url), 'utf8'));
+-    assert.equal(manifest.version, '4.8.0', path);
++    assert.equal(manifest.version, '4.8.1', path);
+   }
+   const app = JSON.parse(await readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'));
+-  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '4.8.0');
+-  assert.equal(app.expo.version, '4.8.0');
+-  assert.equal(app.expo.android.versionCode, 4800);
+-  assert.equal(app.expo.ios.buildNumber, '4800');
++  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '4.8.1');
++  assert.equal(app.expo.version, '4.8.1');
++  assert.equal(app.expo.android.versionCode, 4801);
++  assert.equal(app.expo.ios.buildNumber, '4801');
+ });
+--- a/lib/branding.ts
++++ b/lib/branding.ts
+@@ -11,8 +11,8 @@
+ ] as const;
+ 
+ export const brandPreviewThemes = [
+-  { id: 'light', label: 'Claro', background: '#ffffff', surface: '#ffffff', ink: '#000000' },
+-  { id: 'dark', label: 'Oscuro', background: '#000000', surface: '#101010', ink: '#ffffff' },
++  { id: 'light', label: 'Claro', background: '#f3f5f8', surface: '#ffffff', ink: '#1b2733' },
++  { id: 'dark', label: 'Oscuro', background: '#000000', surface: '#111111', ink: '#ffffff' },
+ ] as const;
+ 
+ export function contrast(a: string, b: string) {

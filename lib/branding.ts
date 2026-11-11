@@ -11,8 +11,8 @@ export const brandPresets = [
 ] as const;
 
 export const brandPreviewThemes = [
-  { id: 'light', label: 'Claro', background: '#ffffff', surface: '#ffffff', ink: '#000000' },
-  { id: 'dark', label: 'Oscuro', background: '#000000', surface: '#101010', ink: '#ffffff' },
+  { id: 'light', label: 'Claro', background: '#f3f5f8', surface: '#ffffff', ink: '#1b2733' },
+  { id: 'dark', label: 'Oscuro', background: '#000000', surface: '#111111', ink: '#ffffff' },
 ] as const;
 
 export function contrast(a: string, b: string) {

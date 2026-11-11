@@ -104,8 +104,10 @@
   background: var(--surface-2);
   color: var(--ink);
 }
-.sidebar-collapsed .sidebar .brand-text {
-  display: none;
+@media (min-width: 851px) {
+  .sidebar-collapsed .sidebar .sidebar-brand {
+    display: none;
+  }
 }
 
 /* ---- Top bar ---- */
