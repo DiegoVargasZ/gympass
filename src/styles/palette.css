@@ -97,6 +97,7 @@
   color: var(--on-brand);
 }
 .app-shell .mobile-navigation svg { color: currentColor; }
+.digital-card .card-brand { color: var(--on-chrome); --ink-2: var(--chrome-muted); }
 .access-result.queued, .kiosk-result.queued { --result-ink: var(--result-queued-ink); color: var(--result-ink); }
 :root {
   --nav-bg: var(--chrome);
