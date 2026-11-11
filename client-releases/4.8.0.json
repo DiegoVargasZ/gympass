@@ -1,6 +1,6 @@
 {
   "version": "4.8.0",
-  "build_source_commit": "4f92bf4cb045c2b3a3b76e6be39d5096372719c4",
+  "build_source_commit": "0b5da37f77c60159b17bb0adb320e7c7b6e4db58",
   "build_method": "local-windows",
   "android": {
     "version_code": 4800,
@@ -30,6 +30,7 @@
     "desktop_tests": 561,
     "browser_theme_views_checked": 52,
     "browser_forms_and_popovers": true,
+    "digital_card_contrast": true,
     "native_theme_sync": true,
     "phone_physically_tested": false
   },
@@ -39,14 +40,14 @@
       "bytes": 63390804
     },
     "GymPASS-Portable-4.8.0.exe": {
-      "sha256": "78aced67a1b3b7abe5c441e78031dd72888deb5465346f46cf52fea54046169b",
-      "bytes": 134226121
+      "sha256": "8a180b416a2747958792b017ed252959ff343b1fb17c13b18a4e2eb674b5e263",
+      "bytes": 134492659
     },
     "GymPASS-Setup-4.8.0.exe": {
-      "sha256": "895148a28dda8046d7e4941bd27ed2d88efd47b5d867b1cdbd1a5443ad49ae14",
-      "bytes": 134479918
+      "sha256": "6a6dc6448b43e14cc16703ca0194d55fdcba8095a16fd4d28e5693cd6baa6773",
+      "bytes": 134746459
     }
   },
   "native_patch_sha256": "831fe07d7a8e9f0433e68e069d2b2ab3bbb04db8767ec22d1a07d54632f12cab",
-  "web_source_sha256": "d3d83f82a2941638ffafeb42baa715d20eedafc05bc277a707d0eb5be7a16c3d"
+  "web_source_sha256": "233036914e79883354a823c71061d749db0292eaa084156d806a2dd42a2afbc3"
 }
