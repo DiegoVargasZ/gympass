@@ -1,0 +1,67 @@
+{
+  "version": "4.7.0",
+  "android": {
+    "version_code": 4700,
+    "package": "local.gympass.controlacceso.mobile",
+    "certificate_sha256": "a6735a9d424cb835fac4e5ca05f08df8cd9bd9007bdb8cf32f4fa42492187ded",
+    "smoke_passed": true,
+    "cold_starts": 2,
+    "upgraded_from": "4.6.0",
+    "restored_reader_session": true,
+    "android_tested": "17",
+    "page_size": 16384
+  },
+  "windows": {
+    "smoke_passed": true,
+    "mode": "linked-replica-with-stalled-network",
+    "qr_access_api_confirmed": true,
+    "sync_recovered": true,
+    "code_signed": false,
+    "package_smoke_passed": true,
+    "portable_smoke_passed": true,
+    "setup_payload_verified": true,
+    "electron_version": "45.0.0",
+    "architecture": "x64",
+    "minimum_os": "Windows 10",
+    "package_bootstrap_ms": 7,
+    "local_service_sha256": "b6975b97e919ee44a365ee6f51409d1a8caf83d4463238ff549c5a0ebb746813",
+    "local_server_source_sha256": "f53adadce8ec3054b66f25e73abc68c774573db3ddf36f00a030c79bdd20aa0e"
+  },
+  "verification": {
+    "web_checks": 59,
+    "web_tests": 51,
+    "mobile_tests": 68,
+    "desktop_tests": 560,
+    "linux_workflow": "https://github.com/DiegoVargasZ/gympass/actions/runs/42942443363",
+    "phone_physically_tested": false
+  },
+  "files": {
+    "GymPASS-Android-4.7.0.apk": {
+      "sha256": "20b9b4448ee9ed0b5f08d4ba4a10d76f94aac65c8c7c9dfc18c3388055ae0705",
+      "bytes": 63386044
+    },
+    "GymPASS-Portable-4.7.0.exe": {
+      "sha256": "b9017112b2bf8514baac29f9a879faec8d2d66f9a9537284e750a56ad3641342",
+      "bytes": 126350447
+    },
+    "GymPASS-Setup-4.7.0.exe": {
+      "sha256": "c012017714cb7c87393f2e3fd9404dd11b56c902ad630876ca226568e7789978",
+      "bytes": 126604247
+    }
+  },
+  "build_source_commit": "e9f546deb2e5815732a8d9573a03f5a277bd600d",
+  "build_method": "local-windows",
+  "client_source_sha256": {
+    "package.json": "f55d745ff955e1d80dda86fc48bfe14747dabd536a0c5458d6a070e34750c98c",
+    "package-lock.json": "86f2eb9f578fce396bb547633709c634a15afcb9d61ad12610f2ed0acbb72dc6",
+    "mobile/package.json": "42a6df827ca842ef6ffdbeb64eeb2d5450ad74d384c0aa650db465206fcdd574",
+    "mobile/package-lock.json": "80867de4bc4dacaec1fd3573001eba65d61d99e6adf7a47aaf3e282d54c697c4",
+    "mobile/app.json": "0ee67bd68d54b8cf7e365c2f1550272cc1460a5ba116f84e6f6e4e983bde0fa5",
+    "mobile/src/GympassApp.tsx": "f8249dd327868f4c145d3e8715365ed680ea713c1a81bb044306e23b89d518da",
+    "desktop/package.json": "1c24c0e078130f5d218052b24976f6077d0b04e600048c75b8b0a14d851d1cca",
+    "desktop/main.cjs": "59939b5b964dcd855dc28bfc4757dd035680294d55e6d88d64284c5ad79aff99",
+    "desktop/builder.cjs": "3ae36e0d5d3bc8d4e4015b2f5a7fafe9bb22ea97d9c56fb4a901bac53c4c0d3f",
+    "server/index.ts": "f53adadce8ec3054b66f25e73abc68c774573db3ddf36f00a030c79bdd20aa0e",
+    "tests/release-version.test.ts": "42a47f1046aba9b0f25760294d3714541ddbdf680ab6866422841399efe78b6f"
+  }
+}
