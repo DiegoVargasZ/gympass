@@ -1,0 +1,51 @@
+{
+  "version": "4.8.1",
+  "build_source_commit": "d01f0c5f3a60cbe5191b66de72651d517e29356d",
+  "build_method": "local-windows",
+  "android": {
+    "version_code": 4801,
+    "package": "local.gympass.controlacceso.mobile",
+    "certificate_sha256": "a6735a9d424cb835fac4e5ca05f08df8cd9bd9007bdb8cf32f4fa42492187ded",
+    "smoke_passed": true,
+    "cold_starts": 2,
+    "restored_reader_session": true,
+    "theme_switch_smoke_passed": true,
+    "restored_theme_after_restart": true,
+    "android_tested": "17",
+    "page_size": 16384
+  },
+  "windows": {
+    "package_smoke_passed": true,
+    "portable_smoke_passed": true,
+    "setup_payload_verified": true,
+    "code_signed": false,
+    "electron_version": "45.0.0",
+    "architecture": "x64",
+    "minimum_os": "Windows 10"
+  },
+  "verification": {
+    "web_checks": 60,
+    "web_tests": 72,
+    "mobile_tests": 71,
+    "desktop_tests": 561,
+    "browser_theme_views_checked": 24,
+    "native_theme_sync": true,
+    "phone_physically_tested": false
+  },
+  "files": {
+    "GymPASS-Android-4.8.1.apk": {
+      "sha256": "6165a7ff3863c0a985e95b548e77c8f27341e82debc3ba7ed3078982099c17bb",
+      "bytes": 63390828
+    },
+    "GymPASS-Portable-4.8.1.exe": {
+      "sha256": "247695d422778ba8e3c4c17cb9bb72358f82f63050521a629346ad07cb571d0f",
+      "bytes": 134740622
+    },
+    "GymPASS-Setup-4.8.1.exe": {
+      "sha256": "92a38b0e522326ca5a6510247d38171710915f0784fdd1440871c7b8dea1e7c3",
+      "bytes": 134994426
+    }
+  },
+  "native_patch_sha256": "4476df41ed292d09c87dfd71eeecc34aeed6b8ce353573cd1ae59b4838eff49e",
+  "web_source_sha256": "ec1a405a4f72b0e52f30c320f48017046b522f64bd4448eb1c6de2392632cad0"
+}
