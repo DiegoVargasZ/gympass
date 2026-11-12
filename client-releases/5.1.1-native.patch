@@ -12841,3 +12841,17 @@ index fcfc3de..e9198dd 100644
 +  assert.equal(preferences.accent, '#2455a4');
 +  assert.match(elementText(tree), /Cambios guardados en este navegador/);
 +});
+diff --git a/mobile/README.md b/mobile/README.md
+--- a/mobile/README.md
++++ b/mobile/README.md
+@@ -1,8 +1,8 @@
+-# GymPASS Android 5.1.0
++# GymPASS Android 5.1.1
+ 
+ La gestión para administradores incluye la interfaz en el APK y guarda socios, caja, productos, planes, credenciales, accesos, imágenes, configuración e informes en SQLite. La primera vinculación necesita Internet; después se puede abrir la gestión sin red y sincronizar automáticamente al reconectar o volver a la aplicación. Se conservan siete días de autorización local y los conflictos requieren revisión sin sobrescribir los pendientes.
+ 
+-Las cuentas centrales, las contraseñas, el personal y los respaldos del servidor siguen necesitando Internet. Las cuentas de recepción conservan el lector y sus consultas. Instala esta versión sobre la anterior para mantener los datos; no borres la aplicación. Versión 5.1.0 y compilación Android 5100.
++Las cuentas centrales, las contraseñas, el personal y los respaldos del servidor siguen necesitando Internet. Las cuentas de recepción conservan el lector y sus consultas. Instala esta versión sobre la anterior para mantener los datos; no borres la aplicación. Versión 5.1.1 y compilación Android 5110.
+ 
+ La compilación `scripts/build-android.ps1` prepara la interfaz con `../scripts/build-mobile-web.mjs` antes de generar y firmar el APK. Los recursos se sirven únicamente a la vista local y las operaciones se atienden en la sesión SQLite vinculada.
+ 

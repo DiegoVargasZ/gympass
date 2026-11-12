@@ -1,4 +1,4 @@
-# GymPASS 5.1.0
+# GymPASS 5.1.1
 
 Plataforma para socios, planes, caja y control de acceso. La web, Android y Windows se publican con la misma versión.
 
