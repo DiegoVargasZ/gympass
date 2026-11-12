@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { isNaturalVoice, recordedAccessVoice, voiceGender, voiceIdentity, voiceRateLimits } from '../lib/access-feedback';
+import { accentButtonColor, accentPresets } from '../lib/accent';
 import { findGympassVoice, gympassVoiceId, gympassVoices } from '../lib/voice-catalog';
 import { Field } from './ui';
 import { usePreferences, updatePreferences, type Preferences } from './preferences';
@@ -81,14 +82,17 @@ export default function Appearance() {
       : gympassVoice && played === 'device' ? 'No se pudo cargar esta voz. Se usó una voz del dispositivo.' : '');
   };
   return (
-    <section className="panel padded appearance-panel">
+    <section
+      className="panel padded appearance-panel"
+      style={{ '--brand-base': accentButtonColor(draft.accent) } as CSSProperties}
+    >
       <fieldset className="appearance-themes">
         <legend>Tema de la interfaz</legend>
         <p className="helper">Elige cómo quieres ver GymPASS en este dispositivo.</p>
         <div className="appearance-theme-options">
           {([
             ['light', 'Claro', 'Superficies claras y fondo suave.'],
-            ['dark', 'Oscuro', 'Fondos negros y superficies discretas.'],
+            ['dark', 'Oscuro', 'Fondos grises oscuros y superficies suaves.'],
           ] as const).map(([theme, label, description]) => (
             <button
               key={theme}
@@ -109,7 +113,32 @@ export default function Appearance() {
             </button>
           ))}
         </div>
-        <p className="appearance-accent"><span aria-hidden="true" />Verde oliva en los botones de ambos temas.</p>
+      </fieldset>
+      <fieldset className="appearance-accent-picker">
+        <legend>Color de acento</legend>
+        <p className="helper">Se usa en los botones, el menú activo y los enlaces de este dispositivo, en ambos temas.</p>
+        <div className="appearance-accent-options">
+          {accentPresets.map((preset) => (
+            <button
+              key={preset.color}
+              type="button"
+              className="appearance-accent-swatch"
+              style={{ background: preset.color }}
+              aria-label={preset.name}
+              title={preset.name}
+              aria-pressed={draft.accent === preset.color}
+              onClick={() => edit({ accent: preset.color })}
+            />
+          ))}
+          <label className="appearance-accent-custom">
+            Otro color
+            <input
+              type="color"
+              value={draft.accent}
+              onChange={(event) => edit({ accent: event.target.value })}
+            />
+          </label>
+        </div>
       </fieldset>
       <div className="form-grid appearance-density">
         <Field label="Densidad de las tablas" hint="Se recuerda para tu usuario en este navegador.">

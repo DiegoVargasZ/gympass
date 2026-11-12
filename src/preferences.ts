@@ -1,9 +1,12 @@
 import { useSyncExternalStore } from 'react';
+import { accentProperties, accentTokens, defaultAccent, normalizeAccent } from '../lib/accent';
 import { defaultVoiceSettings, normalizeVoiceSettings, recordedAccessVoice, type VoiceSettings } from '../lib/access-feedback';
 
 export type Preferences = VoiceSettings & {
   theme: 'light' | 'dark';
   density: 'comfortable' | 'compact';
+  /** Color de los botones y del menú activo en este dispositivo. */
+  accent: string;
   sound: boolean;
   vibration: boolean;
 };
@@ -12,7 +15,7 @@ const preferencesVersion = 4;
 let user = '';
 const listeners = new Set<() => void>();
 function load(): Preferences {
-  const defaults: Preferences = { theme: 'light', density: 'comfortable', sound: false, vibration: false, ...defaultVoiceSettings, voiceURI: recordedAccessVoice };
+  const defaults: Preferences = { theme: 'light', density: 'comfortable', accent: defaultAccent, sound: false, vibration: false, ...defaultVoiceSettings, voiceURI: recordedAccessVoice };
   try {
     const saved = JSON.parse(localStorage.getItem(key) || '{}') || {};
     const theme =
@@ -24,6 +27,7 @@ function load(): Preferences {
     return {
       ...defaults,
       theme: theme === 'dark' ? 'dark' : 'light',
+      accent: normalizeAccent(saved.accent),
       sound: saved.sound === true,
       vibration: saved.vibration === true,
       ...normalizeVoiceSettings({
@@ -40,6 +44,12 @@ let preferences = load();
 export function applyPreferences() {
   document.documentElement.dataset.theme = preferences.theme;
   document.documentElement.dataset.density = preferences.density;
+  const accent = accentTokens(preferences.accent, preferences.theme);
+  const style = document.documentElement.style as CSSStyleDeclaration | undefined;
+  for (const name of accentProperties) {
+    if (accent) style?.setProperty(name, accent[name]);
+    else style?.removeProperty(name);
+  }
   document
     .querySelector('meta[name="theme-color"]')
     ?.setAttribute('content', preferences.theme === 'dark' ? '#1c2128' : '#ffffff');
@@ -57,7 +67,12 @@ export function setPreferencesUser(email: string) {
   listeners.forEach((listener) => listener());
 }
 export function updatePreferences(change: Partial<Preferences>) {
-  preferences = { ...preferences, ...change, ...normalizeVoiceSettings({ ...preferences, ...change }) };
+  preferences = {
+    ...preferences,
+    ...change,
+    ...normalizeVoiceSettings({ ...preferences, ...change }),
+    accent: normalizeAccent(change.accent ?? preferences.accent),
+  };
   let stored = true;
   try {
     localStorage.setItem(
@@ -65,6 +80,7 @@ export function updatePreferences(change: Partial<Preferences>) {
       JSON.stringify({
         version: preferencesVersion,
         theme: preferences.theme,
+        accent: preferences.accent,
         sound: preferences.sound,
         vibration: preferences.vibration,
         voiceURI: preferences.voiceURI,

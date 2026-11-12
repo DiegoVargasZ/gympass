@@ -105,20 +105,51 @@
   border-color: var(--brand-base);
   color: var(--on-brand);
 }
-.appearance-accent {
+.appearance-accent-picker {
+  min-width: 0;
+  margin: 24px 0;
+  padding: 0;
+  border: 0;
+}
+.appearance-accent-picker legend {
+  padding: 0;
+  font-size: 17px;
+  font-weight: 650;
+}
+.appearance-accent-picker > .helper { margin: 6px 0 14px; }
+.appearance-accent-options {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.appearance-accent-swatch {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border-strong);
+  cursor: pointer;
+}
+.appearance-accent-swatch[aria-pressed='true'] { box-shadow: 0 0 0 3px var(--brand-700); }
+.appearance-accent-swatch:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.appearance-accent-custom {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  margin: 16px 0 24px;
-  color: var(--muted);
+  margin-left: 6px;
   font-size: 13px;
 }
-.appearance-accent > span {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--brand-base);
+.appearance-accent-custom input {
+  width: 44px;
+  min-height: 36px;
+  height: 36px;
+  padding: 2px;
 }
 .appearance-density { max-width: 640px; }
 
