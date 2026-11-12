@@ -76,15 +76,14 @@ test('entrada y salida pronuncian el nombre con voz española y conservan la vib
   assert.deepEqual(f.tones, []);
 });
 
-test('los audios grabados distinguen entrada y salida sin añadir una voz sintetizada', async t => {
+test('los audios grabados distinguen el acceso permitido del denegado sin añadir una voz sintetizada', async t => {
   const f = fixture(t);
   const settings = { ...defaultVoiceSettings, voiceURI: recordedAccessVoice };
   assert.equal(await f.api.accessFeedback(true, true, false, 'entry', 'Ana', settings), 'recorded');
   assert.equal(await f.api.accessFeedback(true, true, false, 'exit', 'Ana', settings), 'recorded');
-  assert.deepEqual(f.tones, ['/sounds/entry-recorded.wav', '/sounds/exit-recorded.wav']);
+  assert.equal(await f.api.accessFeedback(false, true, false, 'entry', 'Ana', settings), 'recorded');
+  assert.deepEqual(f.tones, ['/sounds/allowed-recorded.wav', '/sounds/allowed-recorded.wav', '/sounds/denied-recorded.wav']);
   assert.deepEqual(f.spoken, []);
-  await f.api.accessFeedback(false, true, false, 'exit', 'Ana', settings);
-  assert.equal(f.tones.at(-1), '/sounds/denied.wav');
 });
 
 test('un audio grabado que llega tarde no tapa el último movimiento ni ignora el silencio', async t => {
@@ -92,10 +91,10 @@ test('un audio grabado que llega tarde no tapa el último movimiento ni ignora e
   const f = fixture(t, { recordingDelay: new Promise<void>(resolve => { ready = resolve; }) });
   const settings = { ...defaultVoiceSettings, voiceURI: recordedAccessVoice };
   const first = f.api.accessFeedback(true, true, false, 'entry', 'Ana', settings);
-  const last = f.api.accessFeedback(true, true, false, 'exit', 'Ana', settings);
+  const last = f.api.accessFeedback(false, true, false, 'exit', 'Ana', settings);
   ready();
   assert.deepEqual(await Promise.all([first, last]), ['none', 'recorded']);
-  assert.deepEqual(f.tones, ['/sounds/exit-recorded.wav']);
+  assert.deepEqual(f.tones, ['/sounds/denied-recorded.wav']);
   assert.equal(await f.api.accessFeedback(true, false, false, 'entry', 'Ana', settings), 'none');
   assert.deepEqual(f.spoken, []);
 });

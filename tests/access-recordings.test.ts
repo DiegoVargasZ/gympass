@@ -7,8 +7,8 @@ import { componentHarness } from './component-harness.ts';
 
 test('los dos audios proporcionados se distribuyen como WAV mono con el orden correcto', () => {
   for (const [name, hash] of [
-    ['entry-recorded', 'c6e877fc44ed2a5185590125ba9a73a8d22b08fd4a725c0da179613ee04349a7'],
-    ['exit-recorded', '68570a8d9b9a8db7159f5d46b6d1c7410763ed16475d949a8d4e89fa57249306'],
+    ['allowed-recorded', '68570a8d9b9a8db7159f5d46b6d1c7410763ed16475d949a8d4e89fa57249306'],
+    ['denied-recorded', 'c6e877fc44ed2a5185590125ba9a73a8d22b08fd4a725c0da179613ee04349a7'],
   ]) {
     const bytes = readFileSync(new URL(`../public/sounds/${name}.wav`, import.meta.url));
     assert.equal(createHash('sha256').update(bytes).digest('hex'), hash, name);

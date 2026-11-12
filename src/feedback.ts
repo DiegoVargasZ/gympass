@@ -148,7 +148,7 @@ export function prepareAudio() {
   try {
     context ||= new AudioContext();
     if (context.state === 'suspended') void context.resume().catch(() => {});
-    for (const name of ['entry', 'exit', 'denied', 'entry-recorded', 'exit-recorded']) void buffer(name).catch(() => {});
+    for (const name of ['entry', 'exit', 'denied', 'allowed-recorded', 'denied-recorded']) void buffer(name).catch(() => {});
   } catch {
     /* Audio is optional. */
   }
@@ -183,22 +183,20 @@ export async function accessFeedback(
   if (!sound) return 'none';
   prepareAudio();
   try {
-    if (allowed) {
-      const options = normalizeVoiceSettings(settings);
-      if (options.voiceURI === recordedAccessVoice) {
-        try {
-          const decoded = await buffer(recordedAccessSound(direction));
-          if (current === sequence && playBuffer(decoded)) return 'recorded';
-        } catch {
-          // Keep the original confirmation tone if a recording cannot be loaded.
-        }
-      } else {
-        const voice = findGympassVoice(options.voiceURI);
-        if (voice && await playGympassVoice(voice, feedbackAnnouncement(direction, personName), options.voiceRate, current, preview))
-          return 'gympass';
-        if (current !== sequence) return 'none';
-        if (await announce(direction, personName, current, options)) return current === sequence ? 'device' : 'none';
+    const options = normalizeVoiceSettings(settings);
+    if (options.voiceURI === recordedAccessVoice) {
+      try {
+        const decoded = await buffer(recordedAccessSound(allowed));
+        if (current === sequence && playBuffer(decoded)) return 'recorded';
+      } catch {
+        // Keep the original confirmation tone if a recording cannot be loaded.
       }
+    } else if (allowed) {
+      const voice = findGympassVoice(options.voiceURI);
+      if (voice && await playGympassVoice(voice, feedbackAnnouncement(direction, personName), options.voiceRate, current, preview))
+        return 'gympass';
+      if (current !== sequence) return 'none';
+      if (await announce(direction, personName, current, options)) return current === sequence ? 'device' : 'none';
     }
     if (current !== sequence || !context) return 'none';
     const decoded = await buffer(feedbackSound({ allowed: Number(allowed), direction }));

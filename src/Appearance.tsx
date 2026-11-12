@@ -36,7 +36,7 @@ export default function Appearance() {
   const recorded = draft.voiceURI === recordedAccessVoice;
   const selected = recorded || gympassVoice || voices.some((voice) => voiceIdentity(voice) === draft.voiceURI);
   const voiceHint = recorded
-    ? 'Tus grabaciones: el primer audio para la entrada y el segundo para la salida. Se reproducen sin añadir nombres.'
+    ? 'Tus grabaciones: «Acceso permitido» cuando el código es válido y «Acceso denegado» cuando no lo es o está vencido. Se reproducen sin añadir nombres.'
     : gympassVoice
     ? 'La primera prueba descarga unos 110 MB. Después, la voz se genera en este dispositivo.'
     : 'Elige una voz de GymPASS o usa las voces en español de tu dispositivo.';
@@ -69,16 +69,16 @@ export default function Appearance() {
     const voice = voices.find((choice) => voiceIdentity(choice) === id);
     changeVoice({ voiceURI: id, voiceGender: findGympassVoice(id)?.gender ?? (voice ? voiceGender(voice) : 'auto') });
   };
-  const preview = async (direction: 'entry' | 'exit') => {
+  const preview = async (direction: 'entry' | 'exit', allowed = true) => {
     const id = ++previewId.current;
     setTesting(true);
     setPreviewMessage(recorded ? 'Reproduciendo el audio…' : gympassVoice ? `Preparando la voz de ${gympassVoice.name}…` : 'Probando la voz…');
-    const played = await accessFeedback(true, true, false, direction, sampleName.trim() || 'María Pérez', draft, true);
+    const played = await accessFeedback(allowed, true, false, direction, sampleName.trim() || 'María Pérez', draft, true);
     if (id !== previewId.current) return;
     setTesting(false);
     setPreviewMessage(played === 'none' ? 'No se pudo reproducir el aviso. Comprueba el audio del dispositivo.'
       : played === 'tone' ? 'No se pudo reproducir el aviso seleccionado. Se usó el tono de confirmación.'
-      : played === 'recorded' ? `Audio de ${direction === 'exit' ? 'salida' : 'entrada'} reproducido.`
+      : played === 'recorded' ? `Audio de acceso ${allowed ? 'permitido' : 'denegado'} reproducido.`
       : gympassVoice && played === 'device' ? 'No se pudo cargar esta voz. Se usó una voz del dispositivo.' : '');
   };
   return (
@@ -177,7 +177,7 @@ export default function Appearance() {
         <div className="form-grid">
           <Field label="Voz de los avisos" hint={voiceHint}>
             <select value={selected ? draft.voiceURI : ''} onChange={(event) => selectVoice(event.target.value)}>
-              <option value={recordedAccessVoice}>Audios de entrada y salida</option>
+              <option value={recordedAccessVoice}>Audios de acceso permitido y denegado</option>
               <option value="">Automática (voz del dispositivo)</option>
               {voiceGroups.map(({ gender, label }) => (
                 <optgroup key={gender} label={label}>
@@ -205,8 +205,17 @@ export default function Appearance() {
           </Field>}
         </div>
         <div className="voice-preview-actions">
-          <button type="button" className="btn secondary" disabled={testing} onClick={() => void preview('entry')}>Probar entrada</button>
-          <button type="button" className="btn secondary" disabled={testing} onClick={() => void preview('exit')}>Probar salida</button>
+          {recorded ? (
+            <>
+              <button type="button" className="btn secondary" disabled={testing} onClick={() => void preview('entry')}>Probar acceso permitido</button>
+              <button type="button" className="btn secondary" disabled={testing} onClick={() => void preview('entry', false)}>Probar acceso denegado</button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="btn secondary" disabled={testing} onClick={() => void preview('entry')}>Probar entrada</button>
+              <button type="button" className="btn secondary" disabled={testing} onClick={() => void preview('exit')}>Probar salida</button>
+            </>
+          )}
           {testing && <button type="button" className="btn secondary" onClick={cancelPreview}>Detener prueba</button>}
         </div>
         {previewMessage && <p className="helper" role="status">{previewMessage}</p>}

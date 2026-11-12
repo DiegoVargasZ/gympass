@@ -81,9 +81,9 @@ test('Apariencia permite probar las grabaciones y oculta ajustes que sólo afect
     },
     './feedback': {
       subscribeAccessVoices: () => () => {}, prepareAudio() {}, prepareAccessVoice() {}, stopFeedback() {},
-      accessFeedback: async (_allowed: boolean, _sound: boolean, _vibration: boolean, direction: string, _name: string, settings: VoiceSettings) => {
+      accessFeedback: async (allowed: boolean, _sound: boolean, _vibration: boolean, _direction: string, _name: string, settings: VoiceSettings) => {
         assert.equal(settings.voiceURI, recordedAccessVoice);
-        calls.push(direction); return 'recorded';
+        calls.push(allowed ? 'allowed' : 'denied'); return 'recorded';
       },
     },
     './ui': { Field: 'Field' }, './styles/appearance.css': {},
@@ -93,10 +93,10 @@ test('Apariencia permite probar las grabaciones y oculta ajustes que sólo afect
   assert.equal(picker.props.value, recordedAccessVoice);
   assert.throws(() => findElement(tree, e => e.type === 'input' && e.props.type === 'range'));
   assert.throws(() => findElement(tree, e => e.type === 'Field' && e.props.label === 'Nombre para probar'));
-  for (const [direction, label] of [['entry', 'entrada'], ['exit', 'salida']]) {
-    findElement(tree, e => e.type === 'button' && elementText(e) === `Probar ${label}`).props.onClick();
+  for (const [result, label] of [['allowed', 'permitido'], ['denied', 'denegado']]) {
+    findElement(tree, e => e.type === 'button' && elementText(e) === `Probar acceso ${label}`).props.onClick();
     tree = await h.settle();
-    assert.equal(calls.at(-1), direction);
-    assert.match(elementText(tree), new RegExp(`Audio de ${label} reproducido`));
+    assert.equal(calls.at(-1), result);
+    assert.match(elementText(tree), new RegExp(`Audio de acceso ${label} reproducido`));
   }
 });
