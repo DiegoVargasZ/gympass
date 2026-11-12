@@ -12,7 +12,7 @@ export const brandPresets = [
 
 export const brandPreviewThemes = [
   { id: 'light', label: 'Claro', background: '#f3f5f8', surface: '#ffffff', ink: '#1b2733' },
-  { id: 'dark', label: 'Oscuro', background: '#000000', surface: '#111111', ink: '#ffffff' },
+  { id: 'dark', label: 'Oscuro', background: '#14181d', surface: '#1c2128', ink: '#e6eaef' },
 ] as const;
 
 export function contrast(a: string, b: string) {

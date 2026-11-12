@@ -42,7 +42,7 @@ export function applyPreferences() {
   document.documentElement.dataset.density = preferences.density;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', preferences.theme === 'dark' ? '#111111' : '#ffffff');
+    ?.setAttribute('content', preferences.theme === 'dark' ? '#1c2128' : '#ffffff');
 }
 export function setPreferencesUser(email: string) {
   user = email;

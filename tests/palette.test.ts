@@ -108,14 +108,23 @@ test('El acceso permitido es verde y el denegado rojo en ambos temas', () => {
   }
 });
 
-test('Oscuro: la estructura usa negro, blanco y grises y las acciones usan verde', () => {
-  for (const name of ['bg', 'surface', 'surface-2', 'ink', 'ink-2', 'muted', 'nav-bg', 'nav-text']) {
-    const value = dark[name];
-    const [r, g, b] = rgb(value);
-    assert.ok(r === g && g === b, `--${name}: ${value} no es monocromo`);
+test('Oscuro: la estructura usa grises suaves, sin negro ni blanco puros, y las acciones usan verde', () => {
+  // Negro puro con blanco puro cansa la vista: el fondo es un gris oscuro frío y el texto un blanco roto.
+  for (const name of ['bg', 'surface', 'surface-2', 'nav-bg']) {
+    const [r, g, b] = rgb(dark[name]);
+    assert.ok(Math.max(r, g, b) >= 0x10 && Math.max(r, g, b) <= 0x40, `--${name}: ${dark[name]} debe ser un gris oscuro`);
   }
-  assert.equal(dark.bg, '#000000');
-  assert.equal(dark.ink, '#ffffff');
+  assert.notEqual(dark.bg, '#000000');
+  assert.notEqual(dark.ink, '#ffffff');
+  // Las superficies se aclaran al elevarse, en vez de depender de sombras.
+  assert.ok(contrast(dark.surface, dark.bg) > 1 && contrast(dark['surface-2'], dark.surface) > 1);
+  for (const background of ['bg', 'surface', 'surface-2']) {
+    assert.ok(contrast(dark.ink, dark[background]) >= 7, `texto sobre --${background}`);
+    assert.ok(contrast(dark['ink-2'], dark[background]) >= 4.5, `texto secundario sobre --${background}`);
+  }
+  for (const state of ['ok', 'warn', 'danger', 'info', 'purple']) {
+    assert.ok(contrast(dark[state], dark[state + '-bg']) >= 4.5, `estado ${state}`);
+  }
   assert.ok(dark['brand-base'], 'El modo oscuro debe resolver también el color de las acciones');
   assert.ok(dark['on-brand']);
   assert.ok(contrast(dark['brand-base'], dark['on-brand']) >= 4.5);

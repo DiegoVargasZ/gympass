@@ -47,9 +47,9 @@
   background: var(--preview-bg);
 }
 .appearance-theme-preview.dark {
-  --preview-bg: #000000;
-  --preview-surface: #111111;
-  --preview-line: #707070;
+  --preview-bg: #14181d;
+  --preview-surface: #1c2128;
+  --preview-line: #363e49;
 }
 .appearance-preview-sidebar {
   display: grid;
