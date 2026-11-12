@@ -535,9 +535,9 @@
 }
 
 /* ---- Gym logo watermark ---- */
+/* No stacking context here: dialogs opened inside the workspace must still cover the sidebar and top bars. */
 .app-shell .workspace {
   position: relative;
-  isolation: isolate;
 }
 .gym-watermark {
   position: absolute;
