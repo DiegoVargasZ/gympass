@@ -5480,6 +5480,19 @@ index 91ab627..75905c9 100644
    "private": true,
    "type": "module",
    "main": "index.ts",
+diff --git a/mobile/src/GympassApp.tsx b/mobile/src/GympassApp.tsx
+index 1d20b29..80f1278 100644
+--- a/mobile/src/GympassApp.tsx
++++ b/mobile/src/GympassApp.tsx
+@@ -361,7 +361,7 @@ export default function GympassApp({ management }: { management?: Management } =
+             ref={web}
+             source={{ uri: management?.url || DEFAULT_SERVER }}
+             style={{ flex: 1, backgroundColor: palette.surface }}
+-            applicationNameForUserAgent="GymPASS-Android/5.1.0"
++            applicationNameForUserAgent="GymPASS-Android/5.1.1"
+             originWhitelist={['*']}
+             onShouldStartLoadWithRequest={(request) => {
+               if ((management ? request.url.startsWith(management.url) : isGympassUrl(request.url)) || request.url === 'about:blank') return true;
 diff --git a/mobile/src/access-sounds.ts b/mobile/src/access-sounds.ts
 index 0aa0c72..2fcf179 100644
 --- a/mobile/src/access-sounds.ts
@@ -5514,6 +5527,25 @@ index 0aa0c72..2fcf179 100644
          await player.seekTo(0);
          if (!active.current || current !== sequence.current) return;
          player.volume = 1;
+diff --git a/mobile/src/offline.ts b/mobile/src/offline.ts
+index ee72119..b726ccc 100644
+--- a/mobile/src/offline.ts
++++ b/mobile/src/offline.ts
+@@ -328,12 +328,12 @@ export class MobileReplica {
+       }
+       if (first === 'health') return { data: { ok: true, mode: 'mobile', offline: !this.online } };
+       if (first === 'auth' && id === 'status') return { data: { setupRequired: false, user: this.session.user } };
+-      if (first === 'system-info') return { data: { version: '5.1.0', desktop: false, mode: 'mobile' } };
++      if (first === 'system-info') return { data: { version: '5.1.1', desktop: false, mode: 'mobile' } };
+       if (first === 'bootstrap') {
+         let maintain = true; try { this.writable(); } catch { maintain = false; }
+         const data = await s.bootstrap({ compact: url.searchParams.get('compact') === '1', maintain });
+         if (maintain) { this.state.last_clock = Math.max(this.state.last_clock, Date.now()); await this.save(); }
+-        return { data: { ...data, version: '5.1.0', replica: { linked: true }, platform: { gym_id: this.session.gym_id, gym_name: data.settings!.name, support: false, superadmin: false, read_only: !maintain } } };
++        return { data: { ...data, version: '5.1.1', replica: { linked: true }, platform: { gym_id: this.session.gym_id, gym_name: data.settings!.name, support: false, superadmin: false, read_only: !maintain } } };
+       }
+       if (first === 'members' && method === 'GET') return { data: await s.all('SELECT user_id id,email,name,role,active FROM members') };
+       if (first === 'branding' && !id && method === 'GET') return { data: await s.one('SELECT name,brand_color,logo_path FROM settings WHERE id=1') };
 diff --git a/mobile/tests/access-sounds.test.ts b/mobile/tests/access-sounds.test.ts
 index 46a5c17..8c179b6 100644
 --- a/mobile/tests/access-sounds.test.ts
