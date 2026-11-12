@@ -1117,7 +1117,7 @@ export class Service {
       FROM sequenced WHERE direction='entry' AND local_date BETWEEN ? AND ?
         AND (?='' OR person_id=?)
         AND (?='' OR instr(search_fold(person_name),?)>0 OR EXISTS (
-          SELECT 1 FROM people p WHERE p.id=sequenced.person_id AND instr(search_fold(p.document),?)>0))
+          SELECT 1 FROM people p WHERE p.id=sequenced.person_id AND search_fold(p.document)=?))
         AND (?='all' OR (?='open' AND (next_direction IS NULL OR next_direction!='exit'))
           OR (?='closed' AND next_direction='exit'))
       ORDER BY occurred_at DESC,id DESC LIMIT 10001`,

@@ -15,10 +15,12 @@ import {
 import './styles/gym-visits.css';
 
 export default function GymVisits({ data, notify }: { data: Bootstrap; notify: Notify }) {
-  const initialPerson = new URLSearchParams(location.hash.split('?')[1]).get('person') || '';
+  const initial = new URLSearchParams(location.hash.split('?')[1]);
+  const initialPerson = initial.get('person') || '';
   const [filters, setFilters] = useState({ from: data.today, to: data.today });
   const [query, setQuery] = useState(new URLSearchParams({ ...filters, person: initialPerson }).toString());
-  const [search, setSearch] = useState('');
+  // El perfil de un socio enlaza aquí con su documento ya escrito en el buscador.
+  const [search, setSearch] = useState(() => (initial.get('q') || '').slice(0, 120));
   const [state, setState] = useState<GymSessionState>('all');
   const [view, setView] = useState<'visits' | 'hours'>('visits');
   const [rows, setRows] = useState<GymSession[]>([]);

@@ -747,7 +747,7 @@ export default function People({
               Credencial QR
             </button>
           )}
-          <a className="link-action" href={'#attendance?person=' + encodeURIComponent(person.id)}>
+          <a className="link-action" href={'#attendance?q=' + encodeURIComponent(person.document)}>
             Tiempo en el gimnasio
           </a>
           <a className="link-action" href={'#history?q=' + encodeURIComponent(person.document)}>

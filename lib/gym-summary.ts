@@ -25,7 +25,8 @@ export function filterGymSessions(rows: readonly GymSession[], filters: GymSessi
       (!filters.from || row.local_date >= filters.from) &&
       (!filters.to || row.local_date <= filters.to) &&
       (!filters.person || row.person_id === filters.person) &&
-      (searchFold(row.person_name).includes(query) || searchFold(row.document).includes(query)) &&
+      // El nombre admite fragmentos; el documento se compara completo para no mezclar socios.
+      (searchFold(row.person_name).includes(query) || searchFold(row.document) === query) &&
       (!filters.state ||
         filters.state === 'all' ||
         (filters.state === 'open' ? row.exit_at === null : row.exit_at !== null)),
