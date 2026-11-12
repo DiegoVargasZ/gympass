@@ -4,6 +4,7 @@ import type { SqliteDatabase } from "./database.ts";
 import { Backups } from "./backups.ts";
 import { ApiError, hash } from "../lib/service.ts";
 import {
+  upgradeAppearanceSnapshot,
   syncChanges,
   validSyncSnapshot,
   mappedSyncPatch,
@@ -76,7 +77,10 @@ export class ReplicaClient {
     const row = this.db.raw
       .prepare("SELECT state FROM replica_state WHERE id=1")
       .get();
-    return row ? JSON.parse(String(row.state)) : null;
+    if (!row) return null;
+    const state = JSON.parse(String(row.state)) as State;
+    state.base = upgradeAppearanceSnapshot(state.base);
+    return state;
   }
   private save(state: State) {
     this.db.raw
@@ -161,6 +165,8 @@ export class ReplicaClient {
     )
       throw new ApiError(400, "Usa el origen HTTPS del servidor central.");
     let response: Response;
+    const connectionAbort = new AbortController();
+    const connectionDeadline = setTimeout(() => connectionAbort.abort(), 8000);
     try {
       response = await fetch(server + "/api/" + path, {
         method,
@@ -168,6 +174,7 @@ export class ReplicaClient {
         signal: AbortSignal.any([
           AbortSignal.timeout(120000),
           this.syncAbort.signal,
+          connectionAbort.signal,
         ]),
         headers: {
           "Content-Type": "application/json",
@@ -182,7 +189,7 @@ export class ReplicaClient {
         503,
         "Sin Internet. La copia local sigue disponible; se reintentará automáticamente.",
       );
-    }
+    } finally { clearTimeout(connectionDeadline); }
     this.online = true;
     const data = await response.json().catch(() => null);
     if (!response.ok || !data)
@@ -304,6 +311,8 @@ export class ReplicaClient {
     return { linked: true, user: snapshot.user };
   }
   private install(snapshot: SyncSnapshot, state: State) {
+    snapshot = upgradeAppearanceSnapshot(snapshot);
+    state = { ...state, base: upgradeAppearanceSnapshot(state.base) };
     validSyncSnapshot(snapshot, snapshot.gym_id, snapshot.user.id);
     const raw = this.db.raw;
     const triggers = raw
@@ -554,7 +563,7 @@ export class ReplicaClient {
       this.stopped = false;
       this.syncAbort = new AbortController();
     }
-    this.timer = setInterval(() => void this.synchronize(), 30000);
+    this.timer = setInterval(() => void this.synchronize(), 10000);
     this.timer.unref();
     if (this.linked) void this.synchronize();
   }

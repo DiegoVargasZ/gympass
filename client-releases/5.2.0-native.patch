@@ -1,0 +1,2637 @@
+diff --git a/desktop/main.cjs b/desktop/main.cjs
+index 7706bc8..f7d6f5b 100644
+--- a/desktop/main.cjs
++++ b/desktop/main.cjs
+@@ -464,7 +464,7 @@ async function showRemoteOffline() {
+   });
+   window.setTitle('GymPASS · Sin conexión con el servidor central');
+   clearTimeout(remoteRetry);
+-  if (!stopping) remoteRetry = setTimeout(() => void connectRemote(), 5000);
++  if (!stopping) remoteRetry = setTimeout(() => void connectRemote(), 10000);
+ }
+ 
+ async function connectRemote() {
+diff --git a/desktop/package.json b/desktop/package.json
+index d30b5b5..f055c44 100644
+--- a/desktop/package.json
++++ b/desktop/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "gympass-desktop",
+   "productName": "GymPASS",
+-  "version": "5.1.1",
++  "version": "5.2.0",
+   "description": "Entradas, salidas y tiempos de permanencia para gimnasios",
+   "author": "GymPASS",
+   "license": "UNLICENSED",
+diff --git a/desktop/remote.cjs b/desktop/remote.cjs
+index b329a54..be9dd02 100644
+--- a/desktop/remote.cjs
++++ b/desktop/remote.cjs
+@@ -32,12 +32,12 @@ function normalizeRemoteServer(value) {
+ 
+ function readRemoteConfiguration(directory, environment = process.env) {
+   if (environment.GYMPASS_SERVER_URL)
+-    return { mode: 'remote', server: normalizeRemoteServer(environment.GYMPASS_SERVER_URL) };
++    return { mode: 'replica', server: normalizeRemoteServer(environment.GYMPASS_SERVER_URL), work: 'server' };
+   try {
+     const value = JSON.parse(readFileSync(join(directory, 'remote-server.json'), 'utf8'));
+     if (value?.mode === 'local') return { mode: 'local' };
+     if (value?.mode === 'remote' && value.direct === true)
+-      return { mode: 'remote', server: normalizeRemoteServer(value.server), direct: true };
++      return { mode: 'replica', server: normalizeRemoteServer(value.server), work: 'server' };
+     if (value?.mode === 'remote') return { mode: 'replica', server: normalizeRemoteServer(value.server), work: 'server' };
+     if (value?.mode === 'replica') return {
+       mode: 'replica', server: normalizeRemoteServer(value.server),
+diff --git a/lib/domain.ts b/lib/domain.ts
+index efee162..571cf1a 100644
+--- a/lib/domain.ts
++++ b/lib/domain.ts
+@@ -281,6 +281,9 @@ export type GymSession = {
+   auto_closed: number;
+ };
+ export type Settings = {
++  ui_theme?: 'light' | 'dark';
++  ui_accent?: string;
++  ui_density?: 'comfortable' | 'compact';
+   name: string;
+   timezone: string;
+   logo_path: string | null;
+diff --git a/lib/gym-appearance.ts b/lib/gym-appearance.ts
+new file mode 100644
+index 0000000..968af59
+--- /dev/null
++++ b/lib/gym-appearance.ts
+@@ -0,0 +1,20 @@
++import { defaultAccent, normalizeAccent, accentTokens } from './accent.ts';
++import { themePalettes, type ThemePalette } from './theme.ts';
++
++export type GymAppearance = { theme: 'light' | 'dark'; accent: string; density: 'comfortable' | 'compact' };
++export const defaultGymAppearance: GymAppearance = { theme: 'light', accent: defaultAccent, density: 'comfortable' };
++export const appearanceColumns = [
++  { name: 'ui_theme', value: 'light', sql: "TEXT NOT NULL DEFAULT 'light' CHECK(ui_theme IN ('light','dark'))" },
++  { name: 'ui_accent', value: defaultAccent, sql: "TEXT NOT NULL DEFAULT '#636b2f' CHECK(length(ui_accent)=7 AND substr(ui_accent,1,1)='#' AND substr(ui_accent,2) NOT GLOB '*[^0-9a-fA-F]*')" },
++  { name: 'ui_density', value: 'comfortable', sql: "TEXT NOT NULL DEFAULT 'comfortable' CHECK(ui_density IN ('comfortable','compact'))" },
++] as const;
++export function gymAppearance(settings: { ui_theme?: unknown; ui_accent?: unknown; ui_density?: unknown }): GymAppearance {
++  return { theme: settings.ui_theme === 'dark' ? 'dark' : 'light', accent: normalizeAccent(settings.ui_accent), density: settings.ui_density === 'compact' ? 'compact' : 'comfortable' };
++}
++export function appearanceSettings(change: Partial<GymAppearance>) {
++  return Object.fromEntries(Object.entries(change).filter(([key]) => ['theme', 'accent', 'density'].includes(key)).map(([key, value]) => ['ui_' + key, value]));
++}
++export function appearanceColors(value: GymAppearance): ThemePalette {
++  const colors = themePalettes[value.theme], accent = accentTokens(value.accent, value.theme);
++  return accent ? { ...colors, brand: accent['--brand-base'], brandHover: accent['--brand-hover'], brandLight: accent['--brand-100'], brandText: accent['--brand-700'] } : colors;
++}
+diff --git a/lib/replication.ts b/lib/replication.ts
+index 829a114..6ea539d 100644
+--- a/lib/replication.ts
++++ b/lib/replication.ts
+@@ -1,3 +1,4 @@
++import { appearanceColumns } from './gym-appearance.ts';
+ export type SyncValue = string | number | null;
+ export type SyncRow = Record<string, SyncValue>;
+ export type SyncColumn = { name: string; type: string; pk: number };
+@@ -30,6 +31,16 @@ export type SyncUnchanged = Pick<
+   | "expires_at"
+   | "user"
+ > & { unchanged: true };
++/** Upgrade cached copies without creating edits or changing an in-flight batch. */
++export function upgradeAppearanceSnapshot(snapshot: SyncSnapshot): SyncSnapshot {
++  return { ...snapshot, tables: snapshot.tables.map(table => {
++    if (table.name !== 'settings') return table;
++    const missing = appearanceColumns.filter(field => !table.columns.some(column => column.name === field.name));
++    if (!missing.length) return table;
++    return { ...table, columns: [...table.columns, ...missing.map(field => ({ name: field.name, type: 'TEXT', pk: 0 }))],
++      rows: table.rows.map(row => ({ ...Object.fromEntries(missing.map(field => [field.name, field.value])), ...row })) };
++  }) };
++}
+ export function renewSyncSnapshot(
+   base: SyncSnapshot,
+   update: SyncUnchanged,
+diff --git a/lib/service.ts b/lib/service.ts
+index 231b4b7..3693e59 100644
+--- a/lib/service.ts
++++ b/lib/service.ts
+@@ -196,7 +196,7 @@ export class Service {
+     }
+     const installation = await this.one('SELECT owner FROM settings WHERE id=1');
+     const [settings, zones, schedules, events, presence] = await Promise.all([
+-      this.one('SELECT name,timezone,logo_path,logo_watermark_size,credential_color,credential_watermark_size,brand_color,auto_close_hours,closing_time FROM settings WHERE id=1'),
++      this.one('SELECT name,timezone,logo_path,logo_watermark_size,credential_color,credential_watermark_size,brand_color,auto_close_hours,closing_time,ui_theme,ui_accent,ui_density FROM settings WHERE id=1'),
+       this.all(
+         `SELECT z.*, (SELECT COUNT(*) FROM (${presenceSql}) p WHERE p.zone_id=z.id) inside FROM zones z ORDER BY z.name`,
+       ),
+@@ -2057,6 +2057,9 @@ export class Service {
+     this.require('admin');
+     const p = z
+       .object({
++        ui_theme: z.enum(['light', 'dark']).optional(),
++        ui_accent: z.string().regex(/^#[\da-f]{6}$/i).transform(value => value.toLowerCase()).optional(),
++        ui_density: z.enum(['comfortable', 'compact']).optional(),
+         name: text.optional(),
+         timezone: text.optional(),
+         auto_close_hours: z.number().int().min(0).max(720).optional(),
+@@ -2092,6 +2095,9 @@ export class Service {
+       }
+     }
+     await this.db.batch([
++      ...(p.ui_theme !== undefined ? [this.stmt('UPDATE settings SET ui_theme=? WHERE id=1', p.ui_theme)] : []),
++      ...(p.ui_accent !== undefined ? [this.stmt('UPDATE settings SET ui_accent=? WHERE id=1', p.ui_accent)] : []),
++      ...(p.ui_density !== undefined ? [this.stmt('UPDATE settings SET ui_density=? WHERE id=1', p.ui_density)] : []),
+       ...(p.name !== undefined ? [this.stmt('UPDATE settings SET name=? WHERE id=1', p.name)] : []),
+       ...(p.timezone !== undefined ? [this.stmt('UPDATE settings SET timezone=? WHERE id=1', p.timezone)] : []),
+       ...(p.brand_color
+diff --git a/mobile/App.tsx b/mobile/App.tsx
+index 562740a..c8a2e21 100644
+--- a/mobile/App.tsx
++++ b/mobile/App.tsx
+@@ -1,4 +1,5 @@
+ import { useCallback, useEffect, useRef, useState } from 'react';
++import { appearanceColors, defaultGymAppearance, type GymAppearance } from '../lib/gym-appearance';
+ import { NativeTheme, useNativeTheme } from './src/theme';
+ import { themePalettes, type ThemeMode, type ThemePalette } from '../lib/theme';
+ import {
+@@ -264,7 +265,9 @@ function ScannerScreen({
+   session,
+   onLogout,
+   onExpired,
++  onAppearance,
+ }: {
++  onAppearance?: (appearance: GymAppearance) => void;
+   session: MobileSession;
+   onLogout: () => void;
+   onExpired: (token: string) => void;
+@@ -378,6 +381,7 @@ function ScannerScreen({
+       operation: fetchBootstrap,
+       initialActive: AppState.currentState === 'active',
+       onSuccess(data) {
++        if (data.appearance) onAppearance?.(data.appearance);
+         setStats(data.stats);
+         setSyncInfo(data.sync);
+         setToday(data.today || '');
+@@ -866,7 +870,9 @@ function ScannerScreen({
+ }
+ 
+ export default function App({ embedded = false, theme = 'light' }: { embedded?: boolean; theme?: ThemeMode } = {}) {
+-  const colors = themePalettes[theme];
++  const [appearance, setAppearance] = useState<GymAppearance | null>(null);
++  const sharedAppearance = appearance || { ...defaultGymAppearance, theme };
++  const colors = appearanceColors(sharedAppearance);
+   const styles = stylesFor(colors);
+   const [session, setSession] = useState<MobileSession | null>(null);
+   const [loading, setLoading] = useState(true);
+@@ -888,7 +894,7 @@ export default function App({ embedded = false, theme = 'light' }: { embedded?:
+     );
+   }, [restoreAttempt]);
+   async function signOut() {
+-    setSession(null);
++    setSession(null); setAppearance(null);
+     if (session) await logout(session).catch(() => {});
+   }
+   async function expireSession(token: string) {
+@@ -896,10 +902,10 @@ export default function App({ embedded = false, theme = 'light' }: { embedded?:
+     await clearSession(token).catch(() => {});
+   }
+   return (
+-    <NativeTheme.Provider value={theme}>
++    <NativeTheme.Provider value={sharedAppearance}>
+     <SafeAreaProvider>
+       <SafeAreaView style={styles.root} edges={embedded ? [] : ['top', 'bottom']}>
+-        <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
++        <StatusBar barStyle={sharedAppearance.theme === 'dark' ? 'light-content' : 'dark-content'} />
+         {loading ? (
+           <ActivityIndicator style={styles.flex} color={colors.brand} />
+         ) : restoreError ? (
+@@ -914,6 +920,7 @@ export default function App({ embedded = false, theme = 'light' }: { embedded?:
+           <ScannerScreen
+             key={session.token}
+             session={session}
++            onAppearance={setAppearance}
+             onLogout={() => void signOut()}
+             onExpired={(token) => void expireSession(token)}
+           />
+diff --git a/mobile/README.md b/mobile/README.md
+index 6c2c0fa..4d061d5 100644
+--- a/mobile/README.md
++++ b/mobile/README.md
+@@ -1,11 +1,13 @@
+-# GymPASS Android 5.1.1
++# GymPASS Android 5.2.0
+ 
+ La gestión para administradores incluye la interfaz en el APK y guarda socios, caja, productos, planes, credenciales, accesos, imágenes, configuración e informes en SQLite. La primera vinculación necesita Internet; después se puede abrir la gestión sin red y sincronizar automáticamente al reconectar o volver a la aplicación. Se conservan siete días de autorización local y los conflictos requieren revisión sin sobrescribir los pendientes.
+ 
+-Las cuentas centrales, las contraseñas, el personal y los respaldos del servidor siguen necesitando Internet. Las cuentas de recepción conservan el lector y sus consultas. Instala esta versión sobre la anterior para mantener los datos; no borres la aplicación. Versión 5.1.1 y compilación Android 5110.
++Las cuentas centrales, las contraseñas, el personal y los respaldos del servidor siguen necesitando Internet. Las cuentas de recepción conservan el lector y sus consultas. Instala esta versión sobre la anterior para mantener los datos; no borres la aplicación. Versión 5.2.0 y compilación Android 5200.
+ 
+ La compilación `scripts/build-android.ps1` prepara la interfaz con `../scripts/build-mobile-web.mjs` antes de generar y firmar el APK. Los recursos se sirven únicamente a la vista local y las operaciones se atienden en la sesión SQLite vinculada.
+ 
++No hay una pestaña separada de lector: Recepción está integrada. La apariencia pertenece al gimnasio y se sincroniza entre sus dispositivos. La reconexión se comprueba cada diez segundos durante la ejecución.
++
+ ## Comportamiento histórico hasta 4.5.5
+ 
+ La entrega 4.5.5 permite compartir la imagen y el mensaje de una credencial directamente con WhatsApp para el número registrado. El archivo se prepara en la caché privada; **Copiar imagen** permite pegarlo en otra conversación. Confirma el envío dentro de WhatsApp. El administrador y el cajero pueden compartir las tarjetas de socios; emitir o anular credenciales y gestionar tarjetas del personal sigue reservado al administrador.
+diff --git a/mobile/app.json b/mobile/app.json
+index 45af953..7fbbbbd 100644
+--- a/mobile/app.json
++++ b/mobile/app.json
+@@ -6,12 +6,12 @@
+       "ios",
+       "android"
+     ],
+-    "version": "5.1.1",
++    "version": "5.2.0",
+     "orientation": "default",
+     "userInterfaceStyle": "automatic",
+     "ios": {
+       "bundleIdentifier": "local.gympass.controlacceso.mobile",
+-      "buildNumber": "5110",
++      "buildNumber": "5200",
+       "supportsTablet": true,
+       "infoPlist": {
+         "NSLocalNetworkUsageDescription": "GymPASS se conecta con la computadora de la misma red Wi-Fi para registrar accesos.",
+@@ -24,7 +24,7 @@
+     },
+     "android": {
+       "package": "local.gympass.controlacceso.mobile",
+-      "versionCode": 5110,
++      "versionCode": 5200,
+       "permissions": [
+         "android.permission.CAMERA"
+       ],
+diff --git a/mobile/package-lock.json b/mobile/package-lock.json
+index 64ffad9..7699db2 100644
+--- a/mobile/package-lock.json
++++ b/mobile/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "5.1.1",
++  "version": "5.2.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-mobile",
+-      "version": "5.1.1",
++      "version": "5.2.0",
+       "dependencies": {
+         "@noble/ciphers": "2.4.0",
+         "expo": "~58.0.21",
+@@ -132,7 +132,7 @@
+         "@babel/compat-data": "^7.29.7",
+         "@babel/helper-validator-option": "^7.29.7",
+         "browserslist": "^4.24.0",
+-        "lru-cache": "^5.1.1",
++        "lru-cache": "^5.2.0",
+         "semver": "^6.3.1"
+       },
+       "engines": {
+@@ -1651,7 +1651,7 @@
+       "dependencies": {
+         "@xmldom/xmldom": "^0.8.8",
+         "base64-js": "^1.5.1",
+-        "xmlbuilder": "^15.1.1"
++        "xmlbuilder": "^15.2.0"
+       }
+     },
+     "node_modules/@expo/prebuild-config": {
+@@ -4813,8 +4813,8 @@
+       }
+     },
+     "node_modules/lru-cache": {
+-      "version": "5.1.1",
+-      "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-5.1.1.tgz",
++      "version": "5.2.0",
++      "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-5.2.0.tgz",
+       "integrity": "sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==",
+       "license": "ISC",
+       "dependencies": {
+@@ -5608,7 +5608,7 @@
+       "dependencies": {
+         "@xmldom/xmldom": "^0.9.10",
+         "base64-js": "^1.5.1",
+-        "xmlbuilder": "^15.1.1"
++        "xmlbuilder": "^15.2.0"
+       },
+       "engines": {
+         "node": ">=10.4.0"
+@@ -5828,7 +5828,7 @@
+       "integrity": "sha512-uh8yktufYeRU3W9Omi8+SPyLF9BVN4JmLflSgc9oOcKkSKk/S5JUmmTjKZq/L8GHfQUtCvcu/W6X4xhEfBBAjQ==",
+       "license": "MIT",
+       "dependencies": {
+-        "css-select": "^5.1.1",
++        "css-select": "^5.2.0",
+         "css-tree": "^1.1.3"
+       },
+       "peerDependencies": {
+@@ -6782,8 +6782,8 @@
+       }
+     },
+     "node_modules/xmlbuilder": {
+-      "version": "15.1.1",
+-      "resolved": "https://registry.npmjs.org/xmlbuilder/-/xmlbuilder-15.1.1.tgz",
++      "version": "15.2.0",
++      "resolved": "https://registry.npmjs.org/xmlbuilder/-/xmlbuilder-15.2.0.tgz",
+       "integrity": "sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==",
+       "license": "MIT",
+       "engines": {
+diff --git a/mobile/package.json b/mobile/package.json
+index 75905c9..47ac1fb 100644
+--- a/mobile/package.json
++++ b/mobile/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "5.1.1",
++  "version": "5.2.0",
+   "private": true,
+   "type": "module",
+   "main": "index.ts",
+diff --git a/mobile/src/GympassApp.tsx b/mobile/src/GympassApp.tsx
+index 80f1278..70afac2 100644
+--- a/mobile/src/GympassApp.tsx
++++ b/mobile/src/GympassApp.tsx
+@@ -70,6 +70,7 @@ export default function GympassApp({ management }: { management?: Management } =
+   const colors = themePalettes[dark ? 'dark' : 'light'];
+   const palette = { ...colors, bg: colors.canvas };
+   useEffect(() => {
++    if (management) return;
+     let active = true;
+     void SecureStore.getItemAsync('gympass.theme').then((saved) => {
+       if (active && !themeReceived.current && (saved === 'dark' || saved === 'light')) {
+@@ -96,7 +97,7 @@ export default function GympassApp({ management }: { management?: Management } =
+   function applyTheme(value: boolean, native = false) {
+     themeReceived.current = true;
+     setDark(value);
+-    void SecureStore.setItemAsync?.('gympass.theme', value ? 'dark' : 'light').catch(() => {});
++    if (!management) void SecureStore.setItemAsync?.('gympass.theme', value ? 'dark' : 'light').catch(() => {});
+     if (native) { pendingTheme.current = value; sendThemeToWeb(value); }
+   }
+ 
+@@ -264,6 +265,7 @@ export default function GympassApp({ management }: { management?: Management } =
+           applyTheme(message.dark === true);
+           break;
+         case 'open-reader':
++          if (management) break;
+           navigationChosen.current = true;
+           setReader(true);
+           break;
+@@ -361,7 +363,7 @@ export default function GympassApp({ management }: { management?: Management } =
+             ref={web}
+             source={{ uri: management?.url || DEFAULT_SERVER }}
+             style={{ flex: 1, backgroundColor: palette.surface }}
+-            applicationNameForUserAgent="GymPASS-Android/5.1.1"
++            applicationNameForUserAgent="GymPASS-Android/5.2.0"
+             originWhitelist={['*']}
+             onShouldStartLoadWithRequest={(request) => {
+               if ((management ? request.url.startsWith(management.url) : isGympassUrl(request.url)) || request.url === 'about:blank') return true;
+@@ -457,54 +459,13 @@ export default function GympassApp({ management }: { management?: Management } =
+                 <Text style={{ color: palette.onBrand, fontWeight: '600' }}>Reintentar</Text>
+               </Pressable>
+               <Text style={[styles.detail, { color: palette.muted }]}>
+-                Si ya vinculaste este teléfono, puedes usar su copia local en Lector sin conexión.
++                La gestión del gimnasio incluye su copia local. Reintenta para volver a abrirla.
+               </Text>
+             </View>
+           )}
+         </View>
+         {reader && <Reader embedded theme={dark ? 'dark' : 'light'} />}
+-        <View
+-          style={[styles.navigation, { backgroundColor: palette.chrome, borderColor: palette.border }]}
+-          accessibilityRole="tablist"
+-        >
+-          {(['Gestión', 'Lector sin conexión'] as const).map((label, index) => (
+-            <Pressable
+-              key={label}
+-              accessibilityRole="tab"
+-              accessibilityState={{ selected: reader === (index === 1) }}
+-              style={[
+-                styles.tab,
+-                landscape && styles.tabLandscape,
+-                { borderBottomColor: reader === (index === 1) ? palette.brand : 'transparent', backgroundColor: reader === (index === 1) ? palette.brand : palette.chrome },
+-              ]}
+-              onPress={() => {
+-                navigationChosen.current = true;
+-                if (index === 0) setReader(false);
+-                else if (error || loading) setReader(true);
+-                else web.current?.injectJavaScript('window.__gympassOpenReader?.(); true;');
+-              }}
+-            >
+-              <Text
+-                style={{
+-                  color: reader === (index === 1) ? palette.onBrand : palette.onChrome,
+-                  fontWeight: reader === (index === 1) ? '600' : '400',
+-                }}
+-              >
+-                {label}
+-              </Text>
+-            </Pressable>
+-          ))}
+-          <Pressable
+-            accessibilityRole="button"
+-            accessibilityLabel={dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+-            onPress={() => applyTheme(!dark, true)}
+-            style={{ minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}
+-          >
+-            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={palette.onChrome} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" accessibilityElementsHidden>
+-              {dark ? <><Circle cx={12} cy={12} r={4} /><Path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></> : <Path d="M21 12.8A9 9 0 0 1 11.2 3 9 9 0 1 0 21 12.8Z" />}
+-            </Svg>
+-          </Pressable>
+-        </View>
++
+       </SafeAreaView>
+     </SafeAreaProvider>
+   );
+diff --git a/mobile/src/OfflineApp.tsx b/mobile/src/OfflineApp.tsx
+index 7ddefb7..61a237c 100644
+--- a/mobile/src/OfflineApp.tsx
++++ b/mobile/src/OfflineApp.tsx
+@@ -1,7 +1,7 @@
+ import { useCallback, useEffect, useRef, useState } from 'react';
+ import { ActivityIndicator, AppState, DeviceEventEmitter, NativeModules, Pressable, Text, View } from 'react-native';
+ import * as SecureStore from 'expo-secure-store';
+-import { LoginScreen } from '../App';
++import Reader, { LoginScreen } from '../App';
+ import GympassApp from './GympassApp';
+ import { loadSession, type MobileSession } from './session';
+ import { activateReplica, synchronizeReplica, type MobileReplica } from './offline';
+@@ -40,9 +40,10 @@ export default function OfflineApp() {
+     const reconnect = () => { if (ready || legacy) void synchronizeReplica(); else if (error) void prepare(); };
+     const network = DeviceEventEmitter.addListener('GympassConnectivity', reconnect);
+     const foreground = AppState.addEventListener('change', state => { if (state === 'active') reconnect(); });
+-    return () => { network.remove(); foreground.remove(); };
++    const timer = setInterval(() => { if (!ready && !legacy && error) void prepare(); }, 10000);
++    return () => { clearInterval(timer); network.remove(); foreground.remove(); };
+   }, [ready, legacy, error, prepare]);
+-  if (legacy) return <GympassApp />;
++  if (legacy) return <Reader />;
+   if (ready) return <GympassApp management={{
+     url: ready.url,
+     request: async (input: string, method: string, body: unknown) => {
+@@ -65,6 +66,6 @@ export default function OfflineApp() {
+     },
+   }} />;
+   if (loading) return <View style={{ flex: 1, justifyContent: 'center', padding: 24, gap: 16 }}><ActivityIndicator /><Text>Preparando la copia de GymPASS…</Text><Text>La primera vinculación descarga los datos con Internet. Después puedes trabajar sin conexión.</Text></View>;
+-  if (error) return <View style={{ flex: 1, justifyContent: 'center', padding: 24, gap: 20 }}><Text accessibilityRole="alert">{error}</Text><Pressable accessibilityRole="button" onPress={() => void prepare()}><Text>Reintentar</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setLegacy(true)}><Text>Abrir el lector y conservar sus pendientes</Text></Pressable></View>;
++  if (error) return <View style={{ flex: 1, justifyContent: 'center', padding: 24, gap: 20 }}><Text accessibilityRole="alert">{error}</Text><Pressable accessibilityRole="button" onPress={() => void prepare()}><Text>Reintentar</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setLegacy(true)}><Text>Abrir Recepción y conservar sus pendientes</Text></Pressable></View>;
+   return <LoginScreen onLogin={session => void prepare(session)} />;
+ }
+diff --git a/mobile/src/api.ts b/mobile/src/api.ts
+index f35f696..8758d97 100644
+--- a/mobile/src/api.ts
++++ b/mobile/src/api.ts
+@@ -32,6 +32,7 @@ export type AccessEvent = {
+   reason: string;
+ };
+ export type Bootstrap = {
++  appearance?: import('../../lib/gym-appearance').GymAppearance;
+   stats: { inside: number; entries: number; exits: number };
+   today: string;
+   timezone: string;
+diff --git a/mobile/src/http.ts b/mobile/src/http.ts
+index 9b0a376..6ffc990 100644
+--- a/mobile/src/http.ts
++++ b/mobile/src/http.ts
+@@ -24,7 +24,7 @@ export async function request<T>(
+   const cancel = () => controller.abort();
+   if (options.signal?.aborted) throw new ApiError('La solicitud se canceló al cambiar de sesión.');
+   options.signal?.addEventListener('abort', cancel, { once: true });
+-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 10000);
++  let timeout = setTimeout(() => controller.abort(), Math.min(8000, options.timeoutMs ?? 10000));
+   try {
+     let response: Response;
+     try {
+@@ -46,6 +46,8 @@ export async function request<T>(
+         'No se pudo conectar por HTTPS. Comprueba la dirección, el certificado, la red y que GymPASS esté abierto.',
+       );
+     }
++    clearTimeout(timeout);
++    timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 10000);
+     let data: any;
+     try {
+       data = await response.json();
+diff --git a/mobile/src/offline.ts b/mobile/src/offline.ts
+index b726ccc..f89cea0 100644
+--- a/mobile/src/offline.ts
++++ b/mobile/src/offline.ts
+@@ -4,8 +4,10 @@ import * as SecureStore from 'expo-secure-store';
+ import { Service, presenceSql, setHashImplementation, hash, type CredentialCodec } from '../../lib/service';
+ import { offlineManagement, type LocalResponse } from '../../lib/offline-management';
+ import { decodeBase64, mobileCredentialCodec } from './credential-codec';
++import { appearanceColumns } from '../../lib/gym-appearance';
+ import { localParts } from '../../lib/domain';
+ import {
++  upgradeAppearanceSnapshot,
+   syncChanges,
+   mappedSyncPatch,
+   validSyncSnapshot,
+@@ -164,6 +166,9 @@ export class MobileReplica {
+     const saved = await db.getFirstAsync<{ value: string }>('SELECT value FROM _replica_meta WHERE id=1');
+     if (saved) {
+       client.state = JSON.parse(saved.value);
++      await client.ensureAppearance();
++      client.state.base = upgradeAppearanceSnapshot(client.state.base);
++      await client.save();
+       validSyncSnapshot(client.state.base, session.gym_id!, session.user.id, session.installation_id);
+       if (client.state.base.scope === 'management') await client.prepareCodec();
+     } else {
+@@ -194,7 +199,7 @@ export class MobileReplica {
+         await client.install(await client.remote<SyncSnapshot>('snapshot'));
+       }
+     }
+-    client.timer = setInterval(() => void client.synchronize(), 30000);
++    client.timer = setInterval(() => void client.synchronize(), 10000);
+     void client.synchronize();
+     return client;
+     } catch (error) { await client.stop(); throw error; }
+@@ -215,7 +220,13 @@ export class MobileReplica {
+       result.push({ ...table, rows: await this.db.getAllAsync<any>(`SELECT * FROM "${table.name}" ORDER BY rowid`) });
+     return result;
+   }
++  private async ensureAppearance() {
++    const fields = await this.db.getAllAsync<{ name: string }>('PRAGMA table_info(settings)');
++    if (!fields.length) return;
++    for (const field of appearanceColumns) if (!fields.some(c => c.name === field.name)) await this.db.execAsync(`ALTER TABLE settings ADD COLUMN ${field.name} ${field.sql}`);
++  }
+   private async install(snapshot: SyncSnapshot) {
++    snapshot = upgradeAppearanceSnapshot(snapshot);
+     validSyncSnapshot(snapshot, this.session.gym_id!, this.session.user.id, this.session.installation_id);
+     if (snapshot.scope === 'management') {
+       if (this.session.user.role !== 'admin') throw new ApiError('Esta cuenta no tiene autorización de gestión.', 403);
+@@ -242,6 +253,7 @@ export class MobileReplica {
+         else await this.db.execAsync(
+           `CREATE TABLE "${table.name}"(${table.columns.map((c) => `"${c.name}" ${c.type}`).join(',')}${keys.length ? ', PRIMARY KEY(' + keys.map((k) => `"${k}"`).join(',') + ')' : ''})`,
+         );
++        if (table.name === 'settings') await this.ensureAppearance();
+         const names = table.columns.map((c) => c.name);
+         for (const row of table.rows)
+           await this.db.runAsync(
+@@ -328,12 +340,12 @@ export class MobileReplica {
+       }
+       if (first === 'health') return { data: { ok: true, mode: 'mobile', offline: !this.online } };
+       if (first === 'auth' && id === 'status') return { data: { setupRequired: false, user: this.session.user } };
+-      if (first === 'system-info') return { data: { version: '5.1.1', desktop: false, mode: 'mobile' } };
++      if (first === 'system-info') return { data: { version: '5.2.0', desktop: false, mode: 'mobile' } };
+       if (first === 'bootstrap') {
+         let maintain = true; try { this.writable(); } catch { maintain = false; }
+         const data = await s.bootstrap({ compact: url.searchParams.get('compact') === '1', maintain });
+         if (maintain) { this.state.last_clock = Math.max(this.state.last_clock, Date.now()); await this.save(); }
+-        return { data: { ...data, version: '5.1.1', replica: { linked: true }, platform: { gym_id: this.session.gym_id, gym_name: data.settings!.name, support: false, superadmin: false, read_only: !maintain } } };
++        return { data: { ...data, version: '5.2.0', replica: { linked: true }, platform: { gym_id: this.session.gym_id, gym_name: data.settings!.name, support: false, superadmin: false, read_only: !maintain } } };
+       }
+       if (first === 'members' && method === 'GET') return { data: await s.all('SELECT user_id id,email,name,role,active FROM members') };
+       if (first === 'branding' && !id && method === 'GET') return { data: await s.one('SELECT name,brand_color,logo_path FROM settings WHERE id=1') };
+@@ -389,6 +401,7 @@ export class MobileReplica {
+           stats: boot.stats,
+           today: boot.today,
+           timezone: boot.settings!.timezone,
++          appearance: { theme: boot.settings!.ui_theme, accent: boot.settings!.ui_accent, density: boot.settings!.ui_density },
+           platform: { gym_id: this.session.gym_id, gym_name: boot.settings!.name, support: false, superadmin: false },
+           sync: { ...this.info(), pending: changes.filter((c) => c.table === 'events').length },
+         } as T;
+diff --git a/mobile/src/poll.ts b/mobile/src/poll.ts
+index 2132978..512b2a3 100644
+--- a/mobile/src/poll.ts
++++ b/mobile/src/poll.ts
+@@ -43,7 +43,7 @@ export function createSessionPoll<T>(options: Options<T>) {
+       const timer = setInterval(callback, milliseconds);
+       return () => clearInterval(timer);
+     });
+-  const interval = options.intervalMs ?? 15000;
++  const interval = options.intervalMs ?? 10000;
+   const cancel =
+     interval > 0
+       ? schedule(() => {
+diff --git a/mobile/src/theme.ts b/mobile/src/theme.ts
+index d4b5b36..5984bcf 100644
+--- a/mobile/src/theme.ts
++++ b/mobile/src/theme.ts
+@@ -1,8 +1,10 @@
+ import { createContext, useContext } from 'react';
+-import { themePalettes, type ThemeMode } from '../../lib/theme';
++import type { ThemeMode } from '../../lib/theme';
++import { appearanceColors, defaultGymAppearance, type GymAppearance } from '../../lib/gym-appearance';
+ 
+-export const NativeTheme = createContext<ThemeMode>('light');
++export const NativeTheme = createContext<ThemeMode | GymAppearance>('light');
+ export function useNativeTheme() {
+-  const theme = useContext(NativeTheme);
+-  return { theme, colors: themePalettes[theme] };
++  const current = useContext(NativeTheme);
++  const appearance = typeof current === 'string' ? { ...defaultGymAppearance, theme: current } : current;
++  return { theme: appearance.theme, colors: appearanceColors(appearance) };
+ }
+diff --git a/mobile/tests/component-harness.ts b/mobile/tests/component-harness.ts
+index 7012204..9a63774 100644
+--- a/mobile/tests/component-harness.ts
++++ b/mobile/tests/component-harness.ts
+@@ -1,3 +1,4 @@
++import * as gymAppearanceModule from '../../lib/gym-appearance.ts';
+ import { readFileSync } from 'node:fs';
+ import { createRequire } from 'node:module';
+ import { runInNewContext } from 'node:vm';
+@@ -82,6 +83,7 @@ export function harness(globals: Record<string, unknown> = {}) {
+         require(name: string) {
+           if (name === 'react') return hooks;
+           if (name === 'react/jsx-runtime') return require(name);
++        if (/lib\/gym-appearance$/.test(name)) return gymAppearanceModule;
+           if (name.endsWith('.png')) return 1;
+           if (/lib\/access-feedback$/.test(name)) return feedback;
+           if (/lib\/theme$/.test(name)) return theme;
+diff --git a/mobile/tests/management.test.ts b/mobile/tests/management.test.ts
+index f89d5ff..f4c9daf 100644
+--- a/mobile/tests/management.test.ts
++++ b/mobile/tests/management.test.ts
+@@ -1,3 +1,4 @@
++import * as gymAppearanceModule from '../../lib/gym-appearance.ts';
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { DatabaseSync } from 'node:sqlite';
+@@ -54,22 +55,34 @@ test('gestión móvil: socios, caja, QR, fotos e informes sin red sobreviven al
+     }; } },
+     'expo-crypto': { CryptoDigestAlgorithm: { SHA256: 'SHA-256' }, digestStringAsync: async (_: unknown, value: string) => createHash('sha256').update(value).digest('hex'), digest: async (_: unknown, value: Uint8Array) => webcrypto.subtle.digest('SHA-256', new Uint8Array(value)), getRandomValues: webcrypto.getRandomValues.bind(webcrypto), randomUUID },
+     'expo-secure-store': { getItemAsync: async (key: string) => secure.get(key) || null, setItemAsync: async (key: string, value: string) => { secure.set(key, value); } },
+-    '../../lib/service': service, '../../lib/domain': domain, '../../lib/replication': replication, '../../lib/offline-management': management, './credential-codec': codec, './http': { request: network, ApiError },
++    '../../lib/service': service, '../../lib/domain': domain, '../../lib/replication': replication, '../../lib/gym-appearance': gymAppearanceModule, '../../lib/offline-management': management, './credential-codec': codec, './http': { request: network, ApiError },
+   };
+   const exports: any = {};
+-  runInNewContext(ts.transpileModule(readFileSync(new URL('../src/offline.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, require: (name: string) => { if (!(name in dependencies)) throw Error(name); return dependencies[name]; }, crypto: webcrypto, URL, Date, Uint8Array, atob, btoa, setTimeout, clearTimeout, setInterval: (callback: () => void, ms: number) => { automatic.push(callback); return setInterval(callback, ms); }, clearInterval, console });
++  runInNewContext(ts.transpileModule(readFileSync(new URL('../src/offline.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, require: (name: string) => { if (!(name in dependencies)) throw Error(name); return dependencies[name]; }, crypto: webcrypto, URL, Date, Uint8Array, atob, btoa, setTimeout, clearTimeout, setInterval: (callback: () => void, ms: number) => { assert.equal(ms, 10000); automatic.push(callback); return setInterval(callback, ms); }, clearInterval, console });
+   const settled = async (phone: any) => { const deadline = Date.now() + 10000; while (phone.syncing) { if (Date.now() > deadline) throw Error('La sincronización no terminó'); await new Promise(resolve => setTimeout(resolve, 5)); } };
+   const oldReader = await exports.MobileReplica.open(session); phones.push(oldReader); await settled(oldReader);
+   connected = false;
+   for (const direction of ['entry', 'exit']) await oldReader.request('access', 'POST', { code: previousQr, direction, request_id: randomUUID(), expected_actor_id: session.user!.id, expected_installation_id: session.installation_id });
+   await settled(oldReader); await oldReader.stop(); connected = true;
+-  const phone = await exports.MobileReplica.open(session, true, true); phones.push(phone); await settled(phone);
++  let phone = await exports.MobileReplica.open(session, true, true); phones.push(phone); await settled(phone);
+   await app.tenants.withTenant(gym, async ctx => assert.equal(ctx.db.raw.prepare('SELECT COUNT(*) n FROM events').get()!.n, 2, 'se envían las lecturas anteriores antes de ampliar la copia'));
+   assert.equal(phone.state.base.scope, 'management');
+   assert.ok(secure.get('gympass-vault-' + phone.profile));
+   assert.equal(phone.state.base.assets['credentials.key'], undefined, 'la clave se conserva en SecureStore');
+   connected = false;
++  // A 5.1.1 copy has neither these columns nor their metadata. Upgrade it without a network request.
++  await phone.stop();
++  const stored = databases.at(-1)!;
++  const oldState = JSON.parse(String(stored.prepare('SELECT value FROM _replica_meta WHERE id=1').get()!.value));
++  const oldSettings = oldState.base.tables.find((table: any) => table.name === 'settings');
++  oldSettings.columns = oldSettings.columns.filter((column: any) => !column.name.startsWith('ui_'));
++  for (const row of oldSettings.rows) for (const key of Object.keys(row)) if (key.startsWith('ui_')) delete row[key];
++  stored.prepare('UPDATE _replica_meta SET value=? WHERE id=1').run(JSON.stringify(oldState));
++  for (const column of ['ui_theme', 'ui_accent', 'ui_density']) stored.exec('ALTER TABLE settings DROP COLUMN ' + column);
++  phone = await exports.MobileReplica.open(session, false, true); phones.push(phone); await settled(phone);
++  assert.equal((await phone.managementRequest('bootstrap?compact=1', 'GET')).data.settings.ui_theme, 'light');
+   const call = async (path: string, method = 'GET', body?: unknown, client = phone) => (await client.managementRequest(path, method, body)).data;
++  await call('settings', 'PATCH', { ui_theme: 'dark', ui_accent: '#2455a4', ui_density: 'compact' });
+   const person = await call('people', 'POST', { name: 'Socio desconectado', document: 'OFFLINE-1', kind: 'member', status: 'active', phone: '59171234567' });
+   const plan = await call('pos/plans', 'POST', { name: 'Cinco sesiones', unit: 'sessions', duration: 5, price_cents: 5000 });
+   const product = await call('pos/products', 'POST', { name: 'Agua', price_cents: 500, stock: 10, track_stock: true });
+@@ -93,6 +106,7 @@ test('gestión móvil: socios, caja, QR, fotos e informes sin red sobreviven al
+   const restarted = await exports.MobileReplica.open(session, false, true); phones.push(restarted); await settled(restarted);
+   assert.equal((await call('people/' + person.id, 'GET', undefined, restarted)).name, 'Socio desconectado');
+   assert.ok((await call('cloud-sync/status', 'GET', undefined, restarted)).pending > 0);
++  assert.equal((await call('bootstrap?compact=1', 'GET', undefined, restarted)).settings.ui_theme, 'dark');
+   connected = true; loseAcknowledgement = true;
+   automatic.at(-1)!(); await settled(restarted);
+   assert.ok(restarted.state.pending, 'se conserva el mismo lote al perder la confirmación');
+@@ -101,6 +115,7 @@ test('gestión móvil: socios, caja, QR, fotos e informes sin red sobreviven al
+   assert.equal((await call('cloud-sync/status', 'GET', undefined, restarted)).pending, 0);
+   await app.tenants.withTenant(gym, async ctx => {
+     assert.equal(ctx.db.raw.prepare('SELECT COUNT(*) n FROM pos_sales').get()!.n, 1);
++    assert.equal(ctx.db.raw.prepare('SELECT ui_theme FROM settings').get()!.ui_theme, 'dark');
+     assert.equal(ctx.db.raw.prepare('SELECT stock FROM pos_products WHERE id=?').get(product.id)!.stock, 8);
+     assert.equal(ctx.db.raw.prepare('SELECT sessions_remaining FROM pos_memberships WHERE person_id=?').get(person.id)!.sessions_remaining, 4);
+     const remoteCard = await new service.Service(ctx.db, { ...admin, role: 'admin' }, ctx.codec).credentialCard(sale.credential.id);
+diff --git a/mobile/tests/offline.test.ts b/mobile/tests/offline.test.ts
+index bf7b532..6bbb152 100644
+--- a/mobile/tests/offline.test.ts
++++ b/mobile/tests/offline.test.ts
+@@ -1,3 +1,4 @@
++import * as gymAppearanceModule from '../../lib/gym-appearance.ts';
+ import test from 'node:test';
+ import assert from 'node:assert/strict';
+ import { DatabaseSync } from 'node:sqlite';
+@@ -128,7 +129,7 @@ test('SQLite del móvil conserva accesos al reiniciar sin red y combina pendient
+       },
+       '../../lib/service': serviceModule,
+       '../../lib/domain': domain,
+-      '../../lib/replication': replication,
++      '../../lib/replication': replication, '../../lib/gym-appearance': gymAppearanceModule,
+       '../../lib/offline-management': management,
+       './credential-codec': credentialCodec,
+       './http': { request: network, ApiError },
+diff --git a/mobile/tests/poll.test.ts b/mobile/tests/poll.test.ts
+index be8f113..b91f995 100644
+--- a/mobile/tests/poll.test.ts
++++ b/mobile/tests/poll.test.ts
+@@ -15,7 +15,7 @@ test('actualiza al iniciar, por intervalo, manualmente y al recuperar foco; paus
+     onFailure: () => assert.fail('sin fallos'),
+     initialActive: true,
+     schedule: (callback, milliseconds) => {
+-      assert.equal(milliseconds, 15000);
++      assert.equal(milliseconds, 10000);
+       scheduled = callback;
+       return () => {
+         cancelled = true;
+diff --git a/mobile/tests/theme.test.ts b/mobile/tests/theme.test.ts
+index b2b5779..7f561fe 100644
+--- a/mobile/tests/theme.test.ts
++++ b/mobile/tests/theme.test.ts
+@@ -38,7 +38,7 @@ test('acciones y formularios nativos recuperan sus superficies y conservan boton
+   }
+ });
+ 
+-function frame(t: import('node:test').TestContext, saved: Map<string, string>) {
++function frame(t: import('node:test').TestContext, saved: Map<string, string>, management?: any) {
+   const h = harness(); t.after(() => h.cleanup());
+   const { default: App } = h.load('../src/GympassApp.tsx', {
+     'react-native': { ...native, Pressable: 'Pressable', Text: 'Text', BackHandler: { addEventListener: () => ({ remove() {} }) } },
+@@ -52,30 +52,19 @@ function frame(t: import('node:test').TestContext, saved: Map<string, string>) {
+     './session.ts': session, '../App': { default: 'Reader' }, './web-policy.ts': policy,
+     './web-bridge.ts': { WEB_BRIDGE: '' },
+   });
+-  h.render(() => App());
++  h.render(() => App({ management }));
+   return h;
+ }
+ 
+-test('el tema recibido de la web se conserva al reiniciar el lector sin conexión', async t => {
++test('la apariencia de la copia local prevalece sobre el antiguo tema del dispositivo', async t => {
+   const saved = new Map([['gympass.theme', 'dark']]);
+-  const h = frame(t, saved);
++  const url = 'http://127.0.0.1:43210/' + 'a'.repeat(48) + '/';
++  const h = frame(t, saved, { url, request: async () => ({ data: {} }) });
+   let tree = await h.settle();
+-  find(tree, e => e.type === 'Pressable' && e.props.accessibilityRole === 'tab' && e.props.children.props.children === 'Lector sin conexión').props.onPress();
+-  tree = await h.settle();
+-  assert.equal(find(tree, e => e.type === 'Reader').props.theme, 'dark');
+   const web = find(tree, e => e.type === 'WebView');
+-  await web.props.onMessage({ nativeEvent: { url: policy.DEFAULT_SERVER, data: JSON.stringify({ id: 'initial-light', type: 'theme', dark: false }) } });
+-  assert.equal(find(await h.settle(), e => e.type === 'Reader').props.theme, 'dark', 'La web debe recibir primero la elección guardada del lector.');
+-  await web.props.onMessage({ nativeEvent: { url: policy.DEFAULT_SERVER, data: JSON.stringify({ id: 'initial-ack', type: 'theme', dark: true }) } });
+-  await web.props.onMessage({ nativeEvent: { url: policy.DEFAULT_SERVER, data: JSON.stringify({ id: 'theme-light', type: 'theme', dark: false }) } });
+-  assert.equal(find(await h.settle(), e => e.type === 'Reader').props.theme, 'light');
+-  assert.equal(saved.get('gympass.theme'), 'light');
+-  const reopened = frame(t, saved);
+-  tree = await reopened.settle();
+-  find(tree, e => e.type === 'Pressable' && e.props.accessibilityRole === 'tab' && e.props.children.props.children === 'Lector sin conexión').props.onPress();
+-  assert.equal(find(await reopened.settle(), e => e.type === 'Reader').props.theme, 'light');
+-  tree = await reopened.settle();
+-  find(tree, e => e.type === 'Pressable' && e.props.accessibilityLabel === 'Cambiar a modo oscuro').props.onPress();
+-  assert.equal(find(await reopened.settle(), e => e.type === 'Reader').props.theme, 'dark');
+-  assert.equal(saved.get('gympass.theme'), 'dark');
++  await web.props.onMessage({ nativeEvent: { url, data: JSON.stringify({ type: 'theme', dark: false }) } });
++  tree = await h.settle();
++  assert.equal(find(tree, e => e.type === 'WebView').props.style.backgroundColor, themePalettes.light.surface);
++  assert.throws(() => find(tree, e => e.props.accessibilityRole === 'tab'));
++  assert.equal(saved.get('gympass.theme'), 'dark', 'La copia del gimnasio no escribe el antiguo ajuste del dispositivo');
+ });
+diff --git a/mobile/tests/web-native.test.ts b/mobile/tests/web-native.test.ts
+index 4642bae..a19d37c 100644
+--- a/mobile/tests/web-native.test.ts
++++ b/mobile/tests/web-native.test.ts
+@@ -128,16 +128,13 @@ test('arranca directamente en el lector con la última cuenta guardada aunque la
+   const screen = managementScreen(t, {}, JSON.stringify(saved));
+   const tree = await screen.h.settle();
+   assert.equal(find(tree, node => node.type === 'Reader').props.embedded, true);
+-  assert.equal(find(tree, node => node.props.accessibilityRole === 'tab' && textOf(node) === 'Lector sin conexión').props.accessibilityState.selected, true);
+ });
+ 
+-test('la primera apertura conserva gestión y permite abrir el lector mientras la web carga sin red', async t => {
++test('la apertura de gestión no ofrece un lector ni una navegación duplicada', async t => {
+   const screen = managementScreen(t);
+-  let tree = await screen.h.settle();
++  const tree = await screen.h.settle();
+   assert.throws(() => find(tree, node => node.type === 'Reader'));
+-  find(tree, node => node.props.accessibilityRole === 'tab' && textOf(node) === 'Lector sin conexión').props.onPress();
+-  tree = await screen.h.settle();
+-  assert.equal(find(tree, node => node.type === 'Reader').props.embedded, true);
++  assert.throws(() => find(tree, node => node.props.accessibilityRole === 'tab'));
+ });
+ 
+ test('una carga detenida deja de quedarse en «Abriendo GymPASS…» y ofrece reintentar', async t => {
+@@ -151,7 +148,7 @@ test('una carga detenida deja de quedarse en «Abriendo GymPASS…» y ofrece re
+   assert.doesNotMatch(stalled, /Abriendo GymPASS/);
+   assert.match(stalled, /tardó demasiado en abrir/);
+   assert.match(stalled, /Reintentar/);
+-  assert.match(stalled, /Lector sin conexión/);
++  assert.doesNotMatch(stalled, /Lector sin conexión/);
+   // El último aviso de la vista distingue una carga que avanzaba de una que nunca empezó.
+   assert.match(stalled, /Último estado: carga iniciada/);
+ });
+diff --git a/package-lock.json b/package-lock.json
+index 318c7f2..929e7e6 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "5.1.1",
++  "version": "5.2.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-control-acceso",
+-      "version": "5.1.1",
++      "version": "5.2.0",
+       "dependencies": {
+         "lucide-react": "1.57.0",
+         "qrcode-generator": "2.0.4",
+@@ -123,8 +123,8 @@
+       }
+     },
+     "node_modules/@electron/get": {
+-      "version": "5.1.1",
+-      "resolved": "https://registry.npmjs.org/@electron/get/-/get-5.1.1.tgz",
++      "version": "5.2.0",
++      "resolved": "https://registry.npmjs.org/@electron/get/-/get-5.2.0.tgz",
+       "integrity": "sha512-3kSBtG8ObcTVfXanm5vVJ6UnBLEVmVsRk1M+vGqCuMBV+XLCbJYuWQful+yIy0GQDsSlK0kHEriEHn7SPk4EnA==",
+       "dev": true,
+       "license": "MIT",
+@@ -1422,7 +1422,7 @@
+       "license": "MIT",
+       "dependencies": {
+         "clone-response": "^1.0.2",
+-        "get-stream": "^5.1.1",
++        "get-stream": "^5.2.0",
+         "http-cache-semantics": "^4.0.0",
+         "keyv": "^4.0.0",
+         "lowercase-keys": "^2.0.0",
+@@ -1559,8 +1559,8 @@
+       }
+     },
+     "node_modules/commander": {
+-      "version": "5.1.1",
+-      "resolved": "https://registry.npmjs.org/commander/-/commander-5.1.1.tgz",
++      "version": "5.2.0",
++      "resolved": "https://registry.npmjs.org/commander/-/commander-5.2.0.tgz",
+       "integrity": "sha512-P0CysNDQ7rtVw4QIQtm+MRxV66vKFSvlsQvGYXZWR3qFU0jlMKHZZZgw8e+8DSah4UDKMqnknRDQz+xuQXQ/Zg==",
+       "dev": true,
+       "license": "MIT",
+@@ -2623,7 +2623,7 @@
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "quick-lru": "^5.1.1",
++        "quick-lru": "^5.2.0",
+         "resolve-alpn": "^1.0.0"
+       },
+       "engines": {
+@@ -3590,7 +3590,7 @@
+       "dependencies": {
+         "@xmldom/xmldom": "^0.8.8",
+         "base64-js": "^1.5.1",
+-        "xmlbuilder": "^15.1.1"
++        "xmlbuilder": "^15.2.0"
+       },
+       "engines": {
+         "node": ">=10.4.0"
+@@ -3771,8 +3771,8 @@
+       "license": "MIT"
+     },
+     "node_modules/quick-lru": {
+-      "version": "5.1.1",
+-      "resolved": "https://registry.npmjs.org/quick-lru/-/quick-lru-5.1.1.tgz",
++      "version": "5.2.0",
++      "resolved": "https://registry.npmjs.org/quick-lru/-/quick-lru-5.2.0.tgz",
+       "integrity": "sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA==",
+       "dev": true,
+       "license": "MIT",
+@@ -3828,7 +3828,7 @@
+         "inherits": "~2.0.3",
+         "isarray": "~1.0.0",
+         "process-nextick-args": "~2.0.0",
+-        "safe-buffer": "~5.1.1",
++        "safe-buffer": "~5.2.0",
+         "string_decoder": "~1.1.1",
+         "util-deprecate": "~1.0.1"
+       }
+@@ -4139,7 +4139,7 @@
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "safe-buffer": "~5.1.1"
++        "safe-buffer": "~5.2.0"
+       }
+     },
+     "node_modules/string-width": {
+@@ -4571,8 +4571,8 @@
+       }
+     },
+     "node_modules/xmlbuilder": {
+-      "version": "15.1.1",
+-      "resolved": "https://registry.npmjs.org/xmlbuilder/-/xmlbuilder-15.1.1.tgz",
++      "version": "15.2.0",
++      "resolved": "https://registry.npmjs.org/xmlbuilder/-/xmlbuilder-15.2.0.tgz",
+       "integrity": "sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==",
+       "dev": true,
+       "license": "MIT",
+diff --git a/package.json b/package.json
+index 1ae6151..f0bc327 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "5.1.1",
++  "version": "5.2.0",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+diff --git a/scripts/check-access-policy.mjs b/scripts/check-access-policy.mjs
+new file mode 100644
+index 0000000..e34d45f
+--- /dev/null
++++ b/scripts/check-access-policy.mjs
+@@ -0,0 +1,159 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { randomUUID } from 'node:crypto';
++import { mkdtempSync, rmSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join, relative, sep } from 'node:path';
++import { startPlatform } from '../server/platform.ts';
++import { SqliteDatabase } from '../server/database.ts';
++import { Service } from '../lib/service.ts';
++import { PosService } from '../lib/pos.ts';
++import { authorizedDatabase } from '../server/authorized-database.ts';
++
++function temporary(t) {
++  const directory = mkdtempSync(join(tmpdir(), 'gympass-policy-'));
++  t.after(() => {
++    const target = relative(tmpdir(), directory);
++    assert.ok(target.startsWith('gympass-policy-') && !target.includes(sep));
++    rmSync(directory, { recursive: true, force: true });
++  });
++  return directory;
++}
++
++test('lectores, informes y sesión de acceso automático aplican permisos en el servidor', async t => {
++  const app = await startPlatform({ dataDirectory: temporary(t), port: 0, allowHttp: true });
++  try {
++    const owner = await app.store.bootstrap({ name: 'Owner', email: 'owner@example.test', password: '123456' });
++    const gym = app.store.createGym(owner, { name: 'Gym', slug: 'policy' });
++    app.tenants.provision(gym);
++    app.store.markGymProvisioned(gym.id);
++    for (const role of ['admin', 'operator', 'viewer'])
++      await app.store.createMember(owner, gym.id, { name: role, email: role + '@example.test', role, password: '123456' });
++    const login = role => app.store.login({ email: role + '@example.test', password: '123456' });
++    const sessions = Object.fromEntries(await Promise.all(['admin', 'operator', 'viewer'].map(async role => [role, await login(role)])));
++    const request = (path, session, method = 'GET', body) => fetch(app.url + '/api/' + path, {
++      method, headers: { Cookie: `gympass_platform=${session.token}`, 'X-Requested-With': 'GymPASS', 'Content-Type': 'application/json' },
++      ...(body ? { body: JSON.stringify(body) } : {}),
++    });
++    const api = (path, session = sessions.admin, method, body) => request(`gyms/${gym.id}/${path}`, session, method, body);
++    const fixture = await app.tenants.withTenant(gym, async ctx => {
++      const service = new Service(ctx.db, { ...sessions.admin.session.user, role: 'admin' }, ctx.codec);
++      const person = await service.savePerson({ name: 'Nuevo sin pago', document: 'NEW', phone: '59171234567', kind: 'member', status: 'active' });
++      const qr = await service.issueCredential(person.id, { kind: 'qr', label: 'Tarjeta' });
++      const pos = new PosService(service);
++      assert.equal((await pos.memberships(person.id)).legacy, false);
++      assert.equal((await pos.memberships(person.id)).valid, false);
++      assert.equal((await service.personSummary(person.id)).membership_managed, 1);
++      assert.equal((await service.access({ code: qr.code, direction: 'entry', request_id: randomUUID() })).reason, 'MEMBERSHIP_REQUIRED');
++      const plan = await pos.savePlan({ name: 'Mes', unit: 'months', duration: 1, price_cents: 1000 });
++      const sale = await pos.checkout({ person_id: person.id, request_id: randomUUID(), payment_method: 'cash', lines: [{ kind: 'plan', id: plan.id, quantity: 1 }] });
++      assert.equal(sale.credential.id, qr.id);
++      return { person, qr, device: await service.createDevice({ name: 'Lector', kind: 'qr', direction: 'auto' }) };
++    });
++    for (const role of ['admin', 'operator', 'viewer']) {
++      for (const path of ['events', 'events/export', 'gym-sessions', 'gym-sessions/export', 'attendance', 'attendance/export', 'workdays/export', 'payroll'])
++        assert.equal((await api(path, sessions[role])).status, role === 'operator' ? 403 : 200, `${role} ${path}`);
++    }
++    // The movements search finds a member by the complete document, never by a fragment of it.
++    const byDocument = await (await api('events?q=new')).json();
++    assert.ok(byDocument.total > 0);
++    assert.ok(byDocument.rows.every(row => row.person_id === fixture.person.id));
++    assert.equal((await (await api('events?q=EW')).json()).total, 0);
++    const mobile = await app.store.mobileLogin({ email: 'operator@example.test', password: '123456', gymId: gym.id });
++    for (const path of ['mobile/bootstrap', 'mobile/people', 'mobile/events', 'mobile/gym-sessions', 'mobile/presence'])
++      assert.equal((await fetch(app.url + `/api/gyms/${gym.id}/${path}`, { headers: { Authorization: `Bearer ${mobile.token}` } })).status, 200, path);
++    assert.equal((await api('kiosk/start', sessions.viewer, 'POST', {})).status, 403);
++    assert.equal((await api('kiosk/start', sessions.admin, 'POST', {})).status, 200);
++    const status = await (await request('platform/status', sessions.admin)).json();
++    assert.equal(status.user, null);
++    assert.equal(status.kiosk.id, gym.id);
++    assert.deepEqual(status.gyms, []);
++    for (const path of ['bootstrap', 'people', 'events/export', 'pos/catalog', 'settings', 'audit', 'devices', 'mobile/people'])
++      assert.equal((await api(path)).status, 403, path);
++    assert.equal((await request('platform/gyms', sessions.admin)).status, 401);
++    const boot = await (await api('kiosk/bootstrap')).json();
++    assert.equal(boot.user.role, 'operator');
++    assert.equal(boot.people, undefined);
++    assert.equal(boot.events, undefined);
++    assert.equal(boot.zones.length, 1);
++    assert.equal((await api('access', sessions.admin, 'POST', { person_id: fixture.person.id, direction: 'auto', reason: 'Intento manual', request_id: randomUUID() })).status, 403);
++    const entry = await (await api('access', sessions.admin, 'POST', { code: fixture.qr.code, direction: 'auto', zone_id: 'general', request_id: randomUUID() })).json();
++    assert.equal(entry.allowed, 1);
++    assert.equal(entry.actor, undefined);
++    assert.equal(entry.payload_hash, undefined);
++    // An already prepared administrative query also loses its grant after entering kiosk.
++    await app.tenants.withTenant(gym, async ctx => {
++      const db = authorizedDatabase(ctx.db, () => app.store.authorizeSync(sessions.admin.token, gym.id, undefined, true));
++      await assert.rejects(db.prepare('SELECT * FROM people').all(), { status: 403 });
++    });
++    const otherGym = app.store.createGym(owner, { name: 'Otro', slug: 'other' });
++    app.tenants.provision(otherGym); app.store.markGymProvisioned(otherGym.id);
++    assert.equal((await request(`gyms/${otherGym.id}/kiosk/bootstrap`, sessions.admin)).status, 403);
++    const reader = async method => {
++      const response = await fetch(app.url + `/api/gyms/${gym.id}/device-${method === 'GET' ? 'check' : 'access'}`, {
++        method, headers: { Authorization: `Bearer ${fixture.device.token}`, 'Content-Type': 'application/json' },
++        ...(method === 'POST' ? { body: JSON.stringify({ code: fixture.qr.code, request_id: randomUUID() }) } : {}),
++      });
++      return response;
++    };
++    assert.equal((await reader('GET')).status, 200);
++    // Archive while the request waits for this gym's database queue.
++    for (const method of ['GET', 'POST']) {
++      let release, entered;
++      const held = new Promise(resolve => { release = resolve; });
++      const ready = new Promise(resolve => { entered = resolve; });
++      const holding = app.tenants.withTenant(gym, async () => { entered(); await held; });
++      await ready;
++      const received = new Promise(resolve => app.server.once('request', resolve));
++      const pending = reader(method);
++      await received;
++      app.store.updateGym(owner, gym.id, { archived: true });
++      release();
++      await holding;
++      assert.equal((await pending).status, 403, `queued ${method}`);
++      app.store.updateGym(owner, gym.id, { archived: false });
++    }
++    for (const change of [{ archived: true }, { status: 'suspended' }]) {
++      app.store.updateGym(owner, gym.id, change);
++      for (const method of ['GET', 'POST']) assert.equal((await reader(method)).status, 403);
++      app.store.updateGym(owner, gym.id, { archived: false, status: 'active' });
++    }
++    app.store.deleteGym(owner, gym.id);
++    for (const method of ['GET', 'POST']) assert.equal((await reader(method)).status, 403);
++    await app.store.restoreGym(owner, gym.id);
++    app.store.updateGym(owner, gym.id, { status: 'active' });
++    // Leaving kiosk mode needs the account password and restores the same session.
++    const desk = await login('operator');
++    assert.equal((await api('kiosk/start', desk, 'POST', {})).status, 200);
++    assert.equal((await request('platform/kiosk/stop', desk, 'POST', { password: 'wrong' })).status, 403);
++    assert.equal((await (await request('platform/status', desk)).json()).user, null);
++    assert.equal((await request('platform/kiosk/stop', desk, 'POST', { password: '123456' })).status, 200);
++    assert.equal((await (await request('platform/status', desk)).json()).user.email, 'operator@example.test');
++    assert.equal((await request('platform/kiosk/stop', desk, 'POST', { password: '123456' })).status, 401);
++    const fresh = await login('admin');
++    assert.equal((await api('people', fresh)).status, 200);
++    assert.equal((await request('platform/logout', sessions.admin, 'POST', {})).status, 200);
++    assert.equal((await api('kiosk/bootstrap')).status, 401);
++  } finally { await app.close(); }
++});
++
++test('la migración conserva socios anteriores y no concede derechos heredados a altas nuevas', async t => {
++  const file = join(temporary(t), 'gym.sqlite');
++  let db = new SqliteDatabase(file);
++  db.raw.exec(`DELETE FROM schema_version WHERE version>=20; ALTER TABLE settings DROP COLUMN ui_theme; ALTER TABLE settings DROP COLUMN ui_accent; ALTER TABLE settings DROP COLUMN ui_density; DROP INDEX events_chronological_presence; ALTER TABLE people DROP COLUMN legacy_access; ALTER TABLE settings DROP COLUMN logo_watermark_size; ALTER TABLE settings DROP COLUMN credential_color; ALTER TABLE settings DROP COLUMN credential_watermark_size;
++    INSERT INTO settings(id,owner,name,timezone) VALUES(1,'admin','Gym','America/La_Paz');
++    INSERT INTO people(id,name,document,kind,status,created_at) VALUES('old','Anterior','OLD','member','active',1)`);
++  db.close();
++  db = new SqliteDatabase(file);
++  try {
++    const s = new Service(db, { id: 'admin', email: 'admin@example.test', name: 'Admin', role: 'admin' });
++    assert.equal(db.raw.prepare("SELECT legacy_access FROM people WHERE id='old'").get().legacy_access, 1);
++    const old = await s.issueCredential('old', { kind: 'qr', label: 'Antigua' });
++    assert.equal((await s.access({ code: old.code, direction: 'entry', request_id: randomUUID() })).allowed, 1);
++    const person = await s.savePerson({ name: 'Nuevo', document: 'NEW', kind: 'member', status: 'active', phone: '59171234567', expires: '2099-01-01', legacy_access: 1 });
++    const qr = await s.issueCredential(person.id, { kind: 'qr', label: 'Nueva' });
++    assert.equal(db.raw.prepare('SELECT legacy_access FROM people WHERE id=?').get(person.id).legacy_access, 0);
++    assert.equal((await s.access({ code: qr.code, direction: 'entry', request_id: randomUUID() })).reason, 'MEMBERSHIP_REQUIRED');
++    assert.equal((await new PosService(s).memberships(person.id)).valid, false);
++  } finally { db.close(); }
++});
+diff --git a/scripts/check-offline-sync.mjs b/scripts/check-offline-sync.mjs
+new file mode 100644
+index 0000000..8069d4a
+--- /dev/null
++++ b/scripts/check-offline-sync.mjs
+@@ -0,0 +1,790 @@
++import test from "node:test";
++import assert from "node:assert/strict";
++import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync, renameSync, readdirSync } from "node:fs";
++import { join, relative, sep } from "node:path";
++import { tmpdir } from "node:os";
++import { gunzipSync } from "node:zlib";
++import { startPlatform } from "../server/platform.ts";
++import { SqliteDatabase } from "../server/database.ts";
++import { Backups } from "../server/backups.ts";
++import { ReplicaClient } from "../server/replica-client.ts";
++import { credentialVault } from "../server/credential-vault.ts";
++import { Service, presenceSql } from "../lib/service.ts";
++import { PosService } from "../lib/pos.ts";
++import { syncChanges, mappedSyncPatch } from "../lib/replication.ts";
++
++function temp(t) {
++  const directory = mkdtempSync(join(tmpdir(), "gympass-offline-"));
++  t.after(() => {
++    const child = relative(tmpdir(), directory);
++    assert.ok(child.startsWith("gympass-offline-") && !child.includes(sep));
++    rmSync(directory, { recursive: true, force: true });
++  });
++  return directory;
++}
++async function fixture(t) {
++  const app = await startPlatform({
++    dataDirectory: temp(t),
++    port: 0,
++    allowHttp: true,
++  });
++  const owner = await app.store.bootstrap({
++    name: "Owner",
++    email: "owner@example.test",
++    password: "123456",
++  });
++  const gym = app.store.createGym(owner, {
++    name: "Gym sin red",
++    slug: "offline",
++  });
++  app.tenants.provision(gym);
++  app.store.markGymProvisioned(gym.id);
++  const users = {};
++  for (const role of ["admin", "operator", "viewer"]) {
++    users[role] = await app.store.createMember(owner, gym.id, {
++      name: role,
++      email: role + "@example.test",
++      role,
++      password: "123456",
++    });
++  }
++  const admin = await app.store.login({
++    email: "admin@example.test",
++    password: "123456",
++  });
++  const request = async (
++    path,
++    method = "GET",
++    body,
++    token = admin.token,
++    bearer = false,
++  ) => {
++    const response = await fetch(app.url + "/api/" + path, {
++      method,
++      headers: {
++        "Content-Type": "application/json",
++        "X-Requested-With": "GymPASS",
++        ...(bearer
++          ? { Authorization: "Bearer " + token }
++          : { Cookie: "gympass_platform=" + token }),
++      },
++      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
++    });
++    return {
++      response,
++      data: await response
++        .clone()
++        .json()
++        .catch(() => null),
++    };
++  };
++  const cloud = (operation) =>
++    app.tenants.withTenant(gym, (ctx) =>
++      operation(
++        new Service(ctx.db, { ...users.admin, role: "admin" }, ctx.codec),
++        ctx,
++      ),
++    );
++  const local = async (name) => {
++    const root = temp(t),
++      db = new SqliteDatabase(join(root, "gympass.sqlite"));
++    const backups = new Backups(
++      db.raw,
++      join(root, "gympass.sqlite"),
++      join(root, "backups"),
++    );
++    const replica = new ReplicaClient(db, root, backups, () => {});
++    process.env.GYMPASS_SYNC_TEST = "1";
++    const linked = await replica.link({
++      server: app.url,
++      email: "admin@example.test",
++      password: "123456",
++      name,
++    });
++    assert.equal(linked.linked, true);
++    const service = () =>
++      new Service(
++        db,
++        { ...users.admin, role: "admin" },
++        credentialVault(join(root, "credentials.key")),
++      );
++    return { db, replica, service, root, backups };
++  };
++  return { app, owner, gym, users, admin, request, cloud, local };
++}
++const person = (document, name = document) => ({
++  name,
++  document,
++  kind: "member",
++  status: "active",
++  phone: "59171234567",
++});
++const sale = (person_id, plan) => ({
++  request_id: crypto.randomUUID(),
++  person_id,
++  payment_method: "cash",
++  lines: [{ kind: "plan", id: plan.id, quantity: 1 }],
++});
++
++test('un gimnasio recién creado permite entrar con su administrador y preparar la copia de escritorio', async t => {
++  const f = await fixture(t);
++  let copy;
++  try {
++    const owner = await f.app.store.login({ email: 'owner@example.test', password: '123456' });
++    const created = await f.request('platform/gyms', 'POST', {
++      name: 'Nuevo gimnasio', slug: 'recien-creado', admin_name: 'Nueva administradora',
++      admin_email: 'nueva@example.test', admin_password: 'nueva-clave',
++    }, owner.token);
++    assert.equal(created.response.status, 201);
++    const login = await f.request('platform/login', 'POST', { email: 'nueva@example.test', password: 'nueva-clave' }, '');
++    assert.equal(login.response.status, 200);
++    assert.equal(login.data.gyms.length, 1);
++    assert.equal(login.data.gyms[0].id, created.data.gym.id);
++    const root = temp(t), db = new SqliteDatabase(join(root, 'gympass.sqlite'));
++    copy = new ReplicaClient(db, root, new Backups(db.raw, join(root, 'gympass.sqlite'), join(root, 'backups')), () => {});
++    process.env.GYMPASS_SYNC_TEST = '1';
++    const result = await copy.link({ server: f.app.url, email: 'nueva@example.test', password: 'nueva-clave', name: 'Recepción nueva' });
++    assert.equal(result.linked, true);
++    assert.equal(copy.status().gym_id, created.data.gym.id);
++    const member = db.raw.prepare('SELECT * FROM members WHERE email=?').get('nueva@example.test');
++    const { verifyPassword } = await import('../server/auth.ts');
++    assert.equal(await verifyPassword('nueva-clave', member.password_hash), true);
++    assert.equal(member.user_id, login.data.user.id);
++  } finally {
++    if (copy) { await copy.stop(); copy.db.close(); }
++    await f.app.close();
++  }
++});
++
++async function whileNetworkWaits(operation) {
++  let timer;
++  try {
++    return await Promise.race([operation(), new Promise((_, reject) => { timer = setTimeout(() => reject(Error('La espera de Internet bloqueó la copia local.')), 1500); })]);
++  } finally { clearTimeout(timer); }
++}
++
++test('una descarga lenta no bloquea recepción ni reemplaza las ediciones hechas durante la espera', async t => {
++  const f = await fixture(t);
++  let copy, synchronization, release;
++  try {
++    const member = await f.cloud(s => s.savePerson(person('RESPONSIVE', 'Original')));
++    copy = await f.local('Recepción disponible');
++    await f.cloud(s => s.savePerson(person('RESPONSIVE', 'Nombre central'), member.id));
++    const originalFetch = globalThis.fetch;
++    const gate = new Promise(done => { release = done; });
++    let started;
++    const waiting = new Promise(done => { started = done; });
++    let first = true;
++    t.mock.method(globalThis, 'fetch', async (...args) => {
++      const response = await originalFetch(...args);
++      if (first && String(args[0]).includes('/sync/snapshot?')) { first = false; started(); await gate; }
++      return response;
++    });
++    synchronization = copy.replica.synchronize();
++    await waiting;
++    await whileNetworkWaits(() => copy.replica.exclusive(async () => {
++      assert.equal((await copy.service().personDetail(member.id)).name, 'Original');
++      await copy.service().savePerson({ ...person('RESPONSIVE', 'Original'), notes: 'Edición local durante la descarga' }, member.id);
++    }));
++    release(); await synchronization;
++    assert.equal(copy.replica.status().conflict, null, copy.replica.status().error);
++    assert.equal(copy.replica.status().pending, 0);
++    const local = await copy.service().personDetail(member.id);
++    assert.equal(local.name, 'Nombre central');
++    assert.equal(local.notes, 'Edición local durante la descarga');
++    await f.cloud(async s => assert.equal((await s.personDetail(member.id)).notes, local.notes));
++  } finally { release?.(); await synchronization; if (copy) { await copy.replica.stop(); copy.db.close(); } await f.app.close(); }
++});
++
++test('cobrar mientras se confirma otro lote conserva ambos pagos y sus QR sin duplicarlos', async t => {
++  const f = await fixture(t);
++  let copy, synchronization, release;
++  try {
++    const plan = await f.cloud(s => new PosService(s).savePlan({ name: 'Mes', unit: 'months', duration: 1, price_cents: 10000 }));
++    copy = await f.local('Caja disponible');
++    const first = await copy.service().savePerson(person('DURING-PUSH-1'));
++    await new PosService(copy.service()).checkout(sale(first.id, plan));
++    const originalFetch = globalThis.fetch;
++    const gate = new Promise(done => { release = done; });
++    let started;
++    const waiting = new Promise(done => { started = done; });
++    let pause = true;
++    t.mock.method(globalThis, 'fetch', async (...args) => {
++      const response = await originalFetch(...args);
++      if (pause && String(args[0]).endsWith('/sync/push')) { pause = false; started(); await gate; }
++      return response;
++    });
++    synchronization = copy.replica.synchronize(); await waiting;
++    await whileNetworkWaits(() => copy.replica.exclusive(async () => {
++      const second = await copy.service().savePerson(person('DURING-PUSH-2'));
++      await new PosService(copy.service()).checkout(sale(second.id, plan));
++    }));
++    release(); await synchronization; await copy.replica.synchronize();
++    assert.equal(copy.replica.status().pending, 0, copy.replica.status().error);
++    assert.equal(copy.replica.status().conflict, null);
++    await f.cloud((_s, ctx) => {
++      assert.equal(ctx.db.raw.prepare('SELECT COUNT(*) n FROM pos_sales').get().n, 2);
++      assert.equal(ctx.db.raw.prepare("SELECT COUNT(*) n FROM credentials WHERE kind='qr' AND active=1").get().n, 2);
++    });
++  } finally { release?.(); await synchronization; if (copy) { await copy.replica.stop(); copy.db.close(); } await f.app.close(); }
++});
++
++test('cerrar con Internet detenido cancela la espera y conserva el lote para el siguiente arranque', async t => {
++  const f = await fixture(t);
++  let copy, reopened;
++  try {
++    copy = await f.local('Cierre seguro');
++    await copy.service().savePerson(person('PRESERVED-ON-CLOSE'));
++    let started;
++    const waiting = new Promise(done => { started = done; });
++    const mock = t.mock.method(globalThis, 'fetch', async (_url, options) => {
++      started();
++      return new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(new DOMException('Stopped', 'AbortError')), { once: true }));
++    });
++    const synchronization = copy.replica.synchronize(); await waiting;
++    await whileNetworkWaits(() => copy.replica.stop()); await synchronization;
++    const before = JSON.parse(copy.db.raw.prepare('SELECT state FROM replica_state WHERE id=1').get().state);
++    assert.ok(before.pending?.id);
++    assert.equal(copy.db.raw.prepare('SELECT COUNT(*) n FROM people').get().n, 1);
++    mock.mock.restore();
++    reopened = new ReplicaClient(copy.db, copy.root, copy.backups, () => {});
++    await reopened.synchronize();
++    assert.equal(reopened.status().pending, 0, reopened.status().error);
++    await f.cloud((_s, ctx) => assert.equal(ctx.db.raw.prepare('SELECT COUNT(*) n FROM people').get().n, 1));
++  } finally { if (reopened) await reopened.stop(); if (copy) { await copy.replica.stop(); copy.db.close(); } await f.app.close(); }
++});
++
++test('la foto para la copia móvil exige vinculación vigente y permanece aislada por gimnasio', async t => {
++  const f = await fixture(t);
++  try {
++    const bytes = Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA', 'base64');
++    const filename = crypto.randomUUID() + '.webp';
++    const member = await f.cloud(async (s, ctx) => {
++      const member = await s.savePerson(person('PHOTO'));
++      mkdirSync(join(ctx.root, 'photos'), { recursive: true });
++      writeFileSync(join(ctx.root, 'photos', filename), bytes);
++      ctx.db.raw.prepare('UPDATE people SET photo_path=? WHERE id=?').run(filename, member.id);
++      return member;
++    });
++    const login = await f.app.store.mobileLogin({ email: 'operator@example.test', password: '123456', gymId: f.gym.id });
++    const paired = await f.request(`gyms/${f.gym.id}/sync/pair`, 'POST', { kind: 'mobile', name: 'Fotos' }, login.token, true);
++    assert.equal(paired.response.status, 201);
++    const path = `gyms/${f.gym.id}/sync/photo?person=${member.id}`;
++    const photo = () => f.request(path, 'GET', undefined, paired.data.token, true);
++    const result = await photo();
++    assert.equal(result.response.status, 200);
++    assert.equal(result.data.photo_path, filename);
++    assert.equal(result.data.data_uri, 'data:image/webp;base64,' + bytes.toString('base64'));
++    assert.match(result.response.headers.get('cache-control'), /no-store/);
++    assert.equal((await f.request(path)).response.status, 401);
++    assert.equal((await f.request(path, 'GET', undefined, login.token, true)).response.status, 401);
++    assert.equal((await f.request(`gyms/${f.gym.id}/sync/photo?person=inexistente`, 'GET', undefined, paired.data.token, true)).response.status, 404);
++    const other = f.app.store.createGym(f.owner, { name: 'Otro gimnasio', slug: 'other-photo' });
++    f.app.tenants.provision(other);
++    f.app.store.markGymProvisioned(other.id);
++    const foreign = await f.request(`gyms/${other.id}/sync/photo?person=${member.id}`, 'GET', undefined, paired.data.token, true);
++    assert.ok([401, 403].includes(foreign.response.status), 'la vinculación nunca entrega fotos de otro gimnasio');
++    await f.cloud((_s, ctx) => ctx.db.raw.prepare('UPDATE people SET deleted_at=? WHERE id=?').run(Date.now(), member.id));
++    assert.equal((await photo()).response.status, 404);
++    await f.cloud((_s, ctx) => ctx.db.raw.prepare('UPDATE people SET deleted_at=NULL WHERE id=?').run(member.id));
++    assert.equal((await f.request(`gyms/${f.gym.id}/sync/devices/${paired.data.id}`, 'DELETE')).response.status, 200);
++    assert.equal((await photo()).response.status, 401);
++  } finally {
++    await f.app.close();
++  }
++});
++
++test('la primera conexión descarga socios, cobros y el mismo QR y la copia persiste al volver a abrir sin red', async t => {
++  const f = await fixture(t);
++  let copy;
++  let reopened;
++  try {
++    const member = await f.cloud(s => s.savePerson(person('CENTRAL-ANTES', 'Socio del servidor')));
++    const plan = await f.cloud(s => new PosService(s).savePlan({ name: 'Mes central', unit: 'months', duration: 1, price_cents: 15000 }));
++    const payment = await f.cloud(s => new PosService(s).checkout(sale(member.id, plan)));
++    const card = await f.cloud(s => s.credentialCard(payment.credential.id));
++    copy = await f.local('Copia automática inicial');
++    assert.equal((await copy.service().personDetail(member.id)).name, 'Socio del servidor');
++    assert.equal(copy.db.raw.prepare('SELECT COUNT(*) n FROM pos_sales').get().n, 1);
++    assert.equal((await copy.service().credentialCard(payment.credential.id)).code, card.code);
++    await copy.replica.stop();
++    copy.db.close();
++    reopened = new SqliteDatabase(join(copy.root, 'gympass.sqlite'));
++    const replica = new ReplicaClient(reopened, copy.root, new Backups(reopened.raw, join(copy.root, 'gympass.sqlite'), join(copy.root, 'backups')), () => {});
++    assert.equal(replica.linked, true);
++    assert.equal(replica.status().gym_id, f.gym.id);
++    const offline = t.mock.method(globalThis, 'fetch', async () => { throw Error('Sin Internet'); });
++    await replica.synchronize();
++    replica.requireWritable();
++    assert.equal(reopened.raw.prepare('SELECT name FROM people WHERE id=?').get(member.id).name, 'Socio del servidor');
++    assert.equal(reopened.raw.prepare('SELECT COUNT(*) n FROM pos_sales').get().n, 1);
++    offline.mock.restore();
++    await f.cloud(s => s.savePerson(person('CENTRAL-DESPUES', 'Cambio desde otro equipo')));
++    await replica.synchronize();
++    assert.equal(reopened.raw.prepare('SELECT COUNT(*) n FROM people').get().n, 2);
++    assert.equal(replica.status().pending, 0);
++    await replica.stop();
++  } finally {
++    if (reopened) reopened.close();
++    else if (copy) { await copy.replica.stop(); copy.db.close(); }
++    await f.app.close();
++  }
++});
++
++test("escritorio funciona sin red y combina dos lotes tras una respuesta perdida sin duplicar pagos ni QR", async (t) => {
++  const f = await fixture(t),
++    desktops = [];
++  try {
++    const plan = await f.cloud((s) =>
++      new PosService(s).savePlan({
++        name: "Mes",
++        unit: "months",
++        duration: 1,
++        price_cents: 10000,
++      }),
++    );
++    const a = await f.local("Recepción A");
++    desktops.push(a);
++    const originalFetch = globalThis.fetch;
++    const mock = t.mock.method(globalThis, "fetch", async (...args) => {
++      if (String(args[0]).endsWith("/sync/push")) {
++        await originalFetch(...args);
++        throw Error("Respuesta perdida después de confirmar");
++      }
++      throw Error("Sin red");
++    });
++    const first = await a.service().savePerson(person("LOCAL-1"));
++    const payment = await new PosService(a.service()).checkout(
++      sale(first.id, plan),
++    );
++    const card = await a.service().credentialCard(payment.credential.id);
++    const entry = await a.service().access({
++      code: card.code,
++      direction: "entry",
++      request_id: crypto.randomUUID(),
++    });
++    assert.equal(entry.allowed, 1);
++    await a.replica.synchronize();
++    assert.ok(a.replica.status().pending > 0);
++    // More operations must remain possible while an earlier upload is unconfirmed.
++    a.replica.requireWritable();
++    const second = await a.service().savePerson(person("LOCAL-2"));
++    await new PosService(a.service()).checkout(sale(second.id, plan));
++    mock.mock.restore();
++    await a.replica.synchronize();
++    assert.equal(
++      a.replica.status().conflict,
++      null,
++      a.replica.status().error || "",
++    );
++    assert.equal(a.replica.status().pending, 0, a.replica.status().error || "");
++    await f.cloud(async (s, ctx) => {
++      assert.equal(
++        ctx.db.raw.prepare("SELECT COUNT(*) n FROM pos_sales").get().n,
++        2,
++      );
++      assert.equal(
++        ctx.db.raw.prepare("SELECT COUNT(*) n FROM people").get().n,
++        2,
++      );
++      assert.equal(
++        (await s.credentialCard(payment.credential.id)).code,
++        card.code,
++      );
++      assert.equal(
++        ctx.db.raw.prepare(`SELECT COUNT(*) n FROM (${presenceSql})`).get().n,
++        1,
++      );
++    });
++    assert.equal(
++      a.db.raw.prepare("SELECT COUNT(*) n FROM pos_sales").get().n,
++      2,
++    );
++  } finally {
++    for (const a of desktops) {
++      await a.replica.stop();
++      a.db.close();
++    }
++    await f.app.close();
++  }
++});
++
++test("los cambios distintos se combinan y el mismo campo exige revisión sin reemplazar la base local", async (t) => {
++  const f = await fixture(t),
++    desktops = [];
++  try {
++    const original = await f.cloud((s) =>
++      s.savePerson(person("SHARED", "Nombre original")),
++    );
++    const a = await f.local("A"),
++      b = await f.local("B");
++    desktops.push(a, b);
++    await a.service().savePerson(person("SHARED", "Nombre A"), original.id);
++    await b
++      .service()
++      .savePerson(
++        { ...person("SHARED"), name: "Nombre original", phone: "59179999999" },
++        original.id,
++      );
++    await a.replica.synchronize();
++    await b.replica.synchronize();
++    assert.equal(b.replica.status().pending, 0, b.replica.status().error);
++    await f.cloud(async (s) => {
++      const p = await s.personDetail(original.id);
++      assert.equal(p.name, "Nombre A");
++      assert.equal(p.phone, "59179999999");
++    });
++    await a.replica.synchronize();
++    await a
++      .service()
++      .savePerson(
++        { ...person("SHARED", "Cambio A"), phone: "59179999999" },
++        original.id,
++      );
++    await b
++      .service()
++      .savePerson(
++        { ...person("SHARED", "Cambio B"), phone: "59179999999" },
++        original.id,
++      );
++    await a.replica.synchronize();
++    await b.replica.synchronize();
++    assert.ok(b.replica.status().conflict);
++    assert.equal(
++      (await b.service().personDetail(original.id)).name,
++      "Cambio B",
++    );
++    const conflicts = await f.request(`gyms/${f.gym.id}/sync/conflicts`);
++    assert.equal(conflicts.data.length, 1);
++    const conflict = conflicts.data[0];
++    await f.request(
++      `gyms/${f.gym.id}/sync/conflicts/${conflict.device_id}/${conflict.batch_id}`,
++      "POST",
++      { confirm: "CONSERVAR NUBE" },
++    );
++    await b.replica.synchronize();
++    assert.equal(b.replica.status().pending, 0);
++    assert.equal(
++      (await b.service().personDetail(original.id)).name,
++      "Cambio A",
++    );
++    assert.ok(b.backups.list().length > 0);
++  } finally {
++    for (const a of desktops) {
++      await a.replica.stop();
++      a.db.close();
++    }
++    await f.app.close();
++  }
++});
++
++test("administradores descargan sus respaldos; cajeros y otros gimnasios no reciben copias", async (t) => {
++  const f = await fixture(t);
++  try {
++    const copy = await f.request(`gyms/${f.gym.id}/backups`, "POST", {});
++    assert.equal(copy.response.status, 201);
++    const exported = await f.request(
++      `gyms/${f.gym.id}/backups/${copy.data.id}/export`,
++    );
++    assert.equal(exported.response.status, 200);
++    assert.match(
++      exported.response.headers.get("content-disposition"),
++      /gympassbackup/,
++    );
++    const operator = await f.app.store.login({
++      email: "operator@example.test",
++      password: "123456",
++    });
++    assert.equal(
++      (
++        await f.request(
++          `gyms/${f.gym.id}/backups`,
++          "GET",
++          undefined,
++          operator.token,
++        )
++      ).response.status,
++      403,
++    );
++    assert.equal(
++      (
++        await f.request(
++          `gyms/${f.gym.id}/backups/${copy.data.id}/restore`,
++          "POST",
++          { confirm: "RESTAURAR", password: "123456" },
++        )
++      ).response.status,
++      403,
++    );
++    const owner = await f.app.store.login({
++      email: "owner@example.test",
++      password: "123456",
++    });
++    const created = await f.request(
++      "platform/backups",
++      "POST",
++      { password: "123456" },
++      owner.token,
++    );
++    assert.equal(created.response.status, 201);
++    const full = await f.request(
++      `platform/backups/${created.data.id}/export`,
++      "GET",
++      undefined,
++      owner.token,
++    );
++    assert.equal(full.response.status, 200);
++    const tar = gunzipSync(Buffer.from(await full.response.arrayBuffer()));
++    assert.ok(tar.includes(Buffer.from("platform.sqlite")));
++    assert.ok(tar.includes(Buffer.from(f.gym.id)));
++    assert.equal(
++      (await f.request("platform/backups", "GET")).response.status,
++      403,
++    );
++  } finally {
++    await f.app.close();
++  }
++});
++
++test("un respaldo descargado se verifica, se importa y se restaura con una copia previa", async (t) => {
++  const f = await fixture(t);
++  try {
++    const endpoint = `gyms/${f.gym.id}/backups`;
++    await f.cloud((s) => s.savePerson(person("ANTES")));
++    const created = await f.request(endpoint, "POST", {});
++    assert.equal(created.response.status, 201);
++    const id = created.data.id;
++    const exported = await f.request(`${endpoint}/${id}/export`);
++    assert.equal(exported.response.status, 200);
++    const archive = Buffer.from(await exported.response.arrayBuffer());
++    await f.cloud(async (s, ctx) => {
++      await s.savePerson(person("DESPUES"));
++      const original = join(ctx.backups.directory, id);
++      renameSync(original, original + "-fuera-de-lista");
++    });
++    const upload = (body, token = f.admin.token) => fetch(f.app.url + "/api/" + endpoint + "/import", {
++      method: "POST", body,
++      headers: {
++        Origin: f.app.url, "Content-Type": "application/octet-stream", "X-Requested-With": "GymPASS",
++        Cookie: "gympass_platform=" + token,
++      },
++    });
++    const operator = await f.app.store.login({ email: "operator@example.test", password: "123456" });
++    assert.equal((await upload(archive, operator.token)).status, 403);
++    const other = f.app.store.createGym(f.owner, { name: "Otro gimnasio", slug: "otro-backup" });
++    f.app.tenants.provision(other);
++    f.app.store.markGymProvisioned(other.id);
++    const foreign = await f.app.tenants.withTenant(other, async (ctx) => ctx.backups.exportCopy(ctx.backups.create().id));
++    const rejected = await upload(foreign.bytes);
++    assert.equal(rejected.status, 409);
++    assert.match((await rejected.json()).error, /otro gimnasio/);
++    assert.equal((await upload(archive.subarray(0, archive.length - 1))).status, 400);
++    assert.equal((await f.request(endpoint)).data.copies.length, 0);
++    assert.ok(readdirSync(f.app.tenants.root).every((name) => !name.startsWith(".backup-upload-")));
++    const imported = await upload(archive);
++    assert.equal(imported.status, 201);
++    const preview = await imported.json();
++    assert.equal(preview.id, id);
++    assert.equal(preview.people, 1);
++    assert.equal((await upload(archive)).status, 201);
++    assert.equal((await f.request(endpoint)).data.copies.length, 1);
++    assert.equal(await f.cloud(async (_s, ctx) => ctx.db.raw.prepare("SELECT COUNT(*) n FROM people").get().n), 2);
++    const owner = await f.app.store.login({ email: "owner@example.test", password: "123456" });
++    const support = await f.app.store.createSupport(owner.token, f.gym.id, "Recuperación de prueba");
++    const restore = (password) => fetch(f.app.url + "/api/" + endpoint + "/" + id + "/restore", {
++      method: "POST", body: JSON.stringify({ confirm: "RESTAURAR", password }),
++      headers: {
++        Origin: f.app.url, "Content-Type": "application/json", "X-Requested-With": "GymPASS",
++        Cookie: "gympass_platform=" + owner.token, "X-GymPASS-Support": support.support_token,
++      },
++    });
++    assert.equal((await restore("incorrecta")).status, 403);
++    const restored = await restore("123456");
++    assert.equal(restored.status, 200);
++    const { safety } = await restored.json();
++    assert.ok(safety);
++    assert.equal(await f.cloud(async (_s, ctx) => ctx.db.raw.prepare("SELECT COUNT(*) n FROM people").get().n), 1);
++    assert.equal((await f.request(`${endpoint}/${safety}/inspect`)).data.people, 2);
++  } finally {
++    await f.app.close();
++  }
++});
++
++test("dos dispositivos no consumen dos veces la última sesión y las vinculaciones respetan bajas y permisos", async (t) => {
++  const f = await fixture(t),
++    desktops = [];
++  try {
++    const seeded = await f.cloud(async (s) => {
++      const p = await s.savePerson(person("LAST-SESSION"));
++      const pos = new PosService(s),
++        plan = await pos.savePlan({
++          name: "Una sesión",
++          unit: "sessions",
++          duration: 1,
++          price_cents: 1000,
++        });
++      const payment = await pos.checkout(sale(p.id, plan));
++      return { person: p, card: await s.credentialCard(payment.credential.id) };
++    });
++    const a = await f.local("A"),
++      b = await f.local("B");
++    desktops.push(a, b);
++    for (const client of [a, b])
++      assert.equal(
++        (
++          await client.service().access({
++            code: seeded.card.code,
++            direction: "entry",
++            request_id: crypto.randomUUID(),
++          })
++        ).allowed,
++        1,
++      );
++    await a.replica.synchronize();
++    await b.replica.synchronize();
++    assert.ok(b.replica.status().conflict);
++    await f.cloud(async (_s, ctx) => {
++      assert.equal(
++        ctx.db.raw
++          .prepare("SELECT sessions_remaining FROM pos_memberships")
++          .get().sessions_remaining,
++        0,
++      );
++      assert.equal(
++        ctx.db.raw.prepare("SELECT COUNT(*) n FROM pos_membership_uses").get()
++          .n,
++        1,
++      );
++    });
++    const operator = await f.app.store.mobileLogin({
++      email: "operator@example.test",
++      password: "123456",
++      gymId: f.gym.id,
++    });
++    assert.equal(
++      (
++        await f.request(
++          `gyms/${f.gym.id}/sync/pair`,
++          "POST",
++          { kind: "desktop", name: "No permitido" },
++          operator.token,
++          true,
++        )
++      ).response.status,
++      403,
++    );
++    const mobile = await f.request(
++      `gyms/${f.gym.id}/sync/pair`,
++      "POST",
++      { kind: "mobile", name: "Teléfono" },
++      operator.token,
++      true,
++    );
++    assert.equal(mobile.response.status, 201);
++    const snapshot = await f.request(
++      `gyms/${f.gym.id}/sync/snapshot`,
++      "GET",
++      undefined,
++      mobile.data.token,
++      true,
++    );
++    assert.equal(snapshot.response.status, 200);
++    assert.equal(snapshot.data.assets, undefined);
++    const unchanged = await f.request(
++      `gyms/${f.gym.id}/sync/snapshot?revision=${snapshot.data.revision}`,
++      "GET",
++      undefined,
++      mobile.data.token,
++      true,
++    );
++    assert.equal(unchanged.response.status, 200);
++    assert.equal(unchanged.data.unchanged, true);
++    assert.equal(unchanged.data.tables, undefined);
++    assert.equal(unchanged.data.assets, undefined);
++    assert.equal(unchanged.data.issued_at, snapshot.data.issued_at);
++    assert.equal(unchanged.data.expires_at, snapshot.data.expires_at);
++    assert.ok(
++      snapshot.data.tables
++        .find((t) => t.name === "credentials")
++        .rows.every((row) => row.code_cipher === null),
++    );
++    assert.equal(
++      snapshot.data.tables.find((t) => t.name === "pos_sales"),
++      undefined,
++    );
++    const malicious = {
++      id: crypto.randomUUID(),
++      gym_id: f.gym.id,
++      installation_id: snapshot.data.installation_id,
++      base_revision: snapshot.data.revision,
++      issued_at: snapshot.data.issued_at,
++      expires_at: snapshot.data.expires_at,
++      changes: [{ table: "people", before: null, after: person("FAKE") }],
++    };
++    assert.equal(
++      (
++        await f.request(
++          `gyms/${f.gym.id}/sync/push`,
++          "POST",
++          malicious,
++          mobile.data.token,
++          true,
++        )
++      ).response.status,
++      403,
++    );
++    f.app.store.updateGym(f.owner, f.gym.id, { archived: true });
++    assert.equal(
++      (
++        await f.request(
++          `gyms/${f.gym.id}/sync/snapshot`,
++          "GET",
++          undefined,
++          mobile.data.token,
++          true,
++        )
++      ).response.status,
++      403,
++    );
++  } finally {
++    for (const a of desktops) {
++      await a.replica.stop();
++      a.db.close();
++    }
++    await f.app.close();
++  }
++});
++
++
++test('apariencia del gimnasio se comparte entre copias y la reconexión automática se intenta cada diez segundos', async t => {
++  const f = await fixture(t), copies = [];
++  let connected = true;
++  const originalFetch = globalThis.fetch;
++  t.mock.method(globalThis, 'fetch', async (...args) => {
++    if (!connected && String(args[0]).startsWith(f.app.url)) throw Error('Sin Internet');
++    return originalFetch(...args);
++  });
++  const settle = async copy => {
++    for (let i = 0; i < 1000 && copy.replica.status().syncing; i++) await new Promise(resolve => setImmediate(resolve));
++    assert.equal(copy.replica.status().syncing, false);
++  };
++  try {
++    const first = await f.local('Apariencia A'), second = await f.local('Apariencia B'); copies.push(first, second);
++    connected = false;
++    await first.service().updateSettings({ ui_theme: 'dark', ui_accent: '#2455a4', ui_density: 'compact' });
++    await first.replica.synchronize();
++    assert.ok(first.replica.status().pending > 0);
++    assert.equal((await f.cloud(s => s.one('SELECT ui_theme FROM settings'))).ui_theme, 'light');
++    t.mock.timers.enable({ apis: ['setInterval'] });
++    first.replica.start(); second.replica.start(); await settle(first); await settle(second);
++    connected = true;
++    t.mock.timers.tick(9999); await new Promise(resolve => setImmediate(resolve));
++    assert.equal(first.replica.status().online, false);
++    t.mock.timers.tick(1); await settle(first); await settle(second);
++    assert.equal(first.replica.status().pending, 0);
++    t.mock.timers.tick(10000); await settle(second); await settle(first);
++    const appearance = db => db.raw.prepare('SELECT ui_theme,ui_accent,ui_density FROM settings').get();
++    assert.deepEqual({ ...appearance(second.db) }, { ui_theme: 'dark', ui_accent: '#2455a4', ui_density: 'compact' });
++    assert.deepEqual({ ...appearance(first.db) }, { ...appearance(second.db) });
++  } finally { for (const copy of copies) { await copy.replica.stop(); copy.db.close(); } await f.app.close(); }
++});
+diff --git a/server/index.ts b/server/index.ts
+index 1ca430b..8a25715 100644
+--- a/server/index.ts
++++ b/server/index.ts
+@@ -247,7 +247,7 @@ async function api(req: IncomingMessage, res: ServerResponse, alreadyLocked = fa
+       if (!actor || actor.role === 'viewer' || !replica.linked) throw new ApiError(403, 'Abre el lector con una cuenta autorizada de este gimnasio.');
+       const s = new Service(db, actor, credentialCodec);
+       if (path[1] === 'start' && method === 'POST') { replica.requireWritable(); db.raw.prepare('UPDATE sessions SET kiosk=1 WHERE hash=?').run(await hash(webToken)); return json(res, { ok: true }); }
+-      if (path[1] === 'bootstrap' && method === 'GET' && kiosk) return json(res, { user: { ...actor, role: 'operator' }, installation_id: await hash(String(db.raw.prepare('SELECT owner FROM settings WHERE id=1').get()!.owner)), settings: await s.one('SELECT name,timezone,logo_path,brand_color FROM settings WHERE id=1'), zones: await s.all(`SELECT z.*,(SELECT COUNT(*) FROM (${presenceSql}) p WHERE p.zone_id=z.id) inside FROM zones z WHERE z.id='general'`) });
++      if (path[1] === 'bootstrap' && method === 'GET' && kiosk) return json(res, { user: { ...actor, role: 'operator' }, installation_id: await hash(String(db.raw.prepare('SELECT owner FROM settings WHERE id=1').get()!.owner)), settings: await s.one('SELECT name,timezone,logo_path,brand_color,ui_theme,ui_accent,ui_density FROM settings WHERE id=1'), zones: await s.all(`SELECT z.*,(SELECT COUNT(*) FROM (${presenceSql}) p WHERE p.zone_id=z.id) inside FROM zones z WHERE z.id='general'`) });
+       throw new ApiError(404, 'Operación de lector no disponible.');
+     }
+     if (path[0] === 'cloud-sync') {
+@@ -637,6 +637,7 @@ async function api(req: IncomingMessage, res: ServerResponse, alreadyLocked = fa
+           stats: data.stats,
+           today: data.today,
+           timezone: data.settings!.timezone,
++          appearance: { theme: data.settings!.ui_theme, accent: data.settings!.ui_accent, density: data.settings!.ui_density },
+         });
+       }
+       if (path[0] === 'mobile') {
+diff --git a/server/migrations/024_gym_appearance.sql b/server/migrations/024_gym_appearance.sql
+new file mode 100644
+index 0000000..9e33802
+--- /dev/null
++++ b/server/migrations/024_gym_appearance.sql
+@@ -0,0 +1,3 @@
++ALTER TABLE settings ADD COLUMN ui_theme TEXT NOT NULL DEFAULT 'light' CHECK(ui_theme IN ('light','dark'));
++ALTER TABLE settings ADD COLUMN ui_accent TEXT NOT NULL DEFAULT '#636b2f' CHECK(length(ui_accent)=7 AND substr(ui_accent,1,1)='#' AND substr(ui_accent,2) NOT GLOB '*[^0-9a-fA-F]*');
++ALTER TABLE settings ADD COLUMN ui_density TEXT NOT NULL DEFAULT 'comfortable' CHECK(ui_density IN ('comfortable','compact'));
+diff --git a/server/platform-gym-api.ts b/server/platform-gym-api.ts
+index dced2af..fb07b7d 100644
+--- a/server/platform-gym-api.ts
++++ b/server/platform-gym-api.ts
+@@ -51,7 +51,7 @@ export async function gymApi(
+     if (path.join('/') === 'kiosk/bootstrap' && method === 'GET') {
+       const session = store.authenticateSync(sessionToken);
+       if (session?.kioskGymId !== ctx.id) throw new ApiError(403, 'Activa primero el acceso automático.');
+-      const settings = await s.one('SELECT name,timezone,logo_path,brand_color FROM settings WHERE id=1');
++      const settings = await s.one('SELECT name,timezone,logo_path,brand_color,ui_theme,ui_accent,ui_density FROM settings WHERE id=1');
+       const installation = await s.one('SELECT owner FROM settings WHERE id=1');
+       const zones = await s.all(`SELECT z.*, (SELECT COUNT(*) FROM (${presenceSql}) p WHERE p.zone_id=z.id) inside FROM zones z WHERE z.id='general'`);
+       return send({ user: { ...auth.actor, role: 'operator' }, settings, zones, installation_id: await hash(installation!.owner),
+@@ -164,6 +164,7 @@ export async function gymApi(
+           stats: boot.stats,
+           today: boot.today,
+           timezone: boot.settings!.timezone,
++          appearance: { theme: boot.settings!.ui_theme, accent: boot.settings!.ui_accent, density: boot.settings!.ui_density },
+           gym_id: ctx.id,
+           server_mode: 'platform',
+           protocol: 1,
+diff --git a/server/replica-client.ts b/server/replica-client.ts
+index 8f0e794..626ff88 100644
+--- a/server/replica-client.ts
++++ b/server/replica-client.ts
+@@ -4,6 +4,7 @@ import type { SqliteDatabase } from "./database.ts";
+ import { Backups } from "./backups.ts";
+ import { ApiError, hash } from "../lib/service.ts";
+ import {
++  upgradeAppearanceSnapshot,
+   syncChanges,
+   validSyncSnapshot,
+   mappedSyncPatch,
+@@ -76,7 +77,10 @@ export class ReplicaClient {
+     const row = this.db.raw
+       .prepare("SELECT state FROM replica_state WHERE id=1")
+       .get();
+-    return row ? JSON.parse(String(row.state)) : null;
++    if (!row) return null;
++    const state = JSON.parse(String(row.state)) as State;
++    state.base = upgradeAppearanceSnapshot(state.base);
++    return state;
+   }
+   private save(state: State) {
+     this.db.raw
+@@ -161,6 +165,8 @@ export class ReplicaClient {
+     )
+       throw new ApiError(400, "Usa el origen HTTPS del servidor central.");
+     let response: Response;
++    const connectionAbort = new AbortController();
++    const connectionDeadline = setTimeout(() => connectionAbort.abort(), 8000);
+     try {
+       response = await fetch(server + "/api/" + path, {
+         method,
+@@ -168,6 +174,7 @@ export class ReplicaClient {
+         signal: AbortSignal.any([
+           AbortSignal.timeout(120000),
+           this.syncAbort.signal,
++          connectionAbort.signal,
+         ]),
+         headers: {
+           "Content-Type": "application/json",
+@@ -182,7 +189,7 @@ export class ReplicaClient {
+         503,
+         "Sin Internet. La copia local sigue disponible; se reintentará automáticamente.",
+       );
+-    }
++    } finally { clearTimeout(connectionDeadline); }
+     this.online = true;
+     const data = await response.json().catch(() => null);
+     if (!response.ok || !data)
+@@ -304,6 +311,8 @@ export class ReplicaClient {
+     return { linked: true, user: snapshot.user };
+   }
+   private install(snapshot: SyncSnapshot, state: State) {
++    snapshot = upgradeAppearanceSnapshot(snapshot);
++    state = { ...state, base: upgradeAppearanceSnapshot(state.base) };
+     validSyncSnapshot(snapshot, snapshot.gym_id, snapshot.user.id);
+     const raw = this.db.raw;
+     const triggers = raw
+@@ -554,7 +563,7 @@ export class ReplicaClient {
+       this.stopped = false;
+       this.syncAbort = new AbortController();
+     }
+-    this.timer = setInterval(() => void this.synchronize(), 30000);
++    this.timer = setInterval(() => void this.synchronize(), 10000);
+     this.timer.unref();
+     if (this.linked) void this.synchronize();
+   }
+diff --git a/server/reset.ts b/server/reset.ts
+index 5b6e87a..591c674 100644
+--- a/server/reset.ts
++++ b/server/reset.ts
+@@ -123,7 +123,7 @@ export async function resetData(
+       .prepare(
+         `
+       UPDATE settings SET owner=?,name='GymPASS',timezone='America/La_Paz',
+-        brand_color='#2563eb',logo_path=NULL,auto_close_hours=24,closing_time=NULL WHERE id=1
++        brand_color='#2563eb',logo_path=NULL,auto_close_hours=24,closing_time=NULL,ui_theme='light',ui_accent='#636b2f',ui_density='comfortable' WHERE id=1
+     `,
+       )
+       .run(newOwner);
+diff --git a/src/App.tsx b/src/App.tsx
+index ab2f337..f43c228 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -9,7 +9,8 @@ import { startLiveUpdates } from './live-updates';
+ import AppShell from './AppShell';
+ import { navigationFor, pageFromHash, sectionsFor } from './navigation';
+ import SectionTabs from './SectionTabs';
+-import { setPreferencesUser } from './preferences';
++import { setPreferencesUser, setGymAppearance } from './preferences';
++import { appearanceSettings } from '../lib/gym-appearance';
+ import { applyBrand } from './branding';
+ import {
+   accessQueueIdentity,
+@@ -63,6 +64,7 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
+     sessionGeneration.current++;
+     lastBootstrap.current = '';
+     void setAccessQueueIdentity(null);
++    setGymAppearance(null);
+     setData(null);
+     setCommands(false);
+     setToast(null);
+@@ -182,7 +184,7 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
+     window.addEventListener('online', reconnect);
+     window.addEventListener('pageshow', reconnect);
+     document.addEventListener('visibilitychange', reconnect);
+-    const interval = error ? setInterval(reconnect, 5000) : null;
++    const interval = error ? setInterval(reconnect, 10000) : null;
+     return () => {
+       window.removeEventListener('online', reconnect);
+       window.removeEventListener('pageshow', reconnect);
+@@ -216,6 +218,16 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
+   useEffect(() => {
+     setPreferencesUser(data?.user.email || '');
+   }, [data?.user.email]);
++  useEffect(() => {
++    if (!data) return;
++    const editable = data.user.role === 'admin' && !data.platform?.read_only;
++    setGymAppearance(data.settings, data.installation_id + ':' + (data.platform?.gym_id || ''), editable ? async change => { await api('settings', 'PATCH', appearanceSettings(change)); } : undefined);
++  }, [data?.installation_id, data?.platform?.gym_id, data?.user.role, data?.platform?.read_only, data?.settings.ui_theme, data?.settings.ui_accent, data?.settings.ui_density]);
++  useEffect(() => {
++    const saved = () => void reload(['settings']).catch(() => {});
++    window.addEventListener('appearance-saved', saved);
++    return () => { window.removeEventListener('appearance-saved', saved); setGymAppearance(null); };
++  }, [reload]);
+   useEffect(() => {
+     void api<Pick<OrganizationSettings, 'name' | 'brand_color' | 'logo_path'>>('branding')
+       .then((value) => {
+diff --git a/src/AppDownloads.tsx b/src/AppDownloads.tsx
+index 71ef685..ed4f44e 100644
+--- a/src/AppDownloads.tsx
++++ b/src/AppDownloads.tsx
+@@ -1,8 +1,8 @@
+ import { Download, Monitor, Smartphone } from 'lucide-react';
+ import './styles/app-downloads.css';
+ 
+-const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.1.1/';
+-const androidApk = release + 'GymPASS-Android-5.1.1.apk';
++const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.2.0/';
++const androidApk = release + 'GymPASS-Android-5.2.0.apk';
+ 
+ export default function AppDownloads() {
+   if (
+@@ -22,20 +22,20 @@ export default function AppDownloads() {
+           <Smartphone size={24} aria-hidden="true" />
+           <span>
+             <strong>Móvil Android</strong>
+-            <small>Descargar APK · v5.1.1</small>
++            <small>Descargar APK · v5.2.0</small>
+           </span>
+           <Download size={16} aria-hidden="true" />
+         </a>
+         <a
+           className="app-download"
+-          href={release + 'GymPASS-Setup-5.1.1.exe'}
++          href={release + 'GymPASS-Setup-5.2.0.exe'}
+           target="_blank"
+           rel="noopener noreferrer"
+         >
+           <Monitor size={24} aria-hidden="true" />
+           <span>
+             <strong>Escritorio Windows</strong>
+-            <small>Descargar instalador · v5.1.1</small>
++            <small>Descargar instalador · v5.2.0</small>
+           </span>
+           <Download size={16} aria-hidden="true" />
+         </a>
+diff --git a/src/Appearance.tsx b/src/Appearance.tsx
+index 4d00bd7..1db2905 100644
+--- a/src/Appearance.tsx
++++ b/src/Appearance.tsx
+@@ -1,33 +1,39 @@
+ import { useState, type CSSProperties } from 'react';
+ import { accentButtonColor, accentPresets } from '../lib/accent';
+ import { Field } from './ui';
+-import { usePreferences, updatePreferences, type Preferences } from './preferences';
++import { usePreferences, saveAppearance, type Preferences } from './preferences';
+ import './styles/appearance.css';
+ 
+ export default function Appearance() {
+   const preferences = usePreferences();
+   const [changes, setChanges] = useState<Partial<Preferences>>({});
+   const [saveMessage, setSaveMessage] = useState('');
++  const [saving, setSaving] = useState(false);
++  const editable = preferences.appearanceEditable !== false;
+   const draft = { ...preferences, ...changes };
+   const dirty = Object.entries(changes).some(([key, value]) => preferences[key as keyof Preferences] !== value);
+   const edit = (change: Partial<Preferences>) => {
+     setSaveMessage('');
+     setChanges((current) => ({ ...current, ...change }));
+   };
+-  const save = () => {
+-    if (!dirty) return;
+-    const stored = updatePreferences(changes);
+-    setChanges({});
+-    setSaveMessage(stored ? 'Cambios guardados en este navegador.' : 'Cambios aplicados durante esta sesión.');
++  const save = async () => {
++    if (!dirty || saving || !editable) return;
++    setSaving(true);
++    try {
++      await saveAppearance(changes);
++      setChanges({});
++      setSaveMessage('Apariencia guardada para este gimnasio. Se comparte al sincronizar los dispositivos.');
++    } catch (cause) { setSaveMessage((cause as Error).message); }
++    finally { setSaving(false); }
+   };
+   return (
+     <section
+       className="panel padded appearance-panel"
+       style={{ '--brand-base': accentButtonColor(draft.accent) } as CSSProperties}
+     >
+-      <fieldset className="appearance-themes">
++      <fieldset className="appearance-themes" disabled={!editable || saving}>
+         <legend>Tema de la interfaz</legend>
+-        <p className="helper">Elige cómo quieres ver GymPASS en este dispositivo.</p>
++        <p className="helper">Tema compartido por todos los dispositivos de este gimnasio.</p>
+         <div className="appearance-theme-options">
+           {([
+             ['light', 'Claro', 'Superficies claras y fondo suave.'],
+@@ -53,9 +59,9 @@ export default function Appearance() {
+           ))}
+         </div>
+       </fieldset>
+-      <fieldset className="appearance-accent-picker">
++      <fieldset className="appearance-accent-picker" disabled={!editable || saving}>
+         <legend>Color de acento</legend>
+-        <p className="helper">Se usa en los botones, el menú activo y los enlaces de este dispositivo, en ambos temas.</p>
++        <p className="helper">Se usa en los botones, el menú activo y los enlaces del gimnasio, en ambos temas.</p>
+         <div className="appearance-accent-options">
+           {accentPresets.map((preset) => (
+             <button
+@@ -80,8 +86,9 @@ export default function Appearance() {
+         </div>
+       </fieldset>
+       <div className="form-grid appearance-density">
+-        <Field label="Densidad de las tablas" hint="Se recuerda para tu usuario en este navegador.">
++        <Field label="Densidad de las tablas" hint="Se comparte con los dispositivos de este gimnasio.">
+           <select
++            disabled={!editable || saving}
+             value={draft.density}
+             onChange={(event) => edit({ density: event.target.value as Preferences['density'] })}
+           >
+@@ -91,8 +98,8 @@ export default function Appearance() {
+         </Field>
+       </div>
+       <div className="appearance-save">
+-        <button type="button" className="btn primary" disabled={!dirty} onClick={save}>Guardar cambios</button>
+-        <p className="helper" role="status">{saveMessage || (dirty ? 'Tienes cambios sin guardar.' : 'Los ajustes se guardan en este navegador.')}</p>
++        <button type="button" className="btn primary" disabled={!dirty || saving || !editable} onClick={() => void save()}>{saving ? 'Guardando…' : 'Guardar cambios'}</button>
++        <p className="helper" role="status">{saveMessage || (!editable ? 'Un administrador puede cambiar la apariencia del gimnasio.' : dirty ? 'Tienes cambios sin guardar.' : 'Los ajustes pertenecen a este gimnasio, también en las copias sin conexión.')}</p>
+       </div>
+     </section>
+   );
+diff --git a/src/PlatformKiosk.tsx b/src/PlatformKiosk.tsx
+index 6cf1dcc..5efc13b 100644
+--- a/src/PlatformKiosk.tsx
++++ b/src/PlatformKiosk.tsx
+@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
+ import { api } from './api';
+ import type { Bootstrap } from '../lib/domain';
+ import Kiosk from './Kiosk';
++import { setGymAppearance } from './preferences';
+ import { Skeleton } from './ui';
+ import { setPlatformContext } from './platform-context';
+ import { accessQueueIdentity, setAccessQueueIdentity, startOfflineQueue } from './offline';
+@@ -24,13 +25,14 @@ export default function PlatformKiosk({ gymId }: { gymId: string }) {
+   const reload = useCallback(async () => {
+     setPlatformContext({ gymId });
+     const next = await api<Bootstrap>('kiosk/bootstrap');
++    setGymAppearance(next.settings, next.installation_id + ':' + gymId);
+     setData(next);
+     setError('');
+   }, [gymId]);
+   useEffect(() => {
+     void reload().catch(cause => setError((cause as Error).message));
+-    const timer = setInterval(() => void reload().catch(cause => setError((cause as Error).message)), 30000);
+-    return () => clearInterval(timer);
++    const timer = setInterval(() => void reload().catch(cause => setError((cause as Error).message)), 10000);
++    return () => { clearInterval(timer); setGymAppearance(null); };
+   }, [reload]);
+   useEffect(() => {
+     if (!data) return;
+diff --git a/src/ThemeToggle.tsx b/src/ThemeToggle.tsx
+index 0b8f160..d2c7d06 100644
+--- a/src/ThemeToggle.tsx
++++ b/src/ThemeToggle.tsx
+@@ -1,12 +1,15 @@
+ import { Moon, Sun } from 'lucide-react';
+-import { updatePreferences, usePreferences } from './preferences';
++import { useState } from 'react';
++import { saveAppearance, usePreferences } from './preferences';
+ 
+ export default function ThemeToggle() {
+-  const { theme } = usePreferences();
++  const { theme, appearanceEditable } = usePreferences();
++  const [saving, setSaving] = useState(false);
++  const [error, setError] = useState('');
+   const dark = theme === 'dark';
+   const label = dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
+-  return <button type="button" className="icon-btn theme-toggle" aria-label={label} title={label} aria-pressed={dark}
+-    onClick={() => updatePreferences({ theme: dark ? 'light' : 'dark' })}>
++  return <button type="button" className="icon-btn theme-toggle" aria-label={label} title={error || label} aria-pressed={dark} disabled={saving || appearanceEditable === false}
++    onClick={async () => { if (saving) return; setSaving(true); setError(''); try { await saveAppearance({ theme: dark ? 'light' : 'dark' }); } catch (cause) { setError((cause as Error).message); } finally { setSaving(false); } }}>
+     {dark ? <Sun size={19} /> : <Moon size={19} />}
+   </button>;
+ }
+diff --git a/src/live-updates.ts b/src/live-updates.ts
+index 8ac4eca..0d00b3b 100644
+--- a/src/live-updates.ts
++++ b/src/live-updates.ts
+@@ -26,7 +26,7 @@ export function startLiveUpdates(refresh: (topics?: string[]) => Promise<void>)
+   };
+   const retry = () => {
+     if (stopped || !visible() || reconnectTimer || !context) return;
+-    const delay = Math.min(30000, 1000 * 2 ** Math.min(attempts++, 5)) + Math.random() * 300;
++    const delay = 10000;
+     reconnectTimer = setTimeout(() => {
+       reconnectTimer = undefined;
+       connect();
+@@ -56,7 +56,7 @@ export function startLiveUpdates(refresh: (topics?: string[]) => Promise<void>)
+           connected = true;
+           attempts = 0;
+           clearTimeout(handshake);
+-          queue(['access', 'people', 'pos', 'alerts']);
++          queue(['access', 'people', 'pos', 'alerts', 'settings']);
+         } else if (message.type === 'change' && Array.isArray(message.topics)) {
+           queue(message.topics.filter((topic: unknown) => typeof topic === 'string' && validTopics.has(topic)));
+         }
+@@ -89,7 +89,7 @@ export function startLiveUpdates(refresh: (topics?: string[]) => Promise<void>)
+   // Respaldo para redes/proxies sin Upgrade; no consulta si el canal está conectado.
+   const fallback = setInterval(() => {
+     if (!connected) run();
+-  }, 30000);
++  }, 10000);
+   // Las fechas pueden vencer sin una escritura: una revisión ligera cada cinco minutos.
+   const calendar = setInterval(() => {
+     if (connected) run(['time', 'alerts']);
+diff --git a/src/mobile-main.tsx b/src/mobile-main.tsx
+index 96aac74..5b7a5c6 100644
+--- a/src/mobile-main.tsx
++++ b/src/mobile-main.tsx
+@@ -25,7 +25,7 @@ function MobileStatus() {
+     const resize = new ResizeObserver(() => document.documentElement.style.setProperty('--gympass-sync-height', element.getBoundingClientRect().height + 'px'));
+     resize.observe(element); return () => resize.disconnect();
+   }, []);
+-  return <div id="mobile-sync-status" role="status" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100, padding: '8px 12px', background: 'var(--surface)', borderTop: '1px solid var(--border-strong)', color: 'var(--ink)', fontSize: 12 }}>
++  return <div id="mobile-sync-status" role="status" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 25, padding: '8px 12px', background: 'var(--surface)', borderTop: '1px solid var(--border-strong)', color: 'var(--ink)', fontSize: 12 }}>
+     {status ? status.revoked ? 'Acceso revocado. Los pendientes se conservan.' : status.conflict ? 'Cambios guardados. Hay un conflicto para revisar.' : `${status.online ? 'Conectado' : 'Sin Internet'} · ${status.pending ? status.pending + ' cambios guardados en este teléfono' : 'Sin cambios pendientes'} · Sincronización automática` : 'Abriendo la copia del teléfono…'}
+     {status?.server && <a href={status.server} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 4 }}>Cuenta y respaldos del servidor</a>}
+   </div>;
+diff --git a/src/preferences.ts b/src/preferences.ts
+index 618bb1a..222bec1 100644
+--- a/src/preferences.ts
++++ b/src/preferences.ts
+@@ -1,12 +1,16 @@
+ import { useSyncExternalStore } from 'react';
+ import { accentProperties, accentTokens, defaultAccent, normalizeAccent } from '../lib/accent';
+ import { defaultVoiceSettings, normalizeVoiceSettings, recordedAccessVoice, type VoiceSettings } from '../lib/access-feedback';
++import { gymAppearance, defaultGymAppearance, type GymAppearance } from '../lib/gym-appearance';
++import type { Settings } from '../lib/domain';
+ 
+ export type Preferences = VoiceSettings & {
+   theme: 'light' | 'dark';
+   density: 'comfortable' | 'compact';
+-  /** Color de los botones y del menú activo en este dispositivo. */
++  /** Apariencia del gimnasio activo; antes del acceso solo se usa la preferencia del login. */
+   accent: string;
++  sharedAppearance?: boolean;
++  appearanceEditable?: boolean;
+   sound: boolean;
+   vibration: boolean;
+ };
+@@ -41,6 +45,26 @@ function load(): Preferences {
+   }
+ }
+ let preferences = load();
++let gym: { id: string; save?: (change: Partial<GymAppearance>) => Promise<void> } | null = null;
++let gymGeneration = 0;
++export function setGymAppearance(settings: Settings | null, id = '', save?: (change: Partial<GymAppearance>) => Promise<void>) {
++  if ((gym?.id || '') !== id) gymGeneration++;
++  gym = settings ? { id, save } : null;
++  preferences = { ...preferences, ...(settings ? gymAppearance(settings) : defaultGymAppearance), sharedAppearance: !!settings, appearanceEditable: !settings || !!save };
++  applyPreferences();
++  listeners.forEach(listener => listener());
++}
++export async function saveAppearance(change: Partial<GymAppearance>) {
++  const current = gym, generation = gymGeneration;
++  if (!current) { updatePreferences(change); return; }
++  if (!current.save) throw Error('Solo un administrador puede cambiar la apariencia del gimnasio.');
++  await current.save(change);
++  if (gymGeneration !== generation || gym?.id !== current.id) return;
++  preferences = { ...preferences, ...change, accent: normalizeAccent(change.accent ?? preferences.accent) };
++  applyPreferences();
++  listeners.forEach(listener => listener());
++  window.dispatchEvent(new Event('appearance-saved'));
++}
+ export function applyPreferences() {
+   document.documentElement.dataset.theme = preferences.theme;
+   document.documentElement.dataset.density = preferences.density;
+@@ -56,6 +80,7 @@ export function applyPreferences() {
+ }
+ export function setPreferencesUser(email: string) {
+   user = email;
++  if (gym) return;
+   let density: Preferences['density'] = 'comfortable';
+   try {
+     if (localStorage.getItem('gympass.density.' + user) === 'compact') density = 'compact';
+@@ -67,6 +92,11 @@ export function setPreferencesUser(email: string) {
+   listeners.forEach((listener) => listener());
+ }
+ export function updatePreferences(change: Partial<Preferences>) {
++  // Native chrome, storage events and old device preferences cannot override a gym.
++  if (gym) {
++    const { theme, accent, density, ...local } = change;
++    change = local;
++  }
+   preferences = {
+     ...preferences,
+     ...change,
+diff --git a/tests/appearance-theme.test.ts b/tests/appearance-theme.test.ts
+index 95e58df..68f3729 100644
+--- a/tests/appearance-theme.test.ts
++++ b/tests/appearance-theme.test.ts
+@@ -14,7 +14,7 @@ test('Apariencia ofrece sólo Claro y Oscuro y permite cambiar tema con color de
+     './ui': componentStubs,
+     './preferences': {
+       usePreferences: () => ({ theme: 'light', accent: '#636b2f', density: 'comfortable', sound: false, vibration: false, ...defaultVoiceSettings }),
+-      updatePreferences: (value: unknown) => changes.push(value),
++      saveAppearance: (value: unknown) => changes.push(value),
+     },
+     './feedback': { accessFeedback() {}, prepareAudio() {}, prepareAccessVoice() {}, stopFeedback() {}, subscribeAccessVoices: () => () => {} },
+     './styles/appearance.css': {},
+diff --git a/tests/component-harness.ts b/tests/component-harness.ts
+index 84214a4..a94f073 100644
+--- a/tests/component-harness.ts
++++ b/tests/component-harness.ts
+@@ -1,3 +1,4 @@
++import * as gymAppearanceModule from '../lib/gym-appearance.ts';
+ import { readFileSync } from 'node:fs';
+ import { createRequire } from 'node:module';
+ import { runInNewContext } from 'node:vm';
+@@ -111,6 +112,7 @@ export function componentHarness(globals: Record<string, unknown> = {}) {
+       require: (name: string) => {
+         if (name === 'react') return hooks;
+         if (name === 'react/jsx-runtime') return require(name);
++        if (/lib\/gym-appearance$/.test(name)) return gymAppearanceModule;
+         if (/lib\/access-feedback$/.test(name)) return feedback;
+         if (/lib\/voice-catalog$/.test(name)) return voiceCatalog;
+         if (/lib\/backup-limits$/.test(name)) return backupLimits;
+diff --git a/tests/desktop-remote.test.ts b/tests/desktop-remote.test.ts
+index 8ead51a..7b852d5 100644
+--- a/tests/desktop-remote.test.ts
++++ b/tests/desktop-remote.test.ts
+@@ -50,6 +50,14 @@ test('la elección local o central persiste; el entorno prevalece sin sobrescrib
+   }
+ });
+ 
++test('las instalaciones remotas anteriores pasan a la copia local sin modificar su servidor', () => {
++  const directory = mkdtempSync(join(tmpdir(), 'gympass-migrate-direct-'));
++  try {
++    writeFileSync(join(directory, 'remote-server.json'), JSON.stringify({ mode: 'remote', server: 'https://gym.example.test', direct: true }));
++    assert.deepEqual(remoteModule().readRemoteConfiguration(directory, {}), { mode: 'replica', server: 'https://gym.example.test', work: 'server' });
++  } finally { rmSync(directory, { recursive: true, force: true }); }
++});
++
+ async function bootRemote(failFirst = false, persisted = false, connectionChoice = 0) {
+   const directory = mkdtempSync(join(tmpdir(), 'gympass-remote-main-'));
+   if (persisted)
+@@ -132,6 +140,7 @@ async function bootRemote(failFirst = false, persisted = false, connectionChoice
+   runInNewContext(readFileSync(join(desktop, 'main.cjs'), 'utf8'), {
+     __dirname: desktop,
+     require: (name: string) => {
++      if (name === join(desktop, 'remote.cjs')) return { ...remoteModule(), readRemoteConfiguration: () => ({ mode: 'remote', server: 'https://gym.example.test', direct: true }) };
+       if (name === './credential-clipboard.cjs') return { installCredentialClipboard() {} };
+       if (name === 'electron')
+         return {
+@@ -341,15 +350,15 @@ test('la ventana local de configuración guarda otro servidor sin exponer IPC al
+   }
+ });
+ 
+-test('una cuenta central nueva abre el servidor directamente y conserva ese modo al reiniciar', async () => {
++test('una cuenta central anterior conserva su servidor y pasa a la copia al reiniciar', async () => {
+   const fixture = await bootRemote(false, true, 1);
+   try {
+     fixture.windows[0].webContents.emit('will-navigate', { preventDefault() {} },
+       'gympass-connection://apply/?mode=remote&server=https%3A%2F%2Fgym.example.test');
+     for (let turn = 0; turn < 8; turn++) await new Promise<void>((done) => setImmediate(done));
+     const config = remoteModule().readRemoteConfiguration(fixture.directory, {});
+-    assert.equal(config.mode, 'remote');
+-    assert.equal(config.direct, true);
++    assert.equal(config.mode, 'replica');
++    assert.equal(config.work, 'server');
+     assert.equal(config.server, 'https://gym.example.test');
+     assert.ok(fixture.calls.includes('relaunch'));
+     assert.ok(!fixture.calls.includes('prepare'));
+diff --git a/tests/gym-appearance.test.ts b/tests/gym-appearance.test.ts
+new file mode 100644
+index 0000000..aba8278
+--- /dev/null
++++ b/tests/gym-appearance.test.ts
+@@ -0,0 +1,40 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { SqliteDatabase } from '../server/database.ts';
++import { Service } from '../lib/service.ts';
++import { gymAppearance, defaultGymAppearance } from '../lib/gym-appearance.ts';
++import { componentHarness } from './component-harness.ts';
++
++test('la apariencia se guarda por gimnasio, se valida y respeta los permisos de configuración', async t => {
++  const a = new SqliteDatabase(':memory:'), b = new SqliteDatabase(':memory:');
++  t.after(() => { a.close(); b.close(); });
++  for (const db of [a, b]) db.raw.exec("INSERT INTO settings(id,owner,name) VALUES(1,'admin','Gym')");
++  const actor = { id: 'admin', email: 'admin@example.test', name: 'Admin', role: 'admin' as const };
++  const service = new Service(a, actor);
++  await service.updateSettings({ ui_theme: 'dark', ui_accent: '#2455A4', ui_density: 'compact' });
++  assert.deepEqual(gymAppearance(a.raw.prepare('SELECT * FROM settings').get()!), { theme: 'dark', accent: '#2455a4', density: 'compact' });
++  assert.deepEqual(gymAppearance(b.raw.prepare('SELECT * FROM settings').get()!), defaultGymAppearance);
++  for (const patch of [{ ui_theme: 'system' }, { ui_accent: 'red' }, { ui_density: 'wide' }]) await assert.rejects(service.updateSettings(patch));
++  await assert.rejects(new Service(a, { ...actor, role: 'operator' }).updateSettings({ ui_theme: 'light' }), /permiso|administrador|rol/i);
++  assert.equal(a.raw.prepare('SELECT COUNT(*) n FROM audit').get()!.n, 1);
++});
++
++test('cada dispositivo recibe el gimnasio activo y una respuesta tardía no cambia otro gimnasio', async t => {
++  const h = componentHarness({ Event, window: { addEventListener() {}, dispatchEvent() {} }, localStorage: { getItem: () => JSON.stringify({ theme: 'dark', accent: '#75516f' }), setItem() {} }, document: { documentElement: { dataset: {}, style: { setProperty() {}, removeProperty() {} } }, querySelector: () => null } });
++  t.after(() => h.cleanup());
++  const p = h.load('../src/preferences.ts');
++  let release!: () => void;
++  const written: unknown[] = [];
++  p.setGymAppearance({ ui_theme: 'light', ui_accent: '#2455a4', ui_density: 'compact' }, 'gym-a', async (patch: unknown) => { written.push(patch); await new Promise<void>(resolve => { release = resolve; }); });
++  assert.equal((h.render(p.usePreferences) as any).theme, 'light');
++  assert.equal((h.render(p.usePreferences) as any).accent, '#2455a4');
++  p.updatePreferences({ theme: 'dark', accent: '#75516f' });
++  assert.equal((h.render(p.usePreferences) as any).theme, 'light', 'Una preferencia del dispositivo no sobrescribe el gimnasio');
++  const pending = p.saveAppearance({ theme: 'dark' });
++  p.setGymAppearance({ ui_theme: 'light', ui_accent: '#356653' }, 'gym-b');
++  release(); await pending;
++  assert.equal((h.render(p.usePreferences) as any).accent, '#356653');
++  assert.equal((h.render(p.usePreferences) as any).theme, 'light');
++  assert.deepEqual(JSON.parse(JSON.stringify(written)), [{ theme: 'dark' }]);
++  await assert.rejects(p.saveAppearance({ theme: 'dark' }), /administrador/);
++});
+diff --git a/tests/http.test.ts b/tests/http.test.ts
+index 1b44adc..06a3123 100644
+--- a/tests/http.test.ts
++++ b/tests/http.test.ts
+@@ -190,6 +190,7 @@ test('HTTP: configuración, sesiones, API, roles, exportación y persistencia',
+     const mobileBootstrap = await request('mobile/bootstrap', 'GET', undefined, headers);
+     assert.equal(mobileBootstrap.status, 200);
+     assert.deepEqual(Object.keys(mobileBootstrap.data).sort(), [
++      'appearance',
+       'installation_id',
+       'stats',
+       'timezone',
+diff --git a/tests/live-updates.test.ts b/tests/live-updates.test.ts
+index 9b97f11..1d0725d 100644
+--- a/tests/live-updates.test.ts
++++ b/tests/live-updates.test.ts
+@@ -54,7 +54,7 @@ function fixture(t: test.TestContext, supportToken?: string) {
+   return { controller, sockets, calls, document, browser, stop };
+ }
+ 
+-test('WebSocket agrupa avisos y elimina el sondeo de 30 segundos mientras está conectado', (t) => {
++test('WebSocket agrupa avisos y elimina el sondeo de diez segundos mientras está conectado', (t) => {
+   const f = fixture(t);
+   assert.equal(f.sockets[0].url.href, 'wss://gympass.test/api/gyms/gym-a/realtime');
+   f.sockets[0].receive({ type: 'ready', protocol: 1 });
+@@ -71,9 +71,8 @@ test('WebSocket agrupa avisos y elimina el sondeo de 30 segundos mientras está
+ test('WebSocket recupera los datos al reconectar y mantiene respaldo HTTP si la red falla', (t) => {
+   const f = fixture(t);
+   f.sockets[0].close();
+-  t.mock.timers.tick(1300);
++  t.mock.timers.tick(10000);
+   assert.equal(f.sockets.length, 2);
+-  t.mock.timers.tick(30000);
+   assert.equal(f.calls.length, 1);
+   assert.equal(f.calls[0], undefined);
+   const last = f.sockets.at(-1)!;
+diff --git a/tests/release-version.test.ts b/tests/release-version.test.ts
+index 45f97a6..9e023fc 100644
+--- a/tests/release-version.test.ts
++++ b/tests/release-version.test.ts
+@@ -2,14 +2,14 @@
+ import { test } from 'node:test';
+ import { readFile } from 'node:fs/promises';
+ 
+-test('web, Android y Windows usan 5.1.1', async () => {
++test('web, Android y Windows usan 5.2.0', async () => {
+   for (const path of ['package.json', 'desktop/package.json', 'desktop-runtime/package.json']) {
+     const manifest = JSON.parse(await readFile(new URL('../' + path, import.meta.url), 'utf8'));
+-    assert.equal(manifest.version, '5.1.1', path);
++    assert.equal(manifest.version, '5.2.0', path);
+   }
+   const app = JSON.parse(await readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'));
+-  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '5.1.1');
+-  assert.equal(app.expo.version, '5.1.1');
+-  assert.equal(app.expo.android.versionCode, 5110);
+-  assert.equal(app.expo.ios.buildNumber, '5110');
++  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '5.2.0');
++  assert.equal(app.expo.version, '5.2.0');
++  assert.equal(app.expo.android.versionCode, 5200);
++  assert.equal(app.expo.ios.buildNumber, '5200');
+ });
+diff --git a/tests/reset.test.ts b/tests/reset.test.ts
+index 87bce6b..d7857dd 100644
+--- a/tests/reset.test.ts
++++ b/tests/reset.test.ts
+@@ -294,6 +294,7 @@ test('reset clears the complete FK fixture, rotates identity and keeps administr
+       logo_watermark_size: 45,
+       credential_color: null,
+       credential_watermark_size: 70,
++      ui_theme: 'light', ui_accent: '#636b2f', ui_density: 'comfortable',
+     },
+   );
+   assert.notEqual(await hash(String(settings.owner)), oldInstallation);
+diff --git a/tests/theme.test.ts b/tests/theme.test.ts
+new file mode 100644
+index 0000000..4fbe158
+--- /dev/null
++++ b/tests/theme.test.ts
+@@ -0,0 +1,43 @@
++import assert from 'node:assert/strict';
++import test from 'node:test';
++import { themePalettes } from '../lib/theme.ts';
++import { componentHarness, componentStubs, findElement } from './component-harness.ts';
++
++function luminance(hex: string) {
++  const rgb = hex.slice(1).match(/../g)!.map(value => parseInt(value, 16) / 255).map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
++  return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
++}
++function contrast(a: string, b: string) {
++  const values = [luminance(a), luminance(b)].sort((x, y) => y - x);
++  return (values[0] + 0.05) / (values[1] + 0.05);
++}
++
++test('ambos temas mantienen contraste legible en texto, botones oliva y superficies', () => {
++  for (const palette of Object.values(themePalettes)) {
++    for (const [ink, background] of [[palette.ink,palette.surface],[palette.muted,palette.surface],[palette.brandText,palette.surface],[palette.onBrand,palette.brand],[palette.onChrome,palette.chrome]])
++      assert.ok(contrast(ink, background) >= 4.5, `${ink} sobre ${background}`);
++    assert.equal(palette.brand, '#636b2f');
++    assert.ok(contrast(palette.onBrand, palette.brandHover) >= 4.5);
++    assert.equal(palette.chrome, palette.surface);
++  }
++});
++
++test('el cambio rápido de tema conserva las otras preferencias y puede invertir ambos modos', async t => {
++  const h = componentHarness(); t.after(() => h.cleanup());
++  let theme = 'light';
++  const changes: unknown[] = [];
++  const { default: ThemeToggle } = h.load('../src/ThemeToggle.tsx', {
++    'lucide-react': componentStubs,
++    './preferences': {
++      usePreferences: () => ({ theme, sound: true }),
++      saveAppearance: (next: { theme: string }) => { changes.push(JSON.parse(JSON.stringify(next))); theme = next.theme; },
++    },
++  });
++  h.render(ThemeToggle);
++  for (const label of ['Cambiar a modo oscuro','Cambiar a modo claro']) {
++    const button = findElement(h.render(ThemeToggle), e => e.type === 'button');
++    assert.equal(button.props['aria-label'], label);
++    await button.props.onClick();
++  }
++  assert.deepEqual(changes, [{ theme: 'dark' }, { theme: 'light' }]);
++});
+diff --git a/tests/voice-appearance.test.ts b/tests/voice-appearance.test.ts
+index e9198dd..51a532f 100644
+--- a/tests/voice-appearance.test.ts
++++ b/tests/voice-appearance.test.ts
+@@ -103,7 +103,7 @@ test('Apariencia guarda el tema y el color de acento solo al confirmar', async (
+   const { default: Appearance } = h.load('../src/Appearance.tsx', {
+     './preferences': {
+       usePreferences: () => preferences,
+-      updatePreferences: (change: Partial<typeof preferences>) => { Object.assign(preferences, change); return true; },
++      saveAppearance: (change: Partial<typeof preferences>) => { Object.assign(preferences, change); return true; },
+     },
+     './ui': { Field: 'Field' },
+     './styles/appearance.css': {},
+@@ -123,5 +123,5 @@ test('Apariencia guarda el tema y el color de acento solo al confirmar', async (
+   tree = await h.settle();
+   assert.equal(preferences.theme, 'dark');
+   assert.equal(preferences.accent, '#2455a4');
+-  assert.match(elementText(tree), /Cambios guardados en este navegador/);
++  assert.match(elementText(tree), /Apariencia guardada para este gimnasio/);
+ });

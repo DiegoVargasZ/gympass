@@ -51,7 +51,7 @@ export async function gymApi(
     if (path.join('/') === 'kiosk/bootstrap' && method === 'GET') {
       const session = store.authenticateSync(sessionToken);
       if (session?.kioskGymId !== ctx.id) throw new ApiError(403, 'Activa primero el acceso automático.');
-      const settings = await s.one('SELECT name,timezone,logo_path,brand_color FROM settings WHERE id=1');
+      const settings = await s.one('SELECT name,timezone,logo_path,brand_color,ui_theme,ui_accent,ui_density FROM settings WHERE id=1');
       const installation = await s.one('SELECT owner FROM settings WHERE id=1');
       const zones = await s.all(`SELECT z.*, (SELECT COUNT(*) FROM (${presenceSql}) p WHERE p.zone_id=z.id) inside FROM zones z WHERE z.id='general'`);
       return send({ user: { ...auth.actor, role: 'operator' }, settings, zones, installation_id: await hash(installation!.owner),
@@ -164,6 +164,7 @@ export async function gymApi(
           stats: boot.stats,
           today: boot.today,
           timezone: boot.settings!.timezone,
+          appearance: { theme: boot.settings!.ui_theme, accent: boot.settings!.ui_accent, density: boot.settings!.ui_density },
           gym_id: ctx.id,
           server_mode: 'platform',
           protocol: 1,

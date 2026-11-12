@@ -1,3 +1,4 @@
+import { appearanceColumns } from './gym-appearance.ts';
 export type SyncValue = string | number | null;
 export type SyncRow = Record<string, SyncValue>;
 export type SyncColumn = { name: string; type: string; pk: number };
@@ -30,6 +31,16 @@ export type SyncUnchanged = Pick<
   | "expires_at"
   | "user"
 > & { unchanged: true };
+/** Upgrade cached copies without creating edits or changing an in-flight batch. */
+export function upgradeAppearanceSnapshot(snapshot: SyncSnapshot): SyncSnapshot {
+  return { ...snapshot, tables: snapshot.tables.map(table => {
+    if (table.name !== 'settings') return table;
+    const missing = appearanceColumns.filter(field => !table.columns.some(column => column.name === field.name));
+    if (!missing.length) return table;
+    return { ...table, columns: [...table.columns, ...missing.map(field => ({ name: field.name, type: 'TEXT', pk: 0 }))],
+      rows: table.rows.map(row => ({ ...Object.fromEntries(missing.map(field => [field.name, field.value])), ...row })) };
+  }) };
+}
 export function renewSyncSnapshot(
   base: SyncSnapshot,
   update: SyncUnchanged,

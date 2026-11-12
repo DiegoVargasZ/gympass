@@ -1,12 +1,16 @@
 import { useSyncExternalStore } from 'react';
 import { accentProperties, accentTokens, defaultAccent, normalizeAccent } from '../lib/accent';
 import { defaultVoiceSettings, normalizeVoiceSettings, recordedAccessVoice, type VoiceSettings } from '../lib/access-feedback';
+import { gymAppearance, defaultGymAppearance, type GymAppearance } from '../lib/gym-appearance';
+import type { Settings } from '../lib/domain';
 
 export type Preferences = VoiceSettings & {
   theme: 'light' | 'dark';
   density: 'comfortable' | 'compact';
-  /** Color de los botones y del menú activo en este dispositivo. */
+  /** Apariencia del gimnasio activo; antes del acceso solo se usa la preferencia del login. */
   accent: string;
+  sharedAppearance?: boolean;
+  appearanceEditable?: boolean;
   sound: boolean;
   vibration: boolean;
 };
@@ -41,6 +45,26 @@ function load(): Preferences {
   }
 }
 let preferences = load();
+let gym: { id: string; save?: (change: Partial<GymAppearance>) => Promise<void> } | null = null;
+let gymGeneration = 0;
+export function setGymAppearance(settings: Settings | null, id = '', save?: (change: Partial<GymAppearance>) => Promise<void>) {
+  if ((gym?.id || '') !== id) gymGeneration++;
+  gym = settings ? { id, save } : null;
+  preferences = { ...preferences, ...(settings ? gymAppearance(settings) : defaultGymAppearance), sharedAppearance: !!settings, appearanceEditable: !settings || !!save };
+  applyPreferences();
+  listeners.forEach(listener => listener());
+}
+export async function saveAppearance(change: Partial<GymAppearance>) {
+  const current = gym, generation = gymGeneration;
+  if (!current) { updatePreferences(change); return; }
+  if (!current.save) throw Error('Solo un administrador puede cambiar la apariencia del gimnasio.');
+  await current.save(change);
+  if (gymGeneration !== generation || gym?.id !== current.id) return;
+  preferences = { ...preferences, ...change, accent: normalizeAccent(change.accent ?? preferences.accent) };
+  applyPreferences();
+  listeners.forEach(listener => listener());
+  window.dispatchEvent(new Event('appearance-saved'));
+}
 export function applyPreferences() {
   document.documentElement.dataset.theme = preferences.theme;
   document.documentElement.dataset.density = preferences.density;
@@ -56,6 +80,7 @@ export function applyPreferences() {
 }
 export function setPreferencesUser(email: string) {
   user = email;
+  if (gym) return;
   let density: Preferences['density'] = 'comfortable';
   try {
     if (localStorage.getItem('gympass.density.' + user) === 'compact') density = 'compact';
@@ -67,6 +92,11 @@ export function setPreferencesUser(email: string) {
   listeners.forEach((listener) => listener());
 }
 export function updatePreferences(change: Partial<Preferences>) {
+  // Native chrome, storage events and old device preferences cannot override a gym.
+  if (gym) {
+    const { theme, accent, density, ...local } = change;
+    change = local;
+  }
   preferences = {
     ...preferences,
     ...change,

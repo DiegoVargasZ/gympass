@@ -1,3 +1,4 @@
+import * as gymAppearanceModule from '../lib/gym-appearance.ts';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
@@ -111,6 +112,7 @@ export function componentHarness(globals: Record<string, unknown> = {}) {
       require: (name: string) => {
         if (name === 'react') return hooks;
         if (name === 'react/jsx-runtime') return require(name);
+        if (/lib\/gym-appearance$/.test(name)) return gymAppearanceModule;
         if (/lib\/access-feedback$/.test(name)) return feedback;
         if (/lib\/voice-catalog$/.test(name)) return voiceCatalog;
         if (/lib\/backup-limits$/.test(name)) return backupLimits;

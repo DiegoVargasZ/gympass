@@ -103,7 +103,7 @@ test('Apariencia guarda el tema y el color de acento solo al confirmar', async (
   const { default: Appearance } = h.load('../src/Appearance.tsx', {
     './preferences': {
       usePreferences: () => preferences,
-      updatePreferences: (change: Partial<typeof preferences>) => { Object.assign(preferences, change); return true; },
+      saveAppearance: (change: Partial<typeof preferences>) => { Object.assign(preferences, change); return true; },
     },
     './ui': { Field: 'Field' },
     './styles/appearance.css': {},
@@ -123,5 +123,5 @@ test('Apariencia guarda el tema y el color de acento solo al confirmar', async (
   tree = await h.settle();
   assert.equal(preferences.theme, 'dark');
   assert.equal(preferences.accent, '#2455a4');
-  assert.match(elementText(tree), /Cambios guardados en este navegador/);
+  assert.match(elementText(tree), /Apariencia guardada para este gimnasio/);
 });

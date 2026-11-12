@@ -9,7 +9,8 @@ import { startLiveUpdates } from './live-updates';
 import AppShell from './AppShell';
 import { navigationFor, pageFromHash, sectionsFor } from './navigation';
 import SectionTabs from './SectionTabs';
-import { setPreferencesUser } from './preferences';
+import { setPreferencesUser, setGymAppearance } from './preferences';
+import { appearanceSettings } from '../lib/gym-appearance';
 import { applyBrand } from './branding';
 import {
   accessQueueIdentity,
@@ -63,6 +64,7 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
     sessionGeneration.current++;
     lastBootstrap.current = '';
     void setAccessQueueIdentity(null);
+    setGymAppearance(null);
     setData(null);
     setCommands(false);
     setToast(null);
@@ -182,7 +184,7 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
     window.addEventListener('online', reconnect);
     window.addEventListener('pageshow', reconnect);
     document.addEventListener('visibilitychange', reconnect);
-    const interval = error ? setInterval(reconnect, 5000) : null;
+    const interval = error ? setInterval(reconnect, 10000) : null;
     return () => {
       window.removeEventListener('online', reconnect);
       window.removeEventListener('pageshow', reconnect);
@@ -216,6 +218,16 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
   useEffect(() => {
     setPreferencesUser(data?.user.email || '');
   }, [data?.user.email]);
+  useEffect(() => {
+    if (!data) return;
+    const editable = data.user.role === 'admin' && !data.platform?.read_only;
+    setGymAppearance(data.settings, data.installation_id + ':' + (data.platform?.gym_id || ''), editable ? async change => { await api('settings', 'PATCH', appearanceSettings(change)); } : undefined);
+  }, [data?.installation_id, data?.platform?.gym_id, data?.user.role, data?.platform?.read_only, data?.settings.ui_theme, data?.settings.ui_accent, data?.settings.ui_density]);
+  useEffect(() => {
+    const saved = () => void reload(['settings']).catch(() => {});
+    window.addEventListener('appearance-saved', saved);
+    return () => { window.removeEventListener('appearance-saved', saved); setGymAppearance(null); };
+  }, [reload]);
   useEffect(() => {
     void api<Pick<OrganizationSettings, 'name' | 'brand_color' | 'logo_path'>>('branding')
       .then((value) => {

@@ -196,7 +196,7 @@ export class Service {
     }
     const installation = await this.one('SELECT owner FROM settings WHERE id=1');
     const [settings, zones, schedules, events, presence] = await Promise.all([
-      this.one('SELECT name,timezone,logo_path,logo_watermark_size,credential_color,credential_watermark_size,brand_color,auto_close_hours,closing_time FROM settings WHERE id=1'),
+      this.one('SELECT name,timezone,logo_path,logo_watermark_size,credential_color,credential_watermark_size,brand_color,auto_close_hours,closing_time,ui_theme,ui_accent,ui_density FROM settings WHERE id=1'),
       this.all(
         `SELECT z.*, (SELECT COUNT(*) FROM (${presenceSql}) p WHERE p.zone_id=z.id) inside FROM zones z ORDER BY z.name`,
       ),
@@ -2057,6 +2057,9 @@ export class Service {
     this.require('admin');
     const p = z
       .object({
+        ui_theme: z.enum(['light', 'dark']).optional(),
+        ui_accent: z.string().regex(/^#[\da-f]{6}$/i).transform(value => value.toLowerCase()).optional(),
+        ui_density: z.enum(['comfortable', 'compact']).optional(),
         name: text.optional(),
         timezone: text.optional(),
         auto_close_hours: z.number().int().min(0).max(720).optional(),
@@ -2092,6 +2095,9 @@ export class Service {
       }
     }
     await this.db.batch([
+      ...(p.ui_theme !== undefined ? [this.stmt('UPDATE settings SET ui_theme=? WHERE id=1', p.ui_theme)] : []),
+      ...(p.ui_accent !== undefined ? [this.stmt('UPDATE settings SET ui_accent=? WHERE id=1', p.ui_accent)] : []),
+      ...(p.ui_density !== undefined ? [this.stmt('UPDATE settings SET ui_density=? WHERE id=1', p.ui_density)] : []),
       ...(p.name !== undefined ? [this.stmt('UPDATE settings SET name=? WHERE id=1', p.name)] : []),
       ...(p.timezone !== undefined ? [this.stmt('UPDATE settings SET timezone=? WHERE id=1', p.timezone)] : []),
       ...(p.brand_color

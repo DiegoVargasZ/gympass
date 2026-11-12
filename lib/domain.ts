@@ -281,6 +281,9 @@ export type GymSession = {
   auto_closed: number;
 };
 export type Settings = {
+  ui_theme?: 'light' | 'dark';
+  ui_accent?: string;
+  ui_density?: 'comfortable' | 'compact';
   name: string;
   timezone: string;
   logo_path: string | null;

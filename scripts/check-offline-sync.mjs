@@ -754,3 +754,37 @@ test("dos dispositivos no consumen dos veces la última sesión y las vinculacio
     await f.app.close();
   }
 });
+
+
+test('apariencia del gimnasio se comparte entre copias y la reconexión automática se intenta cada diez segundos', async t => {
+  const f = await fixture(t), copies = [];
+  let connected = true;
+  const originalFetch = globalThis.fetch;
+  t.mock.method(globalThis, 'fetch', async (...args) => {
+    if (!connected && String(args[0]).startsWith(f.app.url)) throw Error('Sin Internet');
+    return originalFetch(...args);
+  });
+  const settle = async copy => {
+    for (let i = 0; i < 1000 && copy.replica.status().syncing; i++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(copy.replica.status().syncing, false);
+  };
+  try {
+    const first = await f.local('Apariencia A'), second = await f.local('Apariencia B'); copies.push(first, second);
+    connected = false;
+    await first.service().updateSettings({ ui_theme: 'dark', ui_accent: '#2455a4', ui_density: 'compact' });
+    await first.replica.synchronize();
+    assert.ok(first.replica.status().pending > 0);
+    assert.equal((await f.cloud(s => s.one('SELECT ui_theme FROM settings'))).ui_theme, 'light');
+    t.mock.timers.enable({ apis: ['setInterval'] });
+    first.replica.start(); second.replica.start(); await settle(first); await settle(second);
+    connected = true;
+    t.mock.timers.tick(9999); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(first.replica.status().online, false);
+    t.mock.timers.tick(1); await settle(first); await settle(second);
+    assert.equal(first.replica.status().pending, 0);
+    t.mock.timers.tick(10000); await settle(second); await settle(first);
+    const appearance = db => db.raw.prepare('SELECT ui_theme,ui_accent,ui_density FROM settings').get();
+    assert.deepEqual({ ...appearance(second.db) }, { ui_theme: 'dark', ui_accent: '#2455a4', ui_density: 'compact' });
+    assert.deepEqual({ ...appearance(first.db) }, { ...appearance(second.db) });
+  } finally { for (const copy of copies) { await copy.replica.stop(); copy.db.close(); } await f.app.close(); }
+});

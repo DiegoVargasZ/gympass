@@ -1,5 +1,14 @@
 # Cambios
 
+## 5.2.0
+
+- Android usa la gestión incluida como aplicación principal; se retiran la barra «Gestión / Lector sin conexión» y el selector de tema independiente.
+- Windows usa la copia sincronizada del gimnasio, también al migrar una conexión remota anterior. Permite gestionar datos sin Internet y enviar los pendientes al reconectar.
+- Tema, acento y densidad se guardan por gimnasio. Los administradores cambian la apariencia para los demás dispositivos, con aislamiento entre gimnasios y persistencia sin red.
+- Reconexión y sincronización cada diez segundos durante la ejecución; intentos de conexión con límite de ocho segundos y transferencias con su propio plazo.
+- Actualización de copias móviles 5.1.1 sin descargar de nuevo ni borrar sus pendientes. Se conservan el paquete, la firma Android y la autorización de siete días.
+- APK Android con código 5200, instalador y portable Windows, página y código en 5.2.0.
+
 ## 5.1.1
 
 - APK Android (código 5110), instalador y portable Windows recompilados con las fuentes actuales. Se mantienen el paquete y certificado Android.

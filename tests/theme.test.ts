@@ -30,14 +30,14 @@ test('el cambio rápido de tema conserva las otras preferencias y puede invertir
     'lucide-react': componentStubs,
     './preferences': {
       usePreferences: () => ({ theme, sound: true }),
-      updatePreferences: (next: { theme: string }) => { changes.push(JSON.parse(JSON.stringify(next))); theme = next.theme; },
+      saveAppearance: (next: { theme: string }) => { changes.push(JSON.parse(JSON.stringify(next))); theme = next.theme; },
     },
   });
   h.render(ThemeToggle);
   for (const label of ['Cambiar a modo oscuro','Cambiar a modo claro']) {
     const button = findElement(h.render(ThemeToggle), e => e.type === 'button');
     assert.equal(button.props['aria-label'], label);
-    button.props.onClick();
+    await button.props.onClick();
   }
   assert.deepEqual(changes, [{ theme: 'dark' }, { theme: 'light' }]);
 });

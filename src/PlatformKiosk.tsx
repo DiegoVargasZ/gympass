@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from './api';
 import type { Bootstrap } from '../lib/domain';
 import Kiosk from './Kiosk';
+import { setGymAppearance } from './preferences';
 import { Skeleton } from './ui';
 import { setPlatformContext } from './platform-context';
 import { accessQueueIdentity, setAccessQueueIdentity, startOfflineQueue } from './offline';
@@ -24,13 +25,14 @@ export default function PlatformKiosk({ gymId }: { gymId: string }) {
   const reload = useCallback(async () => {
     setPlatformContext({ gymId });
     const next = await api<Bootstrap>('kiosk/bootstrap');
+    setGymAppearance(next.settings, next.installation_id + ':' + gymId);
     setData(next);
     setError('');
   }, [gymId]);
   useEffect(() => {
     void reload().catch(cause => setError((cause as Error).message));
-    const timer = setInterval(() => void reload().catch(cause => setError((cause as Error).message)), 30000);
-    return () => clearInterval(timer);
+    const timer = setInterval(() => void reload().catch(cause => setError((cause as Error).message)), 10000);
+    return () => { clearInterval(timer); setGymAppearance(null); };
   }, [reload]);
   useEffect(() => {
     if (!data) return;

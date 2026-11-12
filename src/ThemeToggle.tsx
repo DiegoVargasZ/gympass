@@ -1,12 +1,15 @@
 import { Moon, Sun } from 'lucide-react';
-import { updatePreferences, usePreferences } from './preferences';
+import { useState } from 'react';
+import { saveAppearance, usePreferences } from './preferences';
 
 export default function ThemeToggle() {
-  const { theme } = usePreferences();
+  const { theme, appearanceEditable } = usePreferences();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
   const dark = theme === 'dark';
   const label = dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
-  return <button type="button" className="icon-btn theme-toggle" aria-label={label} title={label} aria-pressed={dark}
-    onClick={() => updatePreferences({ theme: dark ? 'light' : 'dark' })}>
+  return <button type="button" className="icon-btn theme-toggle" aria-label={label} title={error || label} aria-pressed={dark} disabled={saving || appearanceEditable === false}
+    onClick={async () => { if (saving) return; setSaving(true); setError(''); try { await saveAppearance({ theme: dark ? 'light' : 'dark' }); } catch (cause) { setError((cause as Error).message); } finally { setSaving(false); } }}>
     {dark ? <Sun size={19} /> : <Moon size={19} />}
   </button>;
 }

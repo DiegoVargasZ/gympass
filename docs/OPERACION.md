@@ -40,18 +40,22 @@ Para restaurar la plataforma, extrae el `.tar.gz` en un directorio nuevo y utili
 
 ## Aplicaciones y trabajo sin conexión
 
-Instala Android y Windows 5.1.0 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
+Instala Android y Windows 5.2.0 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
 
 En Windows, Configuración → Conexión permite utilizar servidor o copia local sincronizada. En Android, Gestión incluye una copia local para administradores y sincroniza automáticamente al reconectar; el lector conserva su copia autorizada para recepción. Consulta la [guía móvil sin conexión](MOVIL-SIN-CONEXION.md). Los conflictos se revisan antes de reemplazar datos locales. Windows sigue la política existente de distribución sin firma de código.
 
-El instalador Windows 5.1.0 conserva Electron 45 y requiere Windows 10 o posterior, en equipos x64. La compatibilidad web con Chrome/Edge 109 no amplía los sistemas admitidos por ese instalador. [Electron retiró Windows 7, 8 y 8.1 desde su versión 23](https://www.electronjs.org/blog/windows-7-to-8-1-deprecation-notice).
+El instalador Windows 5.2.0 conserva Electron 45 y requiere Windows 10 o posterior, en equipos x64. La compatibilidad web con Chrome/Edge 109 no amplía los sistemas admitidos por ese instalador. [Electron retiró Windows 7, 8 y 8.1 desde su versión 23](https://www.electronjs.org/blog/windows-7-to-8-1-deprecation-notice).
 
 ## Recepción y caja
 
-En **Configuración → Avisos y sonidos** activa **Reproducir avisos de entrada y salida** y selecciona **Audios de acceso permitido y denegado** para usar las grabaciones proporcionadas. Un escaneo válido anuncia «Acceso permitido», tanto de entrada como de salida, y un código ajeno o vencido anuncia «Acceso denegado»; Android los incluye para el lector sin conexión. Puedes probar ambos antes de pulsar **Guardar cambios**. También siguen disponibles las diez voces de GymPASS y las voces del dispositivo, con velocidad entre 50 % y 300 % y lectura del nombre. Las grabaciones mantienen su velocidad original. Si un audio no se puede cargar, se usa el tono de confirmación.
+En **Configuración → Avisos y sonidos** activa **Reproducir avisos de entrada y salida** y selecciona **Audios de acceso permitido y denegado** para usar las grabaciones proporcionadas. Un escaneo válido anuncia «Acceso permitido», tanto de entrada como de salida, y un código ajeno o vencido anuncia «Acceso denegado»; Android los incluye para Recepción sin Internet. Puedes probar ambos antes de pulsar **Guardar cambios**. También siguen disponibles las diez voces de GymPASS y las voces del dispositivo, con velocidad entre 50 % y 300 % y lectura del nombre. Las grabaciones mantienen su velocidad original. Si un audio no se puede cargar, se usa el tono de confirmación.
 
 Registra al socio con su WhatsApp, crea un plan y confirma el cobro. El primer pago crea su QR permanente de forma atómica; los reintentos no duplican el cobro. La fecha inicial del plan determina cuándo puede entrar. Comparte la credencial existente desde la ficha o comprobante.
 
 Un lector USB debe funcionar como teclado y terminar cada lectura con Enter. Un lector de red utiliza la clave de dispositivo y las rutas mostradas en Configuración → Lectores. Una respuesta HTTP 200 no basta para abrir: el conector debe exigir `allowed: true`.
 
 El cierre automático se configura con la zona horaria del gimnasio. Las salidas recuperadas se identifican como estimadas. Los informes de accesos y horas permanecen operativos.
+
+## Apariencia compartida
+
+Tema, color de acento y densidad se configuran por gimnasio desde Apariencia. Los cambios de un administrador llegan a los otros dispositivos al sincronizar. Android y Windows reintentan la conexión cada diez segundos mientras se ejecutan. Consulta [Apariencia por gimnasio](APARIENCIA-POR-GIMNASIO.md).

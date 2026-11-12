@@ -26,7 +26,7 @@ export function startLiveUpdates(refresh: (topics?: string[]) => Promise<void>) 
   };
   const retry = () => {
     if (stopped || !visible() || reconnectTimer || !context) return;
-    const delay = Math.min(30000, 1000 * 2 ** Math.min(attempts++, 5)) + Math.random() * 300;
+    const delay = 10000;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = undefined;
       connect();
@@ -56,7 +56,7 @@ export function startLiveUpdates(refresh: (topics?: string[]) => Promise<void>) 
           connected = true;
           attempts = 0;
           clearTimeout(handshake);
-          queue(['access', 'people', 'pos', 'alerts']);
+          queue(['access', 'people', 'pos', 'alerts', 'settings']);
         } else if (message.type === 'change' && Array.isArray(message.topics)) {
           queue(message.topics.filter((topic: unknown) => typeof topic === 'string' && validTopics.has(topic)));
         }
@@ -89,7 +89,7 @@ export function startLiveUpdates(refresh: (topics?: string[]) => Promise<void>) 
   // Respaldo para redes/proxies sin Upgrade; no consulta si el canal está conectado.
   const fallback = setInterval(() => {
     if (!connected) run();
-  }, 30000);
+  }, 10000);
   // Las fechas pueden vencer sin una escritura: una revisión ligera cada cinco minutos.
   const calendar = setInterval(() => {
     if (connected) run(['time', 'alerts']);
