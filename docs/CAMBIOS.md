@@ -1,10 +1,12 @@
 # Cambios
 
-## Sin publicar
+## 5.1.1
 
+- APK Android (código 5110), instalador y portable Windows recompilados con las fuentes actuales. Se mantienen el paquete y certificado Android.
+- Color de acento por dispositivo y ajustes separados de Apariencia y Avisos y sonidos.
 - Avisos del superadministrador a los gimnasios desde el panel, con importancia, vigencia y destinatarios. Llegan a la campana de alertas de cada gimnasio, se marcan como leídos por usuario y pueden retirarse antes de que venzan.
 - El acceso deja de ofrecer la descarga de la versión portable de Windows; el instalador y el APK se mantienen.
-- Las grabaciones de acceso pasan a ser «Acceso permitido» y «Acceso denegado»: la primera suena en cada escaneo válido, de entrada o de salida, y la segunda cuando el código no corresponde o está vencido. La opción de Apariencia se llama ahora «Audios de acceso permitido y denegado» y ofrece una prueba para cada caso.
+- Las grabaciones de acceso pasan a ser «Acceso permitido» y «Acceso denegado»: la primera suena en cada escaneo válido, de entrada o de salida, y la segunda cuando el código no corresponde o está vencido. La sección Avisos y sonidos ofrece la opción «Audios de acceso permitido y denegado» y ofrece una prueba para cada caso.
 
 ## 5.1.0
 

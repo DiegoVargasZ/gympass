@@ -8,7 +8,7 @@ GitHub Actions publica el mismo `dist/` generado y verificado en su trabajo de c
 
 ## Retención de recursos
 
-Se distribuyen dos conjuntos: el actual y el descrito en `web-releases/previous.json`. Para 5.1.0 se conserva el grafo completo publicado de 5.0.0. Esto permite que sus pestañas abiertas soliciten sus pantallas diferidas tras actualizar. Las sesiones de versiones anteriores deben recargarse.
+Se distribuyen dos conjuntos: el actual y el descrito en `web-releases/previous.json`. Para 5.1.1 se conserva el grafo completo publicado de 5.1.0. Esto permite que sus pestañas abiertas soliciten sus pantallas diferidas tras actualizar. Las sesiones de versiones anteriores deben recargarse.
 
 Los lectores QR referenciados por clientes existentes se conservan además en `web-releases/compatibility.json`. La compilación entrega **todos** los recursos emitidos por Vite y valida las importaciones de JavaScript mediante su árbol de sintaxis, incluidas las cadenas entre comillas invertidas. No se eliminan archivos de la compilación actual basándose en una búsqueda textual.
 
@@ -30,6 +30,8 @@ Los proyectos locales de clientes se conservan en `GymPASS/acceso/mobile` y `Gym
 Los cambios nativos de 5.0.0 a 5.1.0 están en `client-releases/5.1.0-native.patch`, incluidas sus pruebas, fuentes compartidas y versiones. Sobre las fuentes locales 5.0.0, aplica primero `git apply --check --directory=acceso pagina/gympass/client-releases/5.1.0-native.patch` desde `GymPASS/` y después el mismo comando sin `--check`. Los parches anteriores se conservan para las instalaciones de desarrollo más antiguas. Los parches no contienen datos ni claves.
 
 El script Android compila además la interfaz de gestión con `scripts/build-mobile-web.mjs` y la incorpora al APK mediante el plugin `with-offline-management.cjs`. No se incluyen datos de gimnasios en esos recursos.
+
+Los cambios de clientes de 5.1.0 a 5.1.1 están en `client-releases/5.1.1-native.patch`; se aplica después del parche 5.1.0 con el mismo procedimiento. Incluye los WAV nuevos del lector Android.
 
 Android se compila con `mobile/scripts/build-android.ps1`, reutilizando la firma existente. Antes de publicar, ejecuta `node scripts/check-android-start.mjs RUTA_AL_APK emulator-5554`: instala únicamente en emulador y comprueba dos arranques en frío. Verifica que el certificado coincida con la versión anterior.
 
