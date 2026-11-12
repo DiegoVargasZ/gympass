@@ -127,7 +127,7 @@ test('lectores, informes y sesión de acceso automático aplican permisos en el 
 test('la migración conserva socios anteriores y no concede derechos heredados a altas nuevas', async t => {
   const file = join(temporary(t), 'gym.sqlite');
   let db = new SqliteDatabase(file);
-  db.raw.exec(`DELETE FROM schema_version WHERE version>=20; DROP INDEX events_chronological_presence; ALTER TABLE people DROP COLUMN legacy_access;
+  db.raw.exec(`DELETE FROM schema_version WHERE version>=20; DROP INDEX events_chronological_presence; ALTER TABLE people DROP COLUMN legacy_access; ALTER TABLE settings DROP COLUMN logo_watermark_size; ALTER TABLE settings DROP COLUMN credential_color; ALTER TABLE settings DROP COLUMN credential_watermark_size;
     INSERT INTO settings(id,owner,name,timezone) VALUES(1,'admin','Gym','America/La_Paz');
     INSERT INTO people(id,name,document,kind,status,created_at) VALUES('old','Anterior','OLD','member','active',1)`);
   db.close();

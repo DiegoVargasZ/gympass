@@ -7,6 +7,8 @@ import { api } from './api';
 import Members from './Members';
 import Devices from './Devices';
 import Appearance from './Appearance';
+import GymLogo from './GymLogo';
+import CredentialStyle from './CredentialStyle';
 import Network from './Network';
 import SystemSettings from './SystemSettings';
 import RecoveryKey from './RecoveryKey';
@@ -303,6 +305,16 @@ export default function Settings({ data, admin, saved, notify, members, devices,
                       </select>
                     </Field>
                   </Form>
+                  <GymLogo name={data.settings.name} logoPath={data.settings.logo_path}
+                    size={data.settings.logo_watermark_size ?? 45}
+                    saved={saved} notify={notify} />
+                  <CredentialStyle
+                    name={data.settings.name}
+                    logoPath={data.settings.logo_path}
+                    color={data.settings.credential_color ?? null}
+                    size={data.settings.credential_watermark_size ?? 70}
+                    saved={saved}
+                  />
                 </div>
               ) : (
                 <dl className="settings-organization-details">

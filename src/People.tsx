@@ -394,6 +394,21 @@ export function Credentials({
   const image =
     issued?.kind === 'qr' ? 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(qrSvg(issued.code)) : '';
   const [cardBusy, setCardBusy] = useState('');
+  // La credencial se muestra con el mismo diseño que se descarga y se ve en Credenciales QR.
+  const [cardImage, setCardImage] = useState('');
+  useEffect(() => {
+    setCardImage('');
+    if (issued?.kind !== 'qr') return;
+    let live = true;
+    void (async () => {
+      const [tools, { cardDataUri }] = await Promise.all([cardTools(), import('../lib/card')]);
+      const card = await tools.credentialCardData(issued.id, data.settings);
+      if (live) setCardImage(cardDataUri(card));
+    })().catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [issued?.id, issued?.kind, data.settings]);
   async function withCard(action: string, run: (card: CardData, tools: CardTools) => void | Promise<void>) {
     setCardBusy(action);
     try {
@@ -423,6 +438,9 @@ export function Credentials({
       )}
       {issued ? (
         <>
+          {cardImage ? (
+            <img className="credential-preview print-card" src={cardImage} alt={'Credencial de ' + person.name} />
+          ) : (
           <div className="digital-card print-card">
             <div className="card-brand">
               {data.settings.logo_path && (
@@ -444,6 +462,7 @@ export function Credentials({
             <div className="card-id">ID {person.document}</div>
             <small>Acceso sujeto a permisos y planes vigentes</small>
           </div>
+          )}
           {planHolder(person.kind) && (
             <PersonMemberships personId={person.id} today={data.today} compact gated={person.kind === 'member'} />
           )}

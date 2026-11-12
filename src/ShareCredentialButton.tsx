@@ -15,7 +15,7 @@ type Props = {
   id: string;
   name: string;
   phone?: string;
-  settings: Pick<Settings, 'name' | 'brand_color'>;
+  settings: Pick<Settings, 'name' | 'brand_color' | 'logo_path' | 'credential_color' | 'credential_watermark_size'>;
   notify: Notify;
   disabled?: boolean;
 };

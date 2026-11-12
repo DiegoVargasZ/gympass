@@ -284,6 +284,9 @@ export type Settings = {
   name: string;
   timezone: string;
   logo_path: string | null;
+  logo_watermark_size?: number;
+  credential_color?: string | null;
+  credential_watermark_size?: number;
   brand_color: string;
   auto_close_hours: number;
   closing_time?: string | null;

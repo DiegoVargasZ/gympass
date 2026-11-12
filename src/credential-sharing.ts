@@ -2,7 +2,7 @@ import type { Settings } from '../lib/domain';
 
 export async function prepareCredentialPng(
   id: string,
-  settings: Pick<Settings, 'name' | 'brand_color'>,
+  settings: Pick<Settings, 'name' | 'brand_color' | 'logo_path' | 'credential_color' | 'credential_watermark_size'>,
   signal?: AbortSignal,
 ) {
   const [{ credentialCardData }, { renderCardPng }] = await Promise.all([

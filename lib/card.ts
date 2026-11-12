@@ -2,6 +2,7 @@ import { gympassLogo } from './gympass-logo.ts';
 import { qrMatrix } from './qr.ts';
 import { invitationSvg, invitationLines } from './invitation-art.ts';
 import type { InvitationAccess, InvitationTheme } from './domain.ts';
+import { contrast } from './branding.ts';
 
 export type CardData = {
   name: string;
@@ -16,6 +17,12 @@ export type CardData = {
   photo?: string | null;
   label?: string;
   accent?: string;
+  /** Logo del gimnasio como data: URI, dibujado tenue detrás de los datos. */
+  watermark?: string | null;
+  /** Lado de la marca de agua, como porcentaje del ancho de la tarjeta (10 a 100). */
+  watermark_size?: number;
+  /** Color de la franja superior. Debe contrastar con el logotipo blanco; si no, se usa el de GymPASS. */
+  header?: string | null;
   layout?: 'portrait';
   /** Embedded raster image for invitations. */
   background?: string | null;
@@ -39,6 +46,12 @@ export const cardSize = { width: 638, height: 1012 };
 export const invitationSize = cardSize;
 export function cardDimensions(_card: CardData) {
   return cardSize;
+}
+
+export const defaultCardHeader = '#061426';
+/** El logotipo y el nombre del gimnasio son blancos: la franja necesita un color que los deje leer. */
+export function cardHeaderAllowed(color: string) {
+  return /^#[\da-f]{6}$/i.test(color) && contrast(color, '#ffffff') >= 3;
 }
 
 export function cardBackground(card: CardData) {
@@ -73,6 +86,11 @@ export function cardSvg(card: CardData) {
   if (card.layout === 'portrait') return invitationSvg(card);
   const { width, height } = cardSize;
   const accent = /^#[\da-f]{6}$/i.test(card.accent || '') ? card.accent! : '#008568';
+  const header = cardHeaderAllowed(card.header || '') ? card.header! : defaultCardHeader;
+  const watermarkSide = (width * Math.min(100, Math.max(10, card.watermark_size ?? 70))) / 100;
+  const watermark = /^data:image\/(?:png|webp|svg\+xml);base64,[a-z\d+/=]+$/i.test(card.watermark || '')
+    ? `<image href="${card.watermark}" x="${(width - watermarkSide) / 2}" y="${(128 + height - watermarkSide) / 2}" width="${watermarkSide}" height="${watermarkSide}" preserveAspectRatio="xMidYMid meet" opacity="0.08" filter="url(#watermarkGray)"/>`
+    : '';
   const matrix = qrMatrix(card.code);
   const modules = matrix.length;
   const quiet = 4;
@@ -100,11 +118,13 @@ export function cardSvg(card: CardData) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Credencial de ${escapeXml(card.name)}">
   <defs>
     <clipPath id="photoClip"><circle cx="${width / 2}" cy="${photoY + photoSize / 2}" r="${photoSize / 2}"/></clipPath>
+    <filter id="watermarkGray"><feColorMatrix type="saturate" values="0"/></filter>
   </defs>
   <rect width="${width}" height="${height}" rx="34" fill="#ffffff"/>
   <rect width="${width}" height="${height}" rx="34" fill="none" stroke="#dfe3e8" stroke-width="2"/>
-  <rect width="${width}" height="128" rx="34" fill="#061426"/>
-  <rect y="94" width="${width}" height="34" fill="#061426"/>
+  ${watermark}
+  <rect width="${width}" height="128" rx="34" fill="${header}"/>
+  <rect y="94" width="${width}" height="34" fill="${header}"/>
   <image x="${width / 2 - 120}" y="16" width="240" height="58" href="${gympassLogo}" aria-label="GymPASS"/>
   <text x="${width / 2}" y="100" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="22" fill="#ffffff" opacity="0.9">${escapeXml(fit(card.organization, 38))}</text>
 
