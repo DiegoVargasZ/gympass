@@ -141,6 +141,15 @@ export function createPlatformApi(
         send(res, { ok: true });
         return true;
       }
+      if (method === 'POST' && path === '/api/platform/kiosk/stop') {
+        const current = store.authenticateSync(value);
+        if (!current?.kioskGymId) throw new ApiError(401, 'Inicia sesión en la plataforma.');
+        const password = required(input.password, 'La contraseña');
+        // Same throttle as sign-in: the reader is public, so guesses must be limited.
+        await limitedLogin(req, res, current.user.email, () => store.stopKiosk(value, password));
+        send(res, { ok: true });
+        return true;
+      }
       const session = await store.requireWebSession(value);
       const actor = session.user;
       if (method === 'POST' && path === '/api/platform/password') {

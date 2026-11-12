@@ -340,6 +340,22 @@ export class PlatformStore {
     this.audit(auth.user.id, 'session.kiosk', gymId);
   }
 
+  /** Vuelve del acceso automático al panel. Exige la contraseña: el lector queda a la vista del público. */
+  async stopKiosk(value: string, password: string) {
+    const session = this.authenticateSync(value);
+    if (!session?.kioskGymId) throw new ApiError(401, 'Inicia sesión en la plataforma.');
+    const row = this.raw.prepare('SELECT password_hash FROM platform_users WHERE id=? AND active=1').get(session.user.id) as
+      | Row
+      | undefined;
+    if (!row || password.length > 200 || !(await verifyPassword(password, String(row.password_hash))))
+      throw new ApiError(403, 'La contraseña no coincide.');
+    const updated = this.raw
+      .prepare('UPDATE platform_sessions SET kiosk_gym_id=NULL WHERE id=? AND kiosk_gym_id=?')
+      .run(session.id, session.kioskGymId);
+    if (!updated.changes) throw new ApiError(401, 'Inicia sesión en la plataforma.');
+    this.audit(session.user.id, 'session.kiosk_ended', session.kioskGymId);
+  }
+
   getGym(id: string): Gym | null {
     const row = this.raw.prepare('SELECT * FROM gyms WHERE id=?').get(id) as Row | undefined;
     return row ? publicGym(row) : null;

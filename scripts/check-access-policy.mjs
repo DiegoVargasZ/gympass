@@ -117,6 +117,14 @@ test('lectores, informes y sesión de acceso automático aplican permisos en el 
     for (const method of ['GET', 'POST']) assert.equal((await reader(method)).status, 403);
     await app.store.restoreGym(owner, gym.id);
     app.store.updateGym(owner, gym.id, { status: 'active' });
+    // Leaving kiosk mode needs the account password and restores the same session.
+    const desk = await login('operator');
+    assert.equal((await api('kiosk/start', desk, 'POST', {})).status, 200);
+    assert.equal((await request('platform/kiosk/stop', desk, 'POST', { password: 'wrong' })).status, 403);
+    assert.equal((await (await request('platform/status', desk)).json()).user, null);
+    assert.equal((await request('platform/kiosk/stop', desk, 'POST', { password: '123456' })).status, 200);
+    assert.equal((await (await request('platform/status', desk)).json()).user.email, 'operator@example.test');
+    assert.equal((await request('platform/kiosk/stop', desk, 'POST', { password: '123456' })).status, 401);
     const fresh = await login('admin');
     assert.equal((await api('people', fresh)).status, 200);
     assert.equal((await request('platform/logout', sessions.admin, 'POST', {})).status, 200);

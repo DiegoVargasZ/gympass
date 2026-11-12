@@ -53,7 +53,8 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
     [pin, setPin] = useState(readPin),
     [exiting, setExiting] = useState(false),
     [attempt, setAttempt] = useState(''),
-    [pinError, setPinError] = useState('');
+    [pinError, setPinError] = useState(''),
+    [leaving, setLeaving] = useState(false);
   const [options, setOptions] = useState(false),
     [registering, setRegistering] = useState(false),
     [mode, setMode] = useState<'camera' | 'reader'>('camera');
@@ -199,7 +200,9 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
 
   function leave() {
     if (restricted) {
-      void api('platform/logout', 'POST').then(() => location.assign(location.pathname)).catch(reason => setError(reason.message));
+      setExiting(true);
+      setAttempt('');
+      setPinError('');
       return;
     }
     if (!pin) {
@@ -368,7 +371,7 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
               {fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
             </button>
           )}
-          {restricted ? <p>La sesión solo permite leer credenciales. Para volver al panel, pulsa Salir e inicia sesión con tu correo y contraseña.</p> : pin ? (
+          {restricted ? <p>La sesión solo permite leer credenciales. Para volver al panel, pulsa Salir y escribe la contraseña de tu cuenta.</p> : pin ? (
             <div className="kiosk-pin-summary">
               <Lock size={21} />
               <div>
@@ -426,7 +429,67 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
         </Modal>
       )}
 
-      {exiting && (
+      {exiting && restricted && (
+        <Modal title="Volver al panel" className="kiosk-exit-modal" onClose={() => setExiting(false)}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (leaving) return;
+              setLeaving(true);
+              setPinError('');
+              void api('platform/kiosk/stop', 'POST', { password: attempt })
+                .then(() => {
+                  if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+                  location.hash = '#access';
+                  location.reload();
+                })
+                .catch((reason) => {
+                  setPinError((reason as Error).message);
+                  setAttempt('');
+                  setLeaving(false);
+                });
+            }}
+          >
+            <p>Escribe la contraseña de tu cuenta para salir del acceso automático sin cerrar sesión.</p>
+            <Field label="Contraseña">
+              <input
+                type="password"
+                autoComplete="current-password"
+                data-autofocus
+                required
+                maxLength={200}
+                value={attempt}
+                onChange={(event) => setAttempt(event.target.value)}
+              />
+            </Field>
+            {pinError && (
+              <p className="error-message" role="alert">
+                {pinError}
+              </p>
+            )}
+            <div className="button-row">
+              <button className="btn primary" type="submit" disabled={leaving}>
+                {leaving ? 'Saliendo…' : 'Volver al panel'}
+              </button>
+              <button className="btn secondary" type="button" onClick={() => setExiting(false)}>
+                Seguir leyendo
+              </button>
+              <button
+                className="text-btn"
+                type="button"
+                onClick={() =>
+                  void api('platform/logout', 'POST')
+                    .then(() => location.assign(location.pathname))
+                    .catch((reason) => setPinError((reason as Error).message))
+                }
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {exiting && !restricted && (
         <Modal title="Volver a Recepción" className="kiosk-exit-modal" onClose={() => setExiting(false)}>
           <form
             onSubmit={(event) => {
