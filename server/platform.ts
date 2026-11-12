@@ -46,6 +46,10 @@ export async function startPlatform(options: Options) {
     },
     secureCookies: !!origin,
     trustedProxies: options.trustedProxies,
+    // Un aviso nuevo o retirado cambia el centro de alertas de los gimnasios que lo reciben.
+    announced: (gymIds) => {
+      for (const gym of gymIds) realtime?.publish(gym, ['alerts']);
+    },
   });
   const limits = new Map<string, { count: number; until: number }>();
   let maintenanceWork: Promise<void> | null = null;

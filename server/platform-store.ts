@@ -31,6 +31,19 @@ export type Gym = {
 /** Qué subconjunto del panel se está mirando. `archived` y `deleted` son solo para superadministradores. */
 export type GymScope = 'active' | 'archived' | 'deleted';
 export type PlatformSession = { id: string; user: PlatformUser; mobileGymId?: string; kioskGymId?: string };
+/** Un aviso del superadministrador: llega al centro de alertas de cada gimnasio elegido. */
+export type Announcement = {
+  id: string;
+  title: string;
+  body: string;
+  severity: 'info' | 'warning' | 'danger';
+  created_at: number;
+  expires_at: number | null;
+  revoked_at: number | null;
+  author: string;
+  /** Vacío significa que el aviso va a todos los gimnasios, incluidos los que se creen después. */
+  gym_ids: string[];
+};
 export type GymAuthorization = {
   user: PlatformUser;
   gym: Gym;
@@ -104,6 +117,9 @@ export class PlatformStore {
       CREATE TABLE IF NOT EXISTS platform_audit(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES platform_users(id),gym_id TEXT REFERENCES gyms(id),action TEXT NOT NULL,entity_id TEXT,created_at INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS platform_sessions_user ON platform_sessions(user_id);
       CREATE INDEX IF NOT EXISTS gym_memberships_gym ON gym_memberships(gym_id);
+      CREATE TABLE IF NOT EXISTS announcements(id TEXT PRIMARY KEY,title TEXT NOT NULL,body TEXT NOT NULL,severity TEXT NOT NULL CHECK(severity IN ('info','warning','danger')),created_by TEXT NOT NULL REFERENCES platform_users(id),created_at INTEGER NOT NULL,expires_at INTEGER,revoked_at INTEGER);
+      CREATE TABLE IF NOT EXISTS announcement_targets(announcement_id TEXT NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,gym_id TEXT NOT NULL REFERENCES gyms(id),PRIMARY KEY(announcement_id,gym_id));
+      CREATE INDEX IF NOT EXISTS announcements_live ON announcements(revoked_at,expires_at);
       CREATE INDEX IF NOT EXISTS platform_audit_date ON platform_audit(created_at);`);
     const gymColumns = new Set(
       (this.raw.prepare('PRAGMA table_info(gyms)').all() as Row[]).map((column) => column.name),
@@ -883,6 +899,116 @@ export class PlatformStore {
         .run(Date.now(), row.id);
       this.audit(row.id, 'recovery.administrative');
     });
+  }
+
+  // ---- Avisos a los gimnasios ----------------------------------------------
+
+  /**
+   * Los avisos viven en el registro central y se mezclan con las alertas que cada gimnasio calcula
+   * de su propio estado, así que no hay nada que copiar a las bases de los gimnasios.
+   */
+  createAnnouncement(
+    user: PlatformUser,
+    input: { title: string; body: string; severity: string; gym_ids?: unknown; days?: unknown },
+  ): Announcement {
+    const actor = this.superadmin(user);
+    const title = typeof input.title === 'string' ? input.title.trim() : '';
+    if (!title || title.length > 120) throw new ApiError(400, 'El título es obligatorio y admite hasta 120 caracteres.');
+    const body = typeof input.body === 'string' ? input.body.trim() : '';
+    if (!body || body.length > 2000) throw new ApiError(400, 'El mensaje es obligatorio y admite hasta 2000 caracteres.');
+    if (!['info', 'warning', 'danger'].includes(input.severity)) throw new ApiError(400, 'Importancia inválida.');
+    const days = input.days === undefined || input.days === null || input.days === '' ? 7 : Number(input.days);
+    if (!Number.isFinite(days) || days < 1 || days > 90) throw new ApiError(400, 'La vigencia debe estar entre 1 y 90 días.');
+    const targets = Array.isArray(input.gym_ids) ? [...new Set(input.gym_ids.map(String))] : [];
+    if (targets.length > 500) throw new ApiError(400, 'Demasiados gimnasios seleccionados.');
+    const id = randomUUID(),
+      now = Date.now();
+    return this.transaction(() => {
+      this.raw
+        .prepare('INSERT INTO announcements(id,title,body,severity,created_by,created_at,expires_at) VALUES(?,?,?,?,?,?,?)')
+        .run(id, title, body, input.severity, actor.id, now, now + days * day);
+      for (const gymId of targets) {
+        if (!this.raw.prepare('SELECT 1 FROM gyms WHERE id=? AND deleted_at IS NULL').get(gymId))
+          throw new ApiError(404, 'Uno de los gimnasios elegidos no existe.');
+        this.raw.prepare('INSERT INTO announcement_targets(announcement_id,gym_id) VALUES(?,?)').run(id, gymId);
+      }
+      this.audit(actor.id, 'announcement.sent', targets.length === 1 ? targets[0] : undefined, id);
+      return this.getAnnouncement(id);
+    });
+  }
+
+  private getAnnouncement(id: string): Announcement {
+    const row = this.raw
+      .prepare('SELECT a.*,u.name AS author FROM announcements a JOIN platform_users u ON u.id=a.created_by WHERE a.id=?')
+      .get(id) as Row | undefined;
+    if (!row) throw new ApiError(404, 'Aviso no encontrado.');
+    return {
+      id: row.id,
+      title: row.title,
+      body: row.body,
+      severity: row.severity,
+      created_at: row.created_at,
+      expires_at: row.expires_at,
+      revoked_at: row.revoked_at,
+      author: row.author,
+      gym_ids: (this.raw.prepare('SELECT gym_id FROM announcement_targets WHERE announcement_id=?').all(id) as Row[]).map(
+        (target) => target.gym_id,
+      ),
+    };
+  }
+
+  listAnnouncements(user: PlatformUser, limit = 50): Announcement[] {
+    this.superadmin(user);
+    return (
+      this.raw.prepare('SELECT id FROM announcements ORDER BY created_at DESC LIMIT ?').all(
+        Math.max(1, Math.min(200, limit)),
+      ) as Row[]
+    ).map((row) => this.getAnnouncement(row.id));
+  }
+
+  /** Retirar un aviso lo quita de inmediato del centro de alertas, sin borrar el registro. */
+  revokeAnnouncement(user: PlatformUser, id: string): Announcement {
+    const actor = this.superadmin(user);
+    const result = this.raw.prepare('UPDATE announcements SET revoked_at=? WHERE id=? AND revoked_at IS NULL').run(Date.now(), id);
+    if (!result.changes) throw new ApiError(404, 'El aviso no está activo.');
+    this.audit(actor.id, 'announcement.revoked', undefined, id);
+    return this.getAnnouncement(id);
+  }
+
+  /** Avisos vigentes para un gimnasio, ya con la forma de alerta que espera su centro de alertas. */
+  gymAnnouncements(gymId: string, at = Date.now()) {
+    return (
+      this.raw
+        .prepare(
+          `SELECT a.id,a.title,a.body,a.severity,a.created_at,u.name AS author FROM announcements a
+           JOIN platform_users u ON u.id=a.created_by
+           WHERE a.revoked_at IS NULL AND (a.expires_at IS NULL OR a.expires_at>?)
+             AND (NOT EXISTS(SELECT 1 FROM announcement_targets t WHERE t.announcement_id=a.id)
+                  OR EXISTS(SELECT 1 FROM announcement_targets t WHERE t.announcement_id=a.id AND t.gym_id=?))
+           ORDER BY a.created_at DESC LIMIT 20`,
+        )
+        .all(at, gymId) as Row[]
+    ).map((row) => ({
+      key: 'announcement:' + row.id,
+      kind: 'announcement',
+      severity: row.severity as 'info' | 'warning' | 'danger',
+      title: row.title as string,
+      detail: row.body + ' — ' + row.author + ', equipo GymPASS.',
+      at: row.created_at as number,
+    }));
+  }
+
+  /** Gimnasios que pueden recibir un aviso en este momento, para refrescar sus pantallas. */
+  announcementGymIds(id?: string): string[] {
+    const rows = (
+      id
+        ? this.raw.prepare('SELECT gym_id FROM announcement_targets WHERE announcement_id=?').all(id)
+        : []
+    ) as Row[];
+    if (rows.length) return rows.map((row) => row.gym_id);
+    return (this.raw.prepare('SELECT id FROM gyms WHERE deleted_at IS NULL AND archived_at IS NULL').all() as Row[]).map(
+      (row) => row.id,
+    );
   }
 
   audit(userId: string, action: string, gymId?: string, entityId?: string): void {

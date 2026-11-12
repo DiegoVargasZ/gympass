@@ -4,6 +4,7 @@ import {
   Building2,
   History,
   LogOut,
+  Megaphone,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -22,6 +23,7 @@ import './styles/platform.css';
 const App = lazy(() => import('./App'));
 const PlatformKiosk = lazy(() => import('./PlatformKiosk'));
 const PlatformMembers = lazy(() => import('./PlatformMembers'));
+const PlatformAnnouncements = lazy(() => import('./PlatformAnnouncements'));
 const PlatformBackups = lazy(() => import('./PlatformBackups'));
 const CloudSync = lazy(() => import('./CloudSync'));
 const PlatformBilling = lazy(() => import('./PlatformBilling'));
@@ -62,7 +64,7 @@ type Audit = {
   created_at: number;
 };
 type Editor =
-  | { kind: 'create' | 'backup' }
+  | { kind: 'create' | 'backup' | 'announcements' }
   | { kind: 'edit' | 'members' | 'support'; gym: Gym }
   | { kind: 'billing'; gym: { id: string; name: string } };
 const statuses = { active: 'Activo', suspended: 'Suspendido', provisioning: 'En preparación' };
@@ -523,6 +525,16 @@ export default function Platform() {
                 </button>
                 <button
                   className="btn secondary"
+                  onClick={() => {
+                    setNotice('');
+                    setEditor({ kind: 'announcements' });
+                  }}
+                >
+                  <Megaphone size={16} aria-hidden="true" />
+                  Avisos
+                </button>
+                <button
+                  className="btn secondary"
                   aria-pressed={showBilling}
                   onClick={() => setShowBilling((value) => !value)}
                 >
@@ -868,6 +880,15 @@ export default function Platform() {
               <textarea name="reason" required minLength={5} maxLength={1000} rows={3} />
             </Field>
           </Form>
+        </Modal>
+      )}
+      {editor?.kind === 'announcements' && (
+        <Modal title="Avisos a los gimnasios" wide onClose={() => setEditor(null)}>
+          <p>
+            Escribe un aviso y aparecerá en la campana de alertas de cada gimnasio: mantenimientos programados,
+            actualizaciones o cualquier cosa que deban saber.
+          </p>
+          <PlatformAnnouncements gyms={status.gyms.map((gym) => ({ id: gym.id, name: gym.name }))} />
         </Modal>
       )}
       {editor?.kind === 'backup' && (

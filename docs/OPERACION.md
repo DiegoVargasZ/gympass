@@ -24,6 +24,12 @@ El directorio público `dist/` se sincroniza con eliminación de archivos obsole
 
 Tras publicar, comprueba `/api/health`, `/release.json` y el login. `npm run check:realtime-host` verifica si el hosting permite WebSocket; el sondeo HTTP permanece como respaldo.
 
+## Avisos a los gimnasios
+
+El superadministrador envía un aviso desde el panel de gimnasios, en **Avisos**: un título, el mensaje, su importancia, los días que permanece visible y los gimnasios que lo reciben (todos o una selección). Llega a la campana de alertas de cada gimnasio junto a sus propias alertas y se distingue con el icono de megáfono.
+
+El aviso desaparece solo al cumplirse el plazo; **Retirar** lo quita antes y conserva el registro. Marcarlo como leído solo apaga el distintivo de quien lo leyó. Los avisos se consultan contra el servidor: las copias locales sin conexión de Windows y Android no los muestran hasta volver a conectarse.
+
 ## Respaldos y actualización
 
 El administrador descarga la copia de su gimnasio desde **Configuración → Respaldos**. El superadministrador crea y descarga una copia completa desde **Copia de plataforma**. Guarda además una copia fuera del hosting.

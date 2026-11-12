@@ -68,7 +68,12 @@ function required(value: unknown, label: string): string {
 
 export function createPlatformApi(
   store: PlatformStore,
-  options: { provisionGym: (gym: Gym) => Promise<void>; secureCookies?: boolean; trustedProxies?: string },
+  options: {
+    provisionGym: (gym: Gym) => Promise<void>;
+    secureCookies?: boolean;
+    trustedProxies?: string;
+    announced?: (gymIds: string[]) => void;
+  },
 ) {
   const limitedLogin = createLoginLimiter(options.trustedProxies);
   const cookie = (req: IncomingMessage, value: string, remember = false, clear = false) =>
@@ -197,6 +202,18 @@ export function createPlatformApi(
         }
       } else if (method === 'GET' && path === '/api/platform/audit') {
         send(res, { audit: store.listAudit(actor) });
+      } else if (method === 'GET' && path === '/api/platform/announcements') {
+        send(res, { announcements: store.listAnnouncements(actor) });
+      } else if (method === 'POST' && path === '/api/platform/announcements') {
+        const announcement = store.createAnnouncement(actor, {
+          title: required(input.title, 'El título'),
+          body: required(input.body, 'El mensaje'),
+          severity: required(input.severity, 'La importancia'),
+          gym_ids: input.gym_ids,
+          days: input.days,
+        });
+        send(res, { announcement }, 201);
+        options.announced?.(store.announcementGymIds(announcement.id));
       } else {
         const billingRoute = /^\/api\/platform\/gyms\/([^/]+)\/billing(?:\/(payments)(?:\/([^/]+)\/(void))?)?$/.exec(
           path,
@@ -238,6 +255,7 @@ export function createPlatformApi(
         const memberPasswordRoute = /^\/api\/platform\/gyms\/([^/]+)\/members\/([^/]+)\/password$/.exec(path);
         const supportRoute = /^\/api\/platform\/support\/([a-f0-9]{64})$/.exec(path);
         const recoveryRoute = /^\/api\/platform\/users\/([^/]+)\/recovery$/.exec(path);
+        const announcementRoute = /^\/api\/platform\/announcements\/([^/]+)$/.exec(path);
         if (method === 'POST' && memberPasswordRoute) {
           await store.setMemberPassword(
             actor,
@@ -307,6 +325,10 @@ export function createPlatformApi(
             );
             send(res, grant, 201);
           } else throw new ApiError(404, 'Ruta de plataforma no encontrada.');
+        } else if (method === 'DELETE' && announcementRoute) {
+          const announcement = store.revokeAnnouncement(actor, announcementRoute[1]);
+          send(res, { announcement });
+          options.announced?.(store.announcementGymIds(announcement.id));
         } else if (method === 'DELETE' && supportRoute) {
           await store.revokeSupport(value, supportRoute[1]);
           send(res, { ok: true });

@@ -143,6 +143,15 @@ export async function hash(value: string) {
 /** El QR personal no incluye invitaciones ni se reemplaza al renovar planes. */
 export const personalQrIdSql = `SELECT c.id FROM credentials c WHERE c.person_id=? AND c.kind='qr' AND c.active=1
   AND NOT EXISTS(SELECT 1 FROM visits v WHERE v.credential_id=c.id) ORDER BY c.created_at DESC,c.id DESC LIMIT 1`;
+/** Aviso enviado desde la plataforma, ya con la forma de una alerta del gimnasio. */
+export type PlatformAnnouncement = {
+  key: string;
+  kind: string;
+  severity: 'info' | 'warning' | 'danger';
+  title: string;
+  detail: string;
+  at: number;
+};
 export class Service {
   db: Database;
   actor: Actor;
@@ -1779,7 +1788,7 @@ export class Service {
    * Alerts are computed from live state rather than stored, so they disappear on their own once
    * the condition clears. Only the per-user read mark is persisted, keyed by a stable key.
    */
-  async alerts(at = new Date()) {
+  async alerts(at = new Date(), announced: PlatformAnnouncement[] = []) {
     const settings = await this.one('SELECT timezone,name FROM settings WHERE id=1');
     const timezone = settings!.timezone as string;
     const settingsName = settings!.name as string;
@@ -1919,6 +1928,9 @@ export class Service {
           href: '#access',
         });
     }
+
+    // Los avisos del superadministrador llegan desde el registro central y se marcan como leídos igual.
+    alerts.push(...announced);
 
     const read = await this.all('SELECT alert_key FROM alert_reads WHERE user_id=?', this.actor.id);
     const seen = new Set(read.map((row) => row.alert_key));

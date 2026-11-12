@@ -211,6 +211,7 @@ function platformFixture(t: test.TestContext, initial: any) {
     './AppDownloads': { default: 'AppDownloads' },
     './BrandLogo': { default: 'BrandLogo' },
     './PlatformMembers': { default: 'PlatformMembers' },
+    './PlatformAnnouncements': { default: 'PlatformAnnouncements' },
     './PlatformBilling': { default: 'PlatformBilling', PlatformBillingSummary: 'PlatformBillingSummary' },
     './styles/platform.css': {},
     './platform-context': {
@@ -415,6 +416,7 @@ for (const section of ['members', 'network', 'system', 'password']) {
       './SystemSettings': { default: 'LocalSystem' },
       './RecoveryKey': { default: 'LocalRecovery' },
       './PlatformMembers': { default: 'PlatformMembers' },
+      './PlatformAnnouncements': { default: 'PlatformAnnouncements' },
       './PlatformBackups': { default: 'PlatformBackups' },
     });
     const tree = h.render(() =>
@@ -509,4 +511,83 @@ test('Plataforma: restaurar un respaldo exige confirmación y contraseña centra
   assert.equal(calls.find((call) => call.path.endsWith('/restore'))?.body.password, 'Seguro123');
   tree = await h.settle();
   assert.match(elementText(tree), /Datos restaurados. Copia previa: safety-a/);
+});
+
+test('Plataforma: el superadministrador envía un aviso a los gimnasios elegidos y lo retira', async (t) => {
+  const requests: { path: string; method?: string; body?: any }[] = [];
+  const sent: any[] = [];
+  const h = componentHarness({
+    location: { origin: 'https://gym.example.test', pathname: '/' },
+    confirm: () => true,
+  });
+  t.after(() => h.cleanup());
+  const { default: PlatformAnnouncements } = h.load('../src/PlatformAnnouncements.tsx', {
+    'lucide-react': componentStubs,
+    './ui': { ...componentStubs, Skeleton: 'Skeleton', Empty: 'Empty', Form: 'Form', Field: 'Field' },
+    './api': {
+      api: async (path: string, method?: string, body?: any) => {
+        requests.push({ path, method, body });
+        if (method === 'POST') {
+          sent.push({ id: 'aviso-1', ...body, created_at: 0, expires_at: null, revoked_at: null, author: 'Dueño' });
+          return { announcement: sent.at(-1) };
+        }
+        if (method === 'DELETE') {
+          sent[0] = { ...sent[0], revoked_at: 1 };
+          return { announcement: sent[0] };
+        }
+        return { announcements: sent };
+      },
+    },
+  });
+  const gyms = [
+    { id: 'gym-a', name: 'Centro' },
+    { id: 'gym-b', name: 'Norte' },
+  ];
+  h.render(() => PlatformAnnouncements({ gyms }));
+  let tree = await h.settle();
+  assert.ok(findElement(tree, (el) => el.type === 'Empty'));
+
+  // Sin elegir destinatarios el aviso va a todos los gimnasios.
+  const values = new FormData();
+  values.set('title', 'Mantenimiento el domingo');
+  values.set('body', 'El servicio se detendrá de 02:00 a 04:00.');
+  values.set('severity', 'warning');
+  values.set('days', '3');
+  const form = () => findElement(h.render(() => PlatformAnnouncements({ gyms })), (el) => el.type === 'Form');
+  await findElement(tree, (el) => el.type === 'Form').props.onSubmit(values);
+  tree = await h.settle();
+  const created = requests.find((request) => request.method === 'POST');
+  assert.equal(created?.path, 'platform/announcements');
+  assert.equal(created?.body.title, 'Mantenimiento el domingo');
+  assert.equal(created?.body.body, 'El servicio se detendrá de 02:00 a 04:00.');
+  assert.equal(created?.body.severity, 'warning');
+  assert.equal(created?.body.days, '3');
+  assert.equal(created?.body.gym_ids.length, 0, 'Sin destinatarios elegidos el aviso va a todos');
+  assert.match(elementText(tree), /todos los gimnasios/i);
+  assert.match(elementText(tree), /Importante/);
+
+  // Elegir gimnasios exige marcar al menos uno.
+  findElement(tree, (el) => el.type === 'select' && el.props.value === 'all').props.onChange({
+    target: { value: 'selected' },
+  });
+  tree = await h.settle();
+  await assert.rejects(form().props.onSubmit(values), /al menos un gimnasio/);
+  findElement(tree, (el) => el.type === 'input' && el.props.type === 'checkbox').props.onChange({
+    target: { checked: true },
+  });
+  tree = await h.settle();
+  await form().props.onSubmit(values);
+  tree = await h.settle();
+  assert.deepEqual([...requests.filter((request) => request.method === 'POST').at(-1)?.body.gym_ids], ['gym-a']);
+
+  findElement(tree, (el) => el.type === 'button' && elementText(el).includes('Retirar')).props.onClick();
+  tree = await h.settle();
+  const removed = requests.filter((request) => request.method === 'DELETE');
+  assert.equal(removed.length, 1);
+  assert.equal(removed[0].path, 'platform/announcements/aviso-1');
+  // Retirar recarga la lista: el aviso queda marcado y solo el que sigue vigente conserva el botón.
+  assert.equal(requests.at(-1)?.method, undefined);
+  assert.match(elementText(tree), /Retirado/);
+  const remaining = findElement(tree, (el) => el.type === 'li' && elementText(el).includes('Retirar'));
+  assert.doesNotMatch(elementText(remaining), /Retirado/);
 });

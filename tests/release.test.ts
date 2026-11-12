@@ -36,5 +36,6 @@ test('la entrega conserva exactamente los recursos actuales y anteriores con sus
   assert.ok(downloads.includes(`/download/v${manifest.version}/`));
   assert.ok(downloads.includes(`GymPASS-Android-${manifest.version}.apk`));
   assert.ok(downloads.includes(`GymPASS-Setup-${manifest.version}.exe`));
-  assert.ok(downloads.includes(`GymPASS-Portable-${manifest.version}.exe`));
+  // La versión portable se sigue publicando, pero el inicio de sesión solo ofrece el instalador.
+  assert.ok(!downloads.includes('GymPASS-Portable-'));
 });

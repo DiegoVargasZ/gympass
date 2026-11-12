@@ -310,7 +310,7 @@ export async function gymApi(
     }
     if (first === 'visits') return send(action === 'pass' ? await s.visitPass(id) : await s.visits(url.searchParams));
     if (first === 'blocklist') return send(await s.blocklist());
-    if (first === 'alerts') return send(await s.alerts());
+    if (first === 'alerts') return send(await s.alerts(new Date(), store.gymAnnouncements(ctx.id)));
     if (first === 'saved-reports') return send(await s.savedReports());
     if (first === 'calendar') return send(await s.calendarExceptions(url.searchParams));
     if (first === 'periods') return send(await s.attendancePeriods());

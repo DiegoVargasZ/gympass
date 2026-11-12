@@ -79,6 +79,11 @@
 .alerts-panel li.read {
   opacity: 0.6;
 }
+/* Un aviso de GymPASS no sale del gimnasio: la banda lateral lo separa de sus propias alertas. */
+.alerts-panel li.announcement {
+  border-left: 3px solid var(--brand-600);
+  background: var(--surface-2);
+}
 .alerts-panel li div {
   flex: 1;
   min-width: 0;

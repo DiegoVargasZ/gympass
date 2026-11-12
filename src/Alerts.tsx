@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, CheckCheck, CircleAlert, Info, MessageCircle, TriangleAlert } from 'lucide-react';
+import { Bell, CheckCheck, CircleAlert, Info, Megaphone, MessageCircle, TriangleAlert } from 'lucide-react';
 import { api } from './api';
 import type { Alert } from '../lib/domain';
 import { stamp } from './ui';
@@ -101,9 +101,13 @@ export default function Alerts({ timezone }: { timezone: string }) {
           ) : (
             <ul>
               {alerts.map((alert) => {
-                const Icon = icons[alert.severity];
+                // Un aviso de GymPASS no describe el estado del gimnasio, así que se distingue a simple vista.
+                const Icon = alert.kind === 'announcement' ? Megaphone : icons[alert.severity];
                 return (
-                  <li key={alert.key} className={alert.read ? 'read' : ''}>
+                  <li
+                    key={alert.key}
+                    className={(alert.read ? 'read' : '') + (alert.kind === 'announcement' ? ' announcement' : '')}
+                  >
                     <span className={'alert-icon ' + alert.severity}>
                       <Icon size={17} />
                     </span>

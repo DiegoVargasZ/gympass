@@ -1,5 +1,10 @@
 # Cambios
 
+## Sin publicar
+
+- Avisos del superadministrador a los gimnasios desde el panel, con importancia, vigencia y destinatarios. Llegan a la campana de alertas de cada gimnasio, se marcan como leídos por usuario y pueden retirarse antes de que venzan.
+- El acceso deja de ofrecer la descarga de la versión portable de Windows; el instalador y el APK se mantienen.
+
 ## 5.1.0
 
 - Gestión Android incluida en el APK y conectada a una copia SQLite del gimnasio para administradores: socios, planes, productos, cobros, credenciales, fotos, logotipo, configuración e informes sin Internet.

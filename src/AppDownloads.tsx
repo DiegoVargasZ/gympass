@@ -39,19 +39,6 @@ export default function AppDownloads() {
           </span>
           <Download size={16} aria-hidden="true" />
         </a>
-        <a
-          className="app-download"
-          href={release + 'GymPASS-Portable-5.1.0.exe'}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Monitor size={24} aria-hidden="true" />
-          <span>
-            <strong>Windows portable</strong>
-            <small>Descargar sin instalar · v5.1.0</small>
-          </span>
-          <Download size={16} aria-hidden="true" />
-        </a>
       </div>
     </section>
   );
