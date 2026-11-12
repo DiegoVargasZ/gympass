@@ -143,7 +143,7 @@ index 231b4b7..3693e59 100644
        ...(p.timezone !== undefined ? [this.stmt('UPDATE settings SET timezone=? WHERE id=1', p.timezone)] : []),
        ...(p.brand_color
 diff --git a/mobile/App.tsx b/mobile/App.tsx
-index 562740a..c8a2e21 100644
+index 562740a..7651420 100644
 --- a/mobile/App.tsx
 +++ b/mobile/App.tsx
 @@ -1,4 +1,5 @@
@@ -152,6 +152,15 @@ index 562740a..c8a2e21 100644
  import { NativeTheme, useNativeTheme } from './src/theme';
  import { themePalettes, type ThemeMode, type ThemePalette } from '../lib/theme';
  import {
+@@ -253,7 +254,7 @@ export function LoginScreen({ onLogin }: { onLogin: (session: MobileSession) =>
+           />
+         </View>
+         <Text style={styles.footerNote}>
+-          Los movimientos se confirman en el servidor de GymPASS. Mantén la conexión para registrar cada acceso.
++          Entra una vez con Internet para preparar la copia de tu gimnasio. Después puedes usar las funciones autorizadas sin conexión.
+         </Text>
+       </ScrollView>
+     </KeyboardAvoidingView>
 @@ -264,7 +265,9 @@ function ScannerScreen({
    session,
    onLogout,
@@ -2290,7 +2299,7 @@ index 8ac4eca..0d00b3b 100644
    const calendar = setInterval(() => {
      if (connected) run(['time', 'alerts']);
 diff --git a/src/mobile-main.tsx b/src/mobile-main.tsx
-index 96aac74..5b7a5c6 100644
+index 96aac74..812bcb8 100644
 --- a/src/mobile-main.tsx
 +++ b/src/mobile-main.tsx
 @@ -25,7 +25,7 @@ function MobileStatus() {
@@ -2302,6 +2311,25 @@ index 96aac74..5b7a5c6 100644
      {status ? status.revoked ? 'Acceso revocado. Los pendientes se conservan.' : status.conflict ? 'Cambios guardados. Hay un conflicto para revisar.' : `${status.online ? 'Conectado' : 'Sin Internet'} · ${status.pending ? status.pending + ' cambios guardados en este teléfono' : 'Sin cambios pendientes'} · Sincronización automática` : 'Abriendo la copia del teléfono…'}
      {status?.server && <a href={status.server} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 4 }}>Cuenta y respaldos del servidor</a>}
    </div>;
+@@ -39,4 +39,17 @@ async function start() {
+   document.head.append(style);
+   createRoot(document.getElementById('root')!).render(<React.StrictMode><React.Suspense fallback={<p>Abriendo GymPASS…</p>}><App onLogout={() => location.reload()} /><MobileStatus /></React.Suspense></React.StrictMode>);
+ }
+-void start().catch(error => { document.getElementById('root')!.textContent = 'No se pudo abrir la copia local: ' + error.message; });
++void start().catch(error => {
++  const root = document.getElementById('root')!;
++  const message = document.createElement('p');
++  message.textContent = 'No se pudo abrir la copia local: ' + error.message;
++  const login = document.createElement('button');
++  login.className = 'btn primary';
++  login.textContent = 'Volver a iniciar sesión';
++  login.onclick = async () => {
++    login.disabled = true;
++    try { await api('auth/logout', 'POST'); login.textContent = 'Abriendo el acceso…'; }
++    catch (cause) { message.textContent = (cause as Error).message; login.disabled = false; }
++  };
++  root.replaceChildren(message, login);
++});
 diff --git a/src/preferences.ts b/src/preferences.ts
 index 618bb1a..222bec1 100644
 --- a/src/preferences.ts

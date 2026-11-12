@@ -39,4 +39,17 @@ async function start() {
   document.head.append(style);
   createRoot(document.getElementById('root')!).render(<React.StrictMode><React.Suspense fallback={<p>Abriendo GymPASS…</p>}><App onLogout={() => location.reload()} /><MobileStatus /></React.Suspense></React.StrictMode>);
 }
-void start().catch(error => { document.getElementById('root')!.textContent = 'No se pudo abrir la copia local: ' + error.message; });
+void start().catch(error => {
+  const root = document.getElementById('root')!;
+  const message = document.createElement('p');
+  message.textContent = 'No se pudo abrir la copia local: ' + error.message;
+  const login = document.createElement('button');
+  login.className = 'btn primary';
+  login.textContent = 'Volver a iniciar sesión';
+  login.onclick = async () => {
+    login.disabled = true;
+    try { await api('auth/logout', 'POST'); login.textContent = 'Abriendo el acceso…'; }
+    catch (cause) { message.textContent = (cause as Error).message; login.disabled = false; }
+  };
+  root.replaceChildren(message, login);
+});
