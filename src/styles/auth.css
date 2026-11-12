@@ -2,7 +2,14 @@
   min-height: 100dvh;
 }
 .auth-layout .auth-story {
-  background: #000;
+  background-color: #000;
+  background-image:
+    linear-gradient(to bottom, rgb(0 0 0 / 0.62) 0%, rgb(0 0 0 / 0) 22%),
+    linear-gradient(to top, rgb(0 0 0 / 0.9) 0%, rgb(0 0 0 / 0.72) 24%, rgb(0 0 0 / 0) 52%),
+    url('/login-photo.jpg');
+  background-size: cover;
+  background-position: 62% 30%;
+  background-repeat: no-repeat;
 }
 .auth-layout .auth-story .gympass-brand-logo {
   width: 200px;
@@ -10,6 +17,23 @@
 }
 .auth-layout .auth-copy {
   max-width: 600px;
+  margin: auto 0 0;
+  padding: 0;
+}
+.auth-layout .auth-copy h1 {
+  font-size: clamp(2rem, 1.5rem + 1.5vw, 3.1rem);
+  margin: 0 0 14px;
+}
+.auth-layout .auth-story .auth-copy > p,
+.auth-layout .auth-story .auth-features,
+.auth-layout .auth-story .auth-foot {
+  color: rgb(255 255 255 / 0.86);
+}
+.auth-layout .auth-features {
+  margin-top: 22px;
+}
+.auth-layout .auth-foot {
+  margin-top: 22px;
 }
 .auth-layout .auth-main {
   min-width: 0;
@@ -109,6 +133,7 @@
 @media (max-width: 600px) {
   .auth-layout .auth-story {
     padding: 20px 24px;
+    background-image: none;
   }
   .auth-layout .auth-story .gympass-brand-logo {
     width: 176px;
