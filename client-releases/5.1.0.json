@@ -23,7 +23,7 @@
     "portable_smoke_passed": true,
     "setup_payload_verified": true,
     "code_signed": false,
-    "electron_version": "45.1.0",
+    "electron_version": "45.0.0",
     "architecture": "x64",
     "minimum_os": "Windows 10"
   },
