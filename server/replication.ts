@@ -30,6 +30,7 @@ type Device = {
   id: string;
   user_id: string;
   kind: "desktop" | "mobile";
+  management?: number;
   token_hash: string;
   password_revision: string;
   expires_at: number;
@@ -48,6 +49,8 @@ export function initializeReplication(raw: DatabaseSync) {
     )
   )
     raw.exec("ALTER TABLE sync_devices ADD COLUMN password_revision TEXT");
+  if (!(raw.prepare("PRAGMA table_info(sync_devices)").all() as any[]).some(column => column.name === "management"))
+    raw.exec("ALTER TABLE sync_devices ADD COLUMN management INTEGER NOT NULL DEFAULT 0 CHECK(management IN(0,1))");
 }
 export function authorizeReplica(
   store: PlatformStore,
@@ -73,7 +76,7 @@ export function authorizeReplica(
       "La contraseña de la cuenta cambió. Vuelve a vincular el dispositivo.",
     );
   const auth = store.authorizeLinkedUser(device.user_id, ctx.id);
-  if (device.kind === "desktop" && auth.actor.role !== "admin")
+  if ((device.kind === "desktop" || device.management) && auth.actor.role !== "admin")
     throw new ApiError(
       403,
       "La copia de escritorio requiere un administrador activo.",
@@ -90,11 +93,13 @@ export function pairReplica(
 ) {
   initializeReplication(ctx.db.raw);
   const kind = input.kind;
+  const management = input.management === true;
   if (
     !["desktop", "mobile"].includes(String(kind)) ||
     auth.support ||
     auth.readOnly ||
     (kind === "desktop" && auth.actor.role !== "admin")
+    || (management && (kind !== "mobile" || auth.actor.role !== "admin"))
   )
     throw new ApiError(
       403,
@@ -121,7 +126,7 @@ export function pairReplica(
     token = "s_" + randomBytes(32).toString("hex");
   ctx.db.raw
     .prepare(
-      "INSERT INTO sync_devices(id,user_id,name,kind,token_hash,password_revision,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)",
+      "INSERT INTO sync_devices(id,user_id,name,kind,token_hash,password_revision,created_at,expires_at,management) VALUES(?,?,?,?,?,?,?,?,?)",
     )
     .run(
       id,
@@ -132,8 +137,9 @@ export function pairReplica(
       passwordRevision,
       Date.now(),
       Date.now() + 90 * 86400000,
+      management ? 1 : 0,
     );
-  return { id, token, gym_id: ctx.id, user: auth.actor, kind, offline_days: 7 };
+  return { id, token, gym_id: ctx.id, user: auth.actor, kind, management, offline_days: 7 };
 }
 export function replicaTables(
   raw: DatabaseSync,
@@ -174,7 +180,7 @@ export function replicaTables(
           rows = [...selected.values()];
         }
       }
-      return { name, columns, rows };
+      return { name, columns, rows, ...(kind === "desktop" ? { sql: String(raw.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name)!.sql) } : {}) };
     });
 }
 export function replicaAssets(root: string) {
@@ -200,9 +206,9 @@ export async function replicaSnapshot(
   device: Device,
   auth: GymAuthorization,
 ): Promise<SyncSnapshot> {
-  const tables = replicaTables(ctx.db.raw, device.kind);
+  const tables = replicaTables(ctx.db.raw, device.management ? "desktop" : device.kind);
   const assets =
-    device.kind === "desktop" ? replicaAssets(ctx.root) : undefined;
+    device.kind === "desktop" || device.management ? replicaAssets(ctx.root) : undefined;
   const triggers = (
     ctx.db.raw
       .prepare(
@@ -234,6 +240,7 @@ export async function replicaSnapshot(
     issued_at: issued,
     expires_at: issued + lease,
     kind: device.kind,
+    ...(device.management ? { scope: "management" as const } : {}),
     user: { ...auth.actor, role: auth.actor.role as "admin" | "operator" },
     tables,
     triggers,
@@ -342,7 +349,7 @@ export function mergeReplica(
       );
     return { status: "conflict", conflict: message };
   }
-  const schema = replicaTables(raw, device.kind);
+  const schema = replicaTables(raw, device.management ? "desktop" : device.kind);
   const seen = new Set<string>();
   for (const change of patch.changes) {
     const table = schema.find((t) => t.name === change.table),
@@ -371,7 +378,7 @@ export function mergeReplica(
         400,
         "No se puede cambiar la identidad de un registro.",
       );
-    if (device.kind === "mobile") mobileChange(change, auth.actor.id);
+    if (device.kind === "mobile" && !device.management) mobileChange(change, auth.actor.id);
     if (
       change.table === "settings" &&
       change.after &&
@@ -385,7 +392,7 @@ export function mergeReplica(
         "La sincronización no cambia la identidad ni la recuperación del gimnasio.",
       );
   }
-  if (device.kind === "mobile" && Object.keys(patch.assets || {}).length)
+  if (device.kind === "mobile" && !device.management && Object.keys(patch.assets || {}).length)
     throw new ApiError(403, "El móvil no modifica los archivos del gimnasio.");
   const triggers = raw
     .prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger'")

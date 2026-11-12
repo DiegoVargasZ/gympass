@@ -3,6 +3,7 @@ export type SyncRow = Record<string, SyncValue>;
 export type SyncColumn = { name: string; type: string; pk: number };
 export type SyncTable = {
   name: string;
+  sql?: string;
   columns: SyncColumn[];
   rows: SyncRow[];
 };
@@ -14,6 +15,7 @@ export type SyncSnapshot = {
   issued_at: number;
   expires_at: number;
   kind: "desktop" | "mobile";
+  scope?: "management";
   user: { id: string; name: string; email: string; role: "admin" | "operator" };
   tables: SyncTable[];
   triggers: string[];
@@ -175,6 +177,8 @@ export function validSyncSnapshot(
       )
     )
       throw Error("La copia contiene una tabla no compatible.");
+    if (table.sql && (!new RegExp('^CREATE TABLE(?: IF NOT EXISTS)? ["`]?'+table.name+'["`]?\\s*\\(', 'i').test(table.sql) || /;\s*\S/.test(table.sql)))
+      throw Error("El esquema de la copia no es compatible.");
   }
 }
 export async function mappedSyncPatch(
