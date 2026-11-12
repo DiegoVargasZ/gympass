@@ -1,5 +1,12 @@
 # Cambios
 
+## 5.0.0
+
+- Web, Android y Windows actualizados a 5.0.0; Android usa el código 5000 y conserva el paquete y su firma.
+- Windows incorpora las mejoras web recientes: logotipo del gimnasio, marca de agua y estilo de credenciales, vista previa de tarjeta, ajustes del tema oscuro y consultas de movimientos y horas por socio.
+- Descargas directas del APK, instalador Windows y portable desde el acceso y Configuración.
+- Se conserva la interfaz publicada 4.8.2 para las sesiones abiertas.
+
 ## 4.8.2
 
 - Añadidas las dos grabaciones proporcionadas: el primer audio para la entrada y el segundo para la salida, con volumen ajustado sin saturación.

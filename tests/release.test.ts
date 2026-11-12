@@ -34,5 +34,7 @@ test('la entrega conserva exactamente los recursos actuales y anteriores con sus
   for (const name of readdirSync(new URL('../dist/assets/', import.meta.url))) assert.ok(retained.has('assets/' + name.replace(/\.(br|gz)$/, '')), name);
   const downloads = readFileSync(new URL('../src/AppDownloads.tsx', import.meta.url), 'utf8');
   assert.ok(downloads.includes(`/download/v${manifest.version}/`));
+  assert.ok(downloads.includes(`GymPASS-Android-${manifest.version}.apk`));
   assert.ok(downloads.includes(`GymPASS-Setup-${manifest.version}.exe`));
+  assert.ok(downloads.includes(`GymPASS-Portable-${manifest.version}.exe`));
 });

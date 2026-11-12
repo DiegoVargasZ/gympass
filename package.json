@@ -1,6 +1,6 @@
 {
   "name": "gympass-platform",
-  "version": "4.8.2",
+  "version": "5.0.0",
   "private": true,
   "type": "module",
   "engines": {
