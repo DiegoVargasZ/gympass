@@ -407,3 +407,135 @@
     width: 100%;
   }
 }
+
+.gym-logo-setting {
+  margin-top: var(--s6, 32px);
+  padding-top: var(--s5, 24px);
+  border-top: 1px solid var(--border);
+}
+.gym-logo-setting h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 650;
+}
+.gym-logo-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 16px;
+}
+.gym-logo-preview {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--print-surface, #fff);
+  color: #5b6672;
+  font-size: 13px;
+}
+.gym-logo-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.gym-logo-error {
+  margin: 12px 0 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.gym-logo-size {
+  margin-top: 20px;
+}
+.gym-logo-size-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.gym-logo-size-control input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+}
+.gym-logo-size-control output {
+  min-width: 4ch;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.credential-style {
+  margin-top: var(--s6, 32px);
+  padding-top: var(--s5, 24px);
+  border-top: 1px solid var(--border);
+}
+.credential-style h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 650;
+}
+.credential-style-layout {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin-top: 16px;
+}
+.credential-style-preview {
+  width: 190px;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 3px 10px var(--shadow-color);
+}
+.credential-style-controls {
+  flex: 1;
+  min-width: 240px;
+}
+.gym-card-color {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.gym-card-color legend {
+  padding: 0 0 12px;
+  font-weight: 600;
+}
+.gym-card-color-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.gym-card-swatch {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border-strong);
+  cursor: pointer;
+}
+.gym-card-swatch[aria-pressed='true'] {
+  box-shadow: 0 0 0 3px var(--brand-700);
+}
+.gym-card-swatch:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.gym-card-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+.gym-card-custom input {
+  width: 44px;
+  min-height: 36px;
+  height: 36px;
+  padding: 2px;
+}

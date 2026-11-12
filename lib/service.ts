@@ -187,7 +187,7 @@ export class Service {
     }
     const installation = await this.one('SELECT owner FROM settings WHERE id=1');
     const [settings, zones, schedules, events, presence] = await Promise.all([
-      this.one('SELECT name,timezone,logo_path,brand_color,auto_close_hours,closing_time FROM settings WHERE id=1'),
+      this.one('SELECT name,timezone,logo_path,logo_watermark_size,credential_color,credential_watermark_size,brand_color,auto_close_hours,closing_time FROM settings WHERE id=1'),
       this.all(
         `SELECT z.*, (SELECT COUNT(*) FROM (${presenceSql}) p WHERE p.zone_id=z.id) inside FROM zones z ORDER BY z.name`,
       ),
@@ -2056,6 +2056,16 @@ export class Service {
           .string()
           .regex(/^#[\da-f]{6}$/i)
           .optional(),
+        /** Tamaño de la marca de agua del logo, como porcentaje del lado corto de la ventana. */
+        logo_watermark_size: z.number().int().min(10).max(100).optional(),
+        /** Color de la franja superior de las credenciales; null vuelve al color de GymPASS. */
+        credential_color: z
+          .string()
+          .regex(/^#[\da-f]{6}$/i)
+          .nullable()
+          .optional(),
+        /** Lado de la marca de agua de la credencial, como porcentaje del ancho de la tarjeta. */
+        credential_watermark_size: z.number().int().min(10).max(100).optional(),
       })
       .refine((value) => Object.values(value).some((field) => field !== undefined), 'Envía al menos un ajuste.')
       .parse(body);
@@ -2071,6 +2081,15 @@ export class Service {
       ...(p.timezone !== undefined ? [this.stmt('UPDATE settings SET timezone=? WHERE id=1', p.timezone)] : []),
       ...(p.brand_color
         ? [this.stmt('UPDATE settings SET brand_color=? WHERE id=1', p.brand_color.toLowerCase())]
+        : []),
+      ...(p.credential_color !== undefined
+        ? [this.stmt('UPDATE settings SET credential_color=? WHERE id=1', p.credential_color?.toLowerCase() ?? null)]
+        : []),
+      ...(p.credential_watermark_size !== undefined
+        ? [this.stmt('UPDATE settings SET credential_watermark_size=? WHERE id=1', p.credential_watermark_size)]
+        : []),
+      ...(p.logo_watermark_size !== undefined
+        ? [this.stmt('UPDATE settings SET logo_watermark_size=? WHERE id=1', p.logo_watermark_size)]
         : []),
       ...(p.auto_close_hours !== undefined
         ? [this.stmt('UPDATE settings SET auto_close_hours=? WHERE id=1', p.auto_close_hours)]

@@ -530,3 +530,35 @@
     grid-template-columns: 1fr auto;
   }
 }
+
+/* ---- Gym logo watermark ---- */
+.app-shell .workspace {
+  position: relative;
+  isolation: isolate;
+}
+.gym-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.gym-watermark img {
+  position: sticky;
+  top: calc(50dvh - var(--gym-watermark-size, 45) * 0.5vmin);
+  display: block;
+  width: calc(var(--gym-watermark-size, 45) * 1vmin);
+  height: calc(var(--gym-watermark-size, 45) * 1vmin);
+  margin: 0 auto;
+  object-fit: contain;
+  opacity: 0.06;
+  filter: grayscale(1);
+  user-select: none;
+}
+.gym-watermark img:not([src]) {
+  visibility: hidden;
+}
+@media print {
+  .gym-watermark {
+    display: none;
+  }
+}

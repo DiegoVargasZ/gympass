@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   BarChart3,
   Home,
@@ -23,6 +23,8 @@ import Alerts from './Alerts';
 import BrandLogo from './BrandLogo';
 import ConnectionStatus from './ConnectionStatus';
 import ThemeToggle from './ThemeToggle';
+import ScopedImage from './ScopedImage';
+import { logoUrl } from './branding';
 
 const icons: Record<SectionId, typeof Home> = {
   dashboard: Home,
@@ -190,6 +192,15 @@ export default function AppShell({
       </aside>
       {menu && <button className="sidebar-overlay" aria-label="Cerrar navegación" onClick={() => setMenu(false)} />}
       <div className="workspace" inert={menu}>
+        {data.settings.logo_path && (
+          <div
+            className="gym-watermark"
+            aria-hidden="true"
+            style={{ '--gym-watermark-size': data.settings.logo_watermark_size ?? 45 } as CSSProperties}
+          >
+            <ScopedImage src={logoUrl(data.settings.logo_path)} alt="" />
+          </div>
+        )}
         <header className="topbar">
           <button
             type="button"

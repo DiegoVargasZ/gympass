@@ -19,9 +19,12 @@ export async function saveBlob(blob: Blob, filename: string) {
  * Fetches a person's photo and inlines it as a data URI. The card has to be self-contained:
  * an <image href="/api/..."> inside an SVG is not loaded when that SVG is rasterised.
  */
-export async function inlinePhoto(personId: string): Promise<string | null> {
+export function inlinePhoto(personId: string): Promise<string | null> {
+  return inlineImage(`people/${encodeURIComponent(personId)}/photo`);
+}
+async function inlineImage(path: string): Promise<string | null> {
   try {
-    const response = await platformFetch(`people/${encodeURIComponent(personId)}/photo`);
+    const response = await platformFetch(path);
     if (!response.ok) return null;
     const blob = await response.blob();
     if (blob.size > 2 * 1024 * 1024) return null;
@@ -34,6 +37,21 @@ export async function inlinePhoto(personId: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+const logos = new Map<string, Promise<string | null>>();
+/** The gym logo as a data URI, fetched once per uploaded file so a batch of cards reuses it. */
+export function inlineLogo(logoPath: string): Promise<string | null> {
+  let logo = logos.get(logoPath);
+  if (!logo) {
+    logo = inlineImage('branding/logo?v=' + encodeURIComponent(logoPath));
+    logos.clear();
+    logos.set(logoPath, logo);
+    void logo.then((value) => {
+      if (!value && logos.get(logoPath) === logo) logos.delete(logoPath);
+    });
+  }
+  return logo;
 }
 
 export function downloadCardSvg(card: CardData) {
