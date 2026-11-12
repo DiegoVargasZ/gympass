@@ -52,6 +52,12 @@
     min-height: 440px;
   }
 
+  /* Reports flow with the page instead of fitting the fixed-height cash layout. */
+  .app-shell .pos-page.pos-page-flow {
+    display: block;
+    height: auto;
+  }
+
   .app-shell .pos-tabs {
     flex-shrink: 0;
     margin-bottom: 16px;
@@ -61,6 +67,13 @@
   .app-shell .pos-catalog-panel {
     flex: 1;
     min-height: 0;
+  }
+
+  /* Reports and sales are taller than the fixed page: they scroll inside their panel. */
+  .app-shell .pos-page > .panel:not(.pos-catalog-panel) {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .app-shell .pos-checkout {

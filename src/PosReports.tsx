@@ -181,7 +181,7 @@ export default function PosReports({ data, notify }: { data: Bootstrap; notify: 
 
   const summary = report?.summary;
   return (
-    <section className="panel pos-report">
+    <section className="pos-report">
       <div className="pos-report-controls">
         <div className="pos-tabs" role="group" aria-label="Agrupar ventas por">
           {(Object.keys(periodNames) as PosReportPeriod[]).map((key) => (

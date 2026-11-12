@@ -1177,7 +1177,7 @@ export default function Pos({
     await refreshCatalog().catch((reason) => notify('El cambio se guardó. ' + errorText(reason), true));
   };
   return (
-    <div className="pos-page">
+    <div className={'pos-page' + (tab === 'reports' ? ' pos-page-flow' : '')}>
       <div className="page-heading">
         <div>
           <h1>Caja y planes</h1>
