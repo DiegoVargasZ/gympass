@@ -29,6 +29,7 @@ export function Modal({
   children,
   onClose,
   wide = false,
+  side = false,
   className = '',
   protectChanges = true,
 }: {
@@ -36,6 +37,8 @@ export function Modal({
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  /** Abre el diálogo como panel lateral derecho, deslizándose desde el borde. */
+  side?: boolean;
   className?: string;
   protectChanges?: boolean;
 }) {
@@ -87,14 +90,14 @@ export function Modal({
   }, []);
   return (
     <div
-      className="modal-backdrop"
+      className={'modal-backdrop' + (side ? ' modal-backdrop-side' : '')}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) requestClose();
       }}
     >
       <div
         ref={ref}
-        className={'modal ' + (wide ? 'wide ' : '') + className}
+        className={'modal ' + (wide ? 'wide ' : '') + (side ? 'modal-side ' : '') + className}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

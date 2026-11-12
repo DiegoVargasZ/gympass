@@ -465,13 +465,12 @@ export default function Credentials({ data, notify }: { data: Bootstrap; notify:
       </section>
 
       {preview && (
-        <Modal title="Vista previa de credencial" onClose={() => setPreview(null)}>
+        <Modal title="Vista previa de credencial" side className="credential-drawer" onClose={() => setPreview(null)}>
           <img
             className="credential-preview"
             src={cardDataUri(preview)}
             alt="Vista previa de la tarjeta con su QR actual"
           />
-          <p className="helper">Descargar no registra ninguna entrada.</p>
         </Modal>
       )}
       <p className="helper">
