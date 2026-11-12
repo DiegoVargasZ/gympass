@@ -406,6 +406,7 @@ for (const section of ['members', 'network', 'system', 'password']) {
       './Members': { default: 'LocalMembers' },
       './Devices': { default: 'Devices' },
       './Appearance': { default: 'Appearance' },
+      './AccessSounds': { default: 'AccessSounds' },
       './GymLogo': { default: 'GymLogo' },
       './CredentialStyle': { default: 'CredentialStyle' },
       '../lib/domain': { generalAccessId: 'general' },

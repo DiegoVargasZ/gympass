@@ -48,7 +48,7 @@ El instalador Windows 5.1.0 conserva Electron 45 y requiere Windows 10 o posteri
 
 ## Recepción y caja
 
-En **Configuración → Apariencia** activa **Reproducir avisos de entrada y salida** y selecciona **Audios de acceso permitido y denegado** para usar las grabaciones proporcionadas. Un escaneo válido anuncia «Acceso permitido», tanto de entrada como de salida, y un código ajeno o vencido anuncia «Acceso denegado»; Android los incluye para el lector sin conexión. Puedes probar ambos antes de pulsar **Guardar cambios**. También siguen disponibles las diez voces de GymPASS y las voces del dispositivo, con velocidad entre 50 % y 300 % y lectura del nombre. Las grabaciones mantienen su velocidad original. Si un audio no se puede cargar, se usa el tono de confirmación.
+En **Configuración → Avisos y sonidos** activa **Reproducir avisos de entrada y salida** y selecciona **Audios de acceso permitido y denegado** para usar las grabaciones proporcionadas. Un escaneo válido anuncia «Acceso permitido», tanto de entrada como de salida, y un código ajeno o vencido anuncia «Acceso denegado»; Android los incluye para el lector sin conexión. Puedes probar ambos antes de pulsar **Guardar cambios**. También siguen disponibles las diez voces de GymPASS y las voces del dispositivo, con velocidad entre 50 % y 300 % y lectura del nombre. Las grabaciones mantienen su velocidad original. Si un audio no se puede cargar, se usa el tono de confirmación.
 
 Registra al socio con su WhatsApp, crea un plan y confirma el cobro. El primer pago crea su QR permanente de forma atómica; los reintentos no duplican el cobro. La fecha inicial del plan determina cuándo puede entrar. Comparte la credencial existente desde la ficha o comprobante.
 

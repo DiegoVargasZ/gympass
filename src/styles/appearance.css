@@ -281,3 +281,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Logo and credentials share the appearance page with the theme settings. */
+.gym-brand-panel > :first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}

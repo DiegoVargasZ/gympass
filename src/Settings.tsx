@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Building2, HardDrive, History, KeyRound, Palette, ScanLine, Users, Wifi, type LucideIcon } from 'lucide-react';
+import {
+  Building2,
+  HardDrive,
+  History,
+  KeyRound,
+  Palette,
+  ScanLine,
+  Users,
+  Volume2,
+  Wifi,
+  type LucideIcon,
+} from 'lucide-react';
 import { generalAccessId, type Device, type Member } from '../lib/domain';
 import type { AuditEntry, ResourceProps } from './management';
 import { Empty, Field, Form, stamp, type Notify } from './ui';
@@ -7,6 +18,7 @@ import { api } from './api';
 import Members from './Members';
 import Devices from './Devices';
 import Appearance from './Appearance';
+import AccessSounds from './AccessSounds';
 import GymLogo from './GymLogo';
 import CredentialStyle from './CredentialStyle';
 import Network from './Network';
@@ -19,7 +31,8 @@ import ConnectionSettings from './ConnectionSettings';
 import './styles/app-downloads.css';
 
 type Props = ResourceProps & { notify: Notify; members: Member[]; devices: Device[]; audit: AuditEntry[] };
-type TaskId = 'organization' | 'appearance' | 'password' | 'network' | 'members' | 'devices' | 'audit' | 'system';
+type TaskId =
+  'organization' | 'appearance' | 'sounds' | 'password' | 'network' | 'members' | 'devices' | 'audit' | 'system';
 type TaskGroup = 'organization' | 'account' | 'equipment';
 type ClosingMode = 'off' | 'hours' | 'daily';
 type Task = {
@@ -85,9 +98,18 @@ export default function Settings({ data, admin, saved, notify, members, devices,
     {
       id: 'appearance',
       label: 'Apariencia',
-      description: 'Elige el tema, la voz de los avisos de acceso y tus preferencias de uso.',
+      description: admin
+        ? 'Tema, color de acento, logo del gimnasio y aspecto de las credenciales.'
+        : 'Elige el tema, el color de acento y la densidad de las tablas.',
       group: 'account',
       icon: Palette,
+    },
+    {
+      id: 'sounds',
+      label: 'Avisos y sonidos',
+      description: 'Audios o voces de entrada y salida y vibración al registrar un acceso en este dispositivo.',
+      group: 'account',
+      icon: Volume2,
     },
     {
       id: 'password',
@@ -305,16 +327,6 @@ export default function Settings({ data, admin, saved, notify, members, devices,
                       </select>
                     </Field>
                   </Form>
-                  <GymLogo name={data.settings.name} logoPath={data.settings.logo_path}
-                    size={data.settings.logo_watermark_size ?? 45}
-                    saved={saved} notify={notify} />
-                  <CredentialStyle
-                    name={data.settings.name}
-                    logoPath={data.settings.logo_path}
-                    color={data.settings.credential_color ?? null}
-                    size={data.settings.credential_watermark_size ?? 70}
-                    saved={saved}
-                  />
                 </div>
               ) : (
                 <dl className="settings-organization-details">
@@ -338,7 +350,30 @@ export default function Settings({ data, admin, saved, notify, members, devices,
                   </div>
                 </dl>
               ))}
-            {active.id === 'appearance' && <Appearance />}
+            {active.id === 'appearance' && (
+              <>
+                <Appearance />
+                {admin && (
+                  <section className="panel padded gym-brand-panel">
+                    <GymLogo
+                      name={data.settings.name}
+                      logoPath={data.settings.logo_path}
+                      size={data.settings.logo_watermark_size ?? 45}
+                      saved={saved}
+                      notify={notify}
+                    />
+                    <CredentialStyle
+                      name={data.settings.name}
+                      logoPath={data.settings.logo_path}
+                      color={data.settings.credential_color ?? null}
+                      size={data.settings.credential_watermark_size ?? 70}
+                      saved={saved}
+                    />
+                  </section>
+                )}
+              </>
+            )}
+            {active.id === 'sounds' && <AccessSounds />}
             {active.id === 'password' && (
               <div className="settings-form-column">
                 <Form
