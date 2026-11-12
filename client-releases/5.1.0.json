@@ -1,0 +1,63 @@
+{
+  "version": "5.1.0",
+  "build_source_commit": "9467f373b30ef4329d9d1601ce0d3c85b2256de0",
+  "build_method": "local-windows",
+  "android": {
+    "version_code": 5100,
+    "package": "local.gympass.controlacceso.mobile",
+    "certificate_sha256": "a6735a9d424cb835fac4e5ca05f08df8cd9bd9007bdb8cf32f4fa42492187ded",
+    "smoke_passed": true,
+    "cold_starts": 2,
+    "theme_switch_smoke_passed": true,
+    "restored_theme_after_restart": true,
+    "android_tested": "17",
+    "page_size": 16384,
+    "upgraded_from": "5.0.0",
+    "offline_management": true,
+    "offline_authorization_days": 7,
+    "management_startup_passed": true,
+    "management_role": "admin"
+  },
+  "windows": {
+    "package_smoke_passed": true,
+    "portable_smoke_passed": true,
+    "setup_payload_verified": true,
+    "code_signed": false,
+    "electron_version": "45.1.0",
+    "architecture": "x64",
+    "minimum_os": "Windows 10"
+  },
+  "verification": {
+    "passed_tests_and_checks": {
+      "web": 142,
+      "mobile": 76,
+      "desktop": 561
+    },
+    "recorded_audio_bundled": true,
+    "phone_physically_tested": false,
+    "offline_management": true,
+    "offline_android_sale": true,
+    "automatic_reconnect_sync": true,
+    "offline_restart": true,
+    "android_server_qr_compatible": true,
+    "persistent_local_origin": true,
+    "offline_automatic_access_view": true,
+    "previous_reader_pending_upgrade": true
+  },
+  "files": {
+    "GymPASS-Android-5.1.0.apk": {
+      "sha256": "738398658857bfd13f77b981732afb4c1335247983ce40a10dad32c100d4bc68",
+      "bytes": 70074301
+    },
+    "GymPASS-Portable-5.1.0.exe": {
+      "sha256": "dfe639325f10b34c28ba59ccf34e60ab423f627653eb692b5519b5adddcf97b5",
+      "bytes": 136307652
+    },
+    "GymPASS-Setup-5.1.0.exe": {
+      "sha256": "5d96f645cf2be5677c692222078256a8998ef6d4c8e9a7885589122f3244d4ba",
+      "bytes": 136561446
+    }
+  },
+  "native_patch_sha256": "7dab0f5201312519efa0cef2e23ee80cb8e2deea266be0fa47c0f0907811ab8b",
+  "web_source_sha256": "e3f026b5fed674742c4a2974da28cefe1a78ca7311ab118e96cfa8a8dc7f017f"
+}
