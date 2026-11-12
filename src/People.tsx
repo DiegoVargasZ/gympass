@@ -710,7 +710,7 @@ export default function People({
   const personActions = (person: PersonSummary) =>
     person.deleted_at ? (
       <div className="row-actions">
-        <a className="btn secondary small" href={'#history?person=' + encodeURIComponent(person.id)}>
+        <a className="btn secondary small" href={'#history?q=' + encodeURIComponent(person.document)}>
           Movimientos
         </a>
         {data.user.role === 'admin' && (
@@ -750,7 +750,7 @@ export default function People({
           <a className="link-action" href={'#attendance?person=' + encodeURIComponent(person.id)}>
             Tiempo en el gimnasio
           </a>
-          <a className="link-action" href={'#history?person=' + encodeURIComponent(person.id)}>
+          <a className="link-action" href={'#history?q=' + encodeURIComponent(person.document)}>
             Movimientos
           </a>
           {data.user.role === 'admin' && (

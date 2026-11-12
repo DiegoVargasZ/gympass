@@ -54,6 +54,11 @@ test('lectores, informes y sesión de acceso automático aplican permisos en el 
       for (const path of ['events', 'events/export', 'gym-sessions', 'gym-sessions/export', 'attendance', 'attendance/export', 'workdays/export', 'payroll'])
         assert.equal((await api(path, sessions[role])).status, role === 'operator' ? 403 : 200, `${role} ${path}`);
     }
+    // The movements search finds a member by the complete document, never by a fragment of it.
+    const byDocument = await (await api('events?q=new')).json();
+    assert.ok(byDocument.total > 0);
+    assert.ok(byDocument.rows.every(row => row.person_id === fixture.person.id));
+    assert.equal((await (await api('events?q=EW')).json()).total, 0);
     const mobile = await app.store.mobileLogin({ email: 'operator@example.test', password: '123456', gymId: gym.id });
     for (const path of ['mobile/bootstrap', 'mobile/people', 'mobile/events', 'mobile/gym-sessions', 'mobile/presence'])
       assert.equal((await fetch(app.url + `/api/gyms/${gym.id}/${path}`, { headers: { Authorization: `Bearer ${mobile.token}` } })).status, 200, path);

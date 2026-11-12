@@ -131,7 +131,7 @@ export default function Reports({ data, notify }: { data: Bootstrap; notify: Not
             </select>
           </Field>
           <Field label="Buscar">
-            <input placeholder="Persona o zona" value={filters.q} onChange={(event) => set('q', event.target.value)} />
+            <input placeholder="Persona, documento o zona" value={filters.q} onChange={(event) => set('q', event.target.value)} />
           </Field>
           <button className="btn primary">
             <Search size={16} /> Consultar

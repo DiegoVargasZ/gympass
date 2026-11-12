@@ -1058,8 +1058,11 @@ export class Service {
     }
     const q = params.get('q')?.slice(0, 120);
     if (q) {
-      conditions.push('(person_name LIKE ? OR zone_name LIKE ?)');
-      args.push('%' + q + '%', '%' + q + '%');
+      // El documento se compara completo: un carnet parcial no debe mezclar a otros socios.
+      conditions.push(
+        '(person_name LIKE ? OR zone_name LIKE ? OR person_id IN (SELECT id FROM people WHERE document=? COLLATE NOCASE))',
+      );
+      args.push('%' + q + '%', '%' + q + '%', q.trim());
     }
     if (params.get('from') && params.get('to') && params.get('from')! > params.get('to')!)
       throw new ApiError(400, 'La fecha inicial debe ser anterior a la final.');
