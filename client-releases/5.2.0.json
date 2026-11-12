@@ -1,0 +1,68 @@
+{
+  "version": "5.2.0",
+  "build_source_commit": "6a1aef73cf043021ecd207e4efa949e040b2bf36",
+  "build_method": "local-windows",
+  "android": {
+    "package": "local.gympass.controlacceso.mobile",
+    "version_code": 5200,
+    "certificate_sha256": "a6735a9d424cb835fac4e5ca05f08df8cd9bd9007bdb8cf32f4fa42492187ded",
+    "upgraded_from": "5.1.1",
+    "smoke_passed": true,
+    "cold_starts": 2,
+    "management_startup_passed": true,
+    "startup_tested_without_internet": true,
+    "android_tested": "17",
+    "page_size": 16384,
+    "offline_management": true,
+    "management_role": "admin",
+    "offline_authorization_days": 7,
+    "separate_reader_tab_removed": true,
+    "offline_restart_persisted": true,
+    "automatic_reconnect_sync": true
+  },
+  "windows": {
+    "package_smoke_passed": true,
+    "portable_smoke_passed": true,
+    "setup_payload_verified": true,
+    "code_signed": false,
+    "electron_version": "45.0.0",
+    "architecture": "x64",
+    "minimum_os": "Windows 10",
+    "offline_management": true,
+    "packaged_offline_restart_passed": true,
+    "automatic_reconnect_sync": true,
+    "observed_reconnect_seconds": 9.92
+  },
+  "verification": {
+    "passed_tests_and_checks": {
+      "web": 157,
+      "mobile": 76,
+      "desktop": 590
+    },
+    "recorded_allowed_and_denied_audio_bundled": true,
+    "phone_physically_tested": false,
+    "appearance_shared_by_gym": true,
+    "cross_gym_isolation": true,
+    "appearance_between_browser_contexts": true,
+    "automatic_android_to_web_appearance": true,
+    "automatic_windows_to_web_appearance": true,
+    "retry_interval_seconds": 10,
+    "offline_mobile_schema_upgrade": true
+  },
+  "files": {
+    "GymPASS-Android-5.2.0.apk": {
+      "sha256": "546aaceaee53abc2e77c8cf829b068933fa0b6ae2cdac44851cc67e4fcab813e",
+      "bytes": 70031697
+    },
+    "GymPASS-Portable-5.2.0.exe": {
+      "sha256": "888a229e8bcc09a642d499a63490d6e65b78778a89a156aa562941000212cd8e",
+      "bytes": 136939263
+    },
+    "GymPASS-Setup-5.2.0.exe": {
+      "sha256": "3e6dd41dba62d1f6cbda4a6128c395c02b38fbcdfd82d07bab7fa8c5f68410e0",
+      "bytes": 137193061
+    }
+  },
+  "native_patch_sha256": "97e2b3b31de09ba67f1e3c999542bf096e08ccb55c9ae700afde824299a84dbe",
+  "web_source_sha256": "b2459aced5cc0330f9cd52eb5a2e740e0667e6059becf94123245779998664c8"
+}
