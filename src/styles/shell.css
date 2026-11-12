@@ -13,9 +13,12 @@
 .app-shell .sidebar {
   width: 232px;
   padding: 20px 12px 0;
-  background: var(--surface);
+  /* Sidebar and top bar read as one L-shaped frame: the divider starts below the top bar. */
+  background:
+    linear-gradient(var(--border), var(--border)) right bottom / 1px calc(100% - 60px) no-repeat,
+    var(--surface);
   color: var(--ink);
-  border-right: 1px solid var(--border);
+  border-right: 0;
   box-shadow: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
