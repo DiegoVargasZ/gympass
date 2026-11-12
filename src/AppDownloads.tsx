@@ -1,8 +1,8 @@
 import { Download, Monitor, Smartphone } from 'lucide-react';
 import './styles/app-downloads.css';
 
-const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.0.0/';
-const androidApk = release + 'GymPASS-Android-5.0.0.apk';
+const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.1.0/';
+const androidApk = release + 'GymPASS-Android-5.1.0.apk';
 
 export default function AppDownloads() {
   if (
@@ -22,33 +22,33 @@ export default function AppDownloads() {
           <Smartphone size={24} aria-hidden="true" />
           <span>
             <strong>Móvil Android</strong>
-            <small>Descargar APK · v5.0.0</small>
+            <small>Descargar APK · v5.1.0</small>
           </span>
           <Download size={16} aria-hidden="true" />
         </a>
         <a
           className="app-download"
-          href={release + 'GymPASS-Setup-5.0.0.exe'}
+          href={release + 'GymPASS-Setup-5.1.0.exe'}
           target="_blank"
           rel="noopener noreferrer"
         >
           <Monitor size={24} aria-hidden="true" />
           <span>
             <strong>Escritorio Windows</strong>
-            <small>Descargar instalador · v5.0.0</small>
+            <small>Descargar instalador · v5.1.0</small>
           </span>
           <Download size={16} aria-hidden="true" />
         </a>
         <a
           className="app-download"
-          href={release + 'GymPASS-Portable-5.0.0.exe'}
+          href={release + 'GymPASS-Portable-5.1.0.exe'}
           target="_blank"
           rel="noopener noreferrer"
         >
           <Monitor size={24} aria-hidden="true" />
           <span>
             <strong>Windows portable</strong>
-            <small>Descargar sin instalar · v5.0.0</small>
+            <small>Descargar sin instalar · v5.1.0</small>
           </span>
           <Download size={16} aria-hidden="true" />
         </a>

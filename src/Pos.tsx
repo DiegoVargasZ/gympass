@@ -570,7 +570,7 @@ export function Checkout({
               </div>
             )}
           </fieldset>
-          <p className="helper">Recibe el pago primero y después confirma el cobro. Necesitas conexión a internet.</p>
+          <p className="helper">Recibe el pago primero y después confirma el cobro. {data.replica?.linked ? 'El cobro se guarda en la copia local y se sincroniza al reconectar.' : 'Necesitas conexión a internet.'}</p>
           {uncertain && (
             <p className="error-message" role="alert">
               No se pudo confirmar la respuesta del servidor. Reintenta esta misma operación para consultar o completar

@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { installMobileTransport } from '../src/mobile-transport.ts';
+
+test('el transporte móvil conserva JSON, bytes y errores, y no envía otros orígenes al puente', async t => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+  const messages: any[] = [];
+  const remote: string[] = [];
+  const browser: any = { fetch: async (request: Request) => { remote.push(request.url); return new Response('externo'); }, ReactNativeWebView: { postMessage: (raw: string) => messages.push(JSON.parse(raw)) } };
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: browser });
+  Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: 'http://127.0.0.1:3456/token/', origin: 'http://127.0.0.1:3456' } });
+  t.after(() => { if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow); else delete (globalThis as any).window; if (originalLocation) Object.defineProperty(globalThis, 'location', originalLocation); else delete (globalThis as any).location; });
+  installMobileTransport();
+  const wait = async () => { while (!messages.length) await new Promise(resolve => setImmediate(resolve)); return messages.shift(); };
+  const create = browser.fetch('/api/gyms/gym/people', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Socio' }) });
+  const request = await wait();
+  assert.equal(request.path, 'gyms/gym/people'); assert.equal(request.body.name, 'Socio');
+  browser.__gympassManagementReply(request.id, { status: 201, data: { id: 'person' } });
+  assert.equal((await create).status, 201);
+  const image = browser.fetch('/api/branding/logo');
+  const photo = await wait();
+  browser.__gympassManagementReply(photo.id, { mime: 'image/png', data: { base64: 'AP+AQQ==' } });
+  assert.deepEqual(new Uint8Array(await (await image).arrayBuffer()), new Uint8Array([0,255,128,65]));
+  const failed = browser.fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  const invalid = await wait(); browser.__gympassManagementReply(invalid.id, { status: 409, data: { error: 'Conflicto' } });
+  assert.equal((await failed).status, 409);
+  assert.equal(await (await browser.fetch('https://example.test/info')).text(), 'externo');
+  assert.deepEqual(remote, ['https://example.test/info']);
+  const controller = new AbortController();
+  const cancelled = browser.fetch('/api/people', { signal: controller.signal });
+  const stale = await wait(); controller.abort();
+  await assert.rejects(cancelled, { name: 'AbortError' });
+  browser.__gympassManagementReply(stale.id, { data: { ignored: true } });
+});

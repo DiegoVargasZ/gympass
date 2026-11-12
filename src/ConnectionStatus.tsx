@@ -38,8 +38,8 @@ export default function ConnectionStatus({ platform = false, replica = false }: 
   const problem = reachable === false || sync?.revoked || !!sync?.conflict || !!sync?.error;
   const label = reachable === false
     ? 'Sin conexión al servidor'
-    : platform ? 'Servidor central'
     : replica ? sync?.online && !problem ? 'Servidor conectado · copia local' : 'Servidor local · copia del gimnasio'
+    : platform ? 'Servidor central'
     : 'Servidor local · computadora';
   const Icon = reachable === false ? WifiOff : platform ? Cloud : HardDrive;
   return (

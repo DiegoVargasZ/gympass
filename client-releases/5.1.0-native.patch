@@ -1,0 +1,1623 @@
+--- a/desktop/package.json
++++ b/desktop/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "gympass-desktop",
+   "productName": "GymPASS",
+-  "version": "5.0.0",
++  "version": "5.1.0",
+   "description": "Entradas, salidas y tiempos de permanencia para gimnasios",
+   "author": "GymPASS",
+   "license": "UNLICENSED",
+--- /dev/null
++++ b/lib/offline-management.ts
+@@ -0,0 +1,89 @@
++import { ApiError, Service, presenceSql, toCsv } from './service.ts';
++import { PosService } from './pos.ts';
++import { kindLabels, reasons } from './domain.ts';
++import { correctOfflineSession } from './offline-session-correction.ts';
++
++export type LocalResponse = { data?: unknown; status?: number; text?: string; mime?: string };
++
++/** Uses the same permissions, validation and transactions as the central application. */
++export async function offlineManagement(s: Service, path: string, method = 'GET', body: any = {}): Promise<LocalResponse> {
++  const url = new URL(path, 'https://local/');
++  const parts = url.pathname.replace(/^\//, '').split('/');
++  const [first, id, action] = parts;
++  const params = url.searchParams;
++  const send = (data: unknown): LocalResponse => ({ data });
++  if (method === 'GET' && ['events', 'gym-sessions', 'attendance', 'workdays', 'payroll', 'saved-reports', 'periods'].includes(first)) s.requireReports();
++  if (['attendance', 'workdays', 'payroll', 'periods', 'calendar', 'visits', 'invitation-batches', 'invitation-templates'].includes(first) && method !== 'GET')
++    throw new ApiError(410, 'Este módulo fue retirado. Sus datos históricos se conservan.');
++  if (first === 'pos') {
++    const pos = new PosService(s);
++    if (method === 'GET') {
++      if (id === 'catalog') return send(await pos.catalog());
++      if (id === 'reports') return send(await pos.report(params));
++      if (id === 'sales') return send(action ? await pos.sale(action) : await pos.sales(params));
++      if (id === 'memberships' && action) return send(await pos.memberships(action));
++    }
++    if (method === 'POST') {
++      if (id === 'checkout') return send(await pos.checkout(body));
++      if (id === 'products' && parts[3] === 'stock') return send(await pos.adjustStock(action, body));
++      if (id === 'sales' && parts[3] === 'void') return send(await pos.voidSale(action, body));
++      if (id === 'products' && !action) return send(await pos.saveProduct(body));
++      if (id === 'plans' && !action) return send(await pos.savePlan(body));
++    }
++    if (method === 'PATCH') {
++      if (id === 'products' && action) return send(await pos.saveProduct(body, action));
++      if (id === 'plans' && action) return send(await pos.savePlan(body, action));
++    }
++  }
++  if (method === 'GET') {
++    if (first === 'people' && action === 'credentials') return send(await s.credentials(id));
++    if (first === 'people' && action === 'summary') return send(await s.personSummary(id));
++    if (first === 'people') return send(id ? await s.personDetail(id) : await s.peopleList(params));
++    if (first === 'credentials' && action === 'card') return send(await s.credentialCard(id));
++    if (first === 'credentials') return send(await s.credentialList(params));
++    if (first === 'presence') return send(await s.all(`SELECT e.*,p.document,p.department,p.photo_path FROM (${presenceSql}) e JOIN people p ON p.id=e.person_id ORDER BY e.occurred_at DESC`));
++    if (first === 'devices') return send(await s.devices());
++    if (first === 'audit') { s.require('admin'); return send(await s.all('SELECT * FROM audit ORDER BY id DESC LIMIT 100')); }
++    if (first === 'expirations') return send(await s.expirations(params));
++    if (first === 'blocklist') return send(await s.blocklist());
++    if (first === 'alerts') return send(await s.alerts());
++    if (first === 'saved-reports') return send(await s.savedReports());
++    if (first === 'calendar') return send(await s.calendarExceptions(params));
++    if (first === 'periods') return send(await s.attendancePeriods());
++    if (first === 'visits') return send(action === 'pass' ? await s.visitPass(id) : await s.visits(params));
++    if (first === 'events') {
++      const report = await s.eventList(params, id === 'export');
++      return id !== 'export' ? send(report) : { mime: 'text/csv; charset=utf-8', text: toCsv(['Fecha UTC', 'Persona', 'Zona', 'Movimiento', 'Método', 'Resultado', 'Motivo', 'Detalle', 'Operador'], report.rows.map(r => [new Date(r.occurred_at).toISOString(), r.person_name, r.zone_name, r.direction === 'entry' ? 'Entrada' : 'Salida', kindLabels[r.method], r.allowed ? 'Permitido' : 'Denegado', reasons[r.reason], r.detail, r.actor])) };
++    }
++    if (first === 'gym-sessions') {
++      const report = await s.gymSessions(params);
++      return id !== 'export' ? send(report) : { mime: 'text/csv; charset=utf-8', text: toCsv(['Socio', 'Zona', 'Fecha', 'Entrada UTC', 'Salida UTC', 'Minutos', 'Estado'], report.rows.map(r => [r.person_name, r.zone_name, r.local_date, new Date(r.entry_at).toISOString(), r.exit_at === null ? '' : new Date(r.exit_at).toISOString(), r.exit_at === null ? '' : Math.max(0, Math.floor((r.exit_at - r.entry_at) / 60000)), r.exit_at === null ? 'Dentro' : r.auto_closed ? 'Salida estimada' : 'Finalizada'])) };
++    }
++    if (first === 'attendance') return send(await s.attendance(params));
++    if (first === 'workdays' || first === 'payroll') return send(await s.attendanceReport(params));
++  }
++  if (method === 'POST') {
++    if (first === 'gym-sessions' && action === 'correct') return send(await correctOfflineSession(s, { ...body, entry_id: Number(id) }));
++    if (first === 'access') return send(await s.access(body));
++    if (first === 'people' && action === 'restore') return send(await s.restorePerson(id));
++    if (first === 'people' && action === 'credentials') return send(await s.issueCredential(id, body));
++    if (first === 'people' && !id) return send(await s.savePerson(body));
++    if (first === 'devices') return send(await s.createDevice(body));
++    if (first === 'expirations' && id) return send(await s.markRenewal(id, body));
++    if (first === 'blocklist') return send(await s.blockDocument(body));
++    if (first === 'alerts' && id === 'read') return send(await s.readAlerts(body));
++    if (first === 'saved-reports') return send(await s.saveReport(body));
++  }
++  if (method === 'PATCH') {
++    if (first === 'people' && id) return send(await s.savePerson(body, id));
++    if (first === 'credentials' && id) return send(await s.revokeCredential(id));
++    if (first === 'devices' && id) return send(await s.revokeDevice(id));
++    if (first === 'settings') return send(await s.updateSettings(body));
++  }
++  if (method === 'DELETE') {
++    if (first === 'blocklist' && id) return send(await s.unblockDocument(decodeURIComponent(id)));
++    if (first === 'saved-reports' && id) return send(await s.deleteReport(id));
++    if (first === 'people' && id && !action) return send(await s.deletePerson(id));
++  }
++  throw new ApiError(404, 'Operación no disponible en la copia local.');
++}
+--- /dev/null
++++ b/lib/offline-session-correction.ts
+@@ -0,0 +1,30 @@
++import { z } from 'zod';
++import { ApiError, Service, hash } from './service.ts';
++import { localParts } from './domain.ts';
++
++export async function correctOfflineSession(s: Service, body: unknown, now = Date.now()) {
++  s.require('admin');
++  const stamp = z.number().int().min(0).max(8640000000000000);
++  const input = z.object({ entry_id: z.number().int().positive(), entry_at: stamp, exit_at: stamp.nullable(), reason: z.string().trim().min(1).max(1000) }).parse(body);
++  if (input.entry_at > now || input.exit_at !== null && (input.exit_at > now || input.exit_at < input.entry_at)) throw new ApiError(400, 'Las horas no pueden estar en el futuro y la salida debe ser posterior a la entrada.');
++  const entry = await s.one('SELECT * FROM events WHERE id=?', input.entry_id);
++  if (!entry || entry.allowed !== 1 || entry.direction !== 'entry' || !entry.person_id) throw new ApiError(404, 'No se encontró una entrada permitida.');
++  const next = await s.one('SELECT * FROM events WHERE person_id=? AND zone_id=? AND allowed=1 AND id>? ORDER BY id LIMIT 1', entry.person_id, entry.zone_id, entry.id);
++  const exit = next?.direction === 'exit' ? next : null;
++  if (!exit && next) throw new ApiError(400, 'La visita abierta debe ser el último movimiento de la persona.');
++  if (exit && input.exit_at === null) throw new ApiError(400, 'No se puede eliminar una salida registrada.');
++  const previous = await s.one('SELECT occurred_at FROM events WHERE person_id=? AND zone_id=? AND allowed=1 AND id<? ORDER BY id DESC LIMIT 1', entry.person_id, entry.zone_id, entry.id);
++  const following = exit ? await s.one('SELECT occurred_at FROM events WHERE person_id=? AND zone_id=? AND allowed=1 AND id>? ORDER BY id LIMIT 1', entry.person_id, entry.zone_id, exit.id) : null;
++  if (previous && input.entry_at < previous.occurred_at || following && input.exit_at !== null && input.exit_at > following.occurred_at) throw new ApiError(400, 'Las horas deben quedar entre los movimientos anterior y siguiente.');
++  const settings = await s.one('SELECT timezone FROM settings WHERE id=1');
++  const date = (at: number) => localParts(new Date(at), settings!.timezone).date;
++  const statements = [s.stmt('UPDATE events SET occurred_at=?,local_date=? WHERE id=?', input.entry_at, date(input.entry_at), entry.id)];
++  const request = 'correction_' + crypto.randomUUID();
++  if (input.exit_at !== null) {
++    if (exit) statements.push(s.stmt("UPDATE events SET occurred_at=?,local_date=?,reason='MANUAL_CORRECTION',detail=? WHERE id=?", input.exit_at, date(input.exit_at), input.reason, exit.id));
++    else statements.push(s.stmt("INSERT INTO events(request_key,payload_hash,person_id,person_name,zone_id,zone_name,direction,method,allowed,reason,detail,actor,occurred_at,local_date) VALUES(?,?,?,?,?,?,'exit','manual',1,'MANUAL_CORRECTION',?,?,?,?)", request, await hash(JSON.stringify(input)), entry.person_id, entry.person_name, entry.zone_id, entry.zone_name, input.reason, s.actor.email, input.exit_at, date(input.exit_at)));
++  }
++  statements.push(s.audit('gym_session.corrected', JSON.stringify({ entry_id: entry.id, actor: s.actor, reason: input.reason, before: { entry, exit }, after: { entry_at: input.entry_at, exit_at: input.exit_at, exit_id: exit?.id, exit_request_key: exit ? exit.request_key : request } })));
++  await s.db.batch(statements);
++  return { ok: true };
++}
+--- a/lib/replication.ts
++++ b/lib/replication.ts
+@@ -3,6 +3,7 @@
+ export type SyncColumn = { name: string; type: string; pk: number };
+ export type SyncTable = {
+   name: string;
++  sql?: string;
+   columns: SyncColumn[];
+   rows: SyncRow[];
+ };
+@@ -14,6 +15,7 @@
+   issued_at: number;
+   expires_at: number;
+   kind: "desktop" | "mobile";
++  scope?: "management";
+   user: { id: string; name: string; email: string; role: "admin" | "operator" };
+   tables: SyncTable[];
+   triggers: string[];
+@@ -175,6 +177,8 @@
+       )
+     )
+       throw Error("La copia contiene una tabla no compatible.");
++    if (table.sql && (!new RegExp('^CREATE TABLE(?: IF NOT EXISTS)? ["`]?'+table.name+'["`]?\\s*\\(', 'i').test(table.sql) || /;\s*\S/.test(table.sql)))
++      throw Error("El esquema de la copia no es compatible.");
+   }
+ }
+ export async function mappedSyncPatch(
+--- a/mobile/App.tsx
++++ b/mobile/App.tsx
+@@ -97,7 +97,7 @@
+   );
+ }
+ 
+-function LoginScreen({ onLogin }: { onLogin: (session: MobileSession) => void }) {
++export function LoginScreen({ onLogin }: { onLogin: (session: MobileSession) => void }) {
+   const { colors } = useNativeTheme();
+   const styles = stylesFor(colors);
+   const [address, setAddress] = useState(initialAddress);
+--- a/mobile/README.md
++++ b/mobile/README.md
+@@ -1,4 +1,12 @@
+-# GymPASS Android 4.5.5
++# GymPASS Android 5.1.0
++
++La gestión para administradores incluye la interfaz en el APK y guarda socios, caja, productos, planes, credenciales, accesos, imágenes, configuración e informes en SQLite. La primera vinculación necesita Internet; después se puede abrir la gestión sin red y sincronizar automáticamente al reconectar o volver a la aplicación. Se conservan siete días de autorización local y los conflictos requieren revisión sin sobrescribir los pendientes.
++
++Las cuentas centrales, las contraseñas, el personal y los respaldos del servidor siguen necesitando Internet. Las cuentas de recepción conservan el lector y sus consultas. Instala esta versión sobre la anterior para mantener los datos; no borres la aplicación. Versión 5.1.0 y compilación Android 5100.
++
++La compilación `scripts/build-android.ps1` prepara la interfaz con `../scripts/build-mobile-web.mjs` antes de generar y firmar el APK. Los recursos se sirven únicamente a la vista local y las operaciones se atienden en la sesión SQLite vinculada.
++
++## Comportamiento histórico hasta 4.5.5
+ 
+ La entrega 4.5.5 permite compartir la imagen y el mensaje de una credencial directamente con WhatsApp para el número registrado. El archivo se prepara en la caché privada; **Copiar imagen** permite pegarlo en otra conversación. Confirma el envío dentro de WhatsApp. El administrador y el cajero pueden compartir las tarjetas de socios; emitir o anular credenciales y gestionar tarjetas del personal sigue reservado al administrador.
+ 
+--- a/mobile/app.json
++++ b/mobile/app.json
+@@ -6,12 +6,12 @@
+       "ios",
+       "android"
+     ],
+-    "version": "5.0.0",
++    "version": "5.1.0",
+     "orientation": "default",
+     "userInterfaceStyle": "automatic",
+     "ios": {
+       "bundleIdentifier": "local.gympass.controlacceso.mobile",
+-      "buildNumber": "5000",
++      "buildNumber": "5100",
+       "supportsTablet": true,
+       "infoPlist": {
+         "NSLocalNetworkUsageDescription": "GymPASS se conecta con la computadora de la misma red Wi-Fi para registrar accesos.",
+@@ -24,7 +24,7 @@
+     },
+     "android": {
+       "package": "local.gympass.controlacceso.mobile",
+-      "versionCode": 5000,
++      "versionCode": 5100,
+       "permissions": [
+         "android.permission.CAMERA"
+       ],
+@@ -37,6 +37,7 @@
+       }
+     },
+     "plugins": [
++      "./plugins/with-offline-management.cjs",
+       "./plugins/with-gympass-signing.cjs",
+       "./plugins/with-secure-transport.cjs",
+       "./plugins/with-credential-sharing.cjs",
+--- a/mobile/index.ts
++++ b/mobile/index.ts
+@@ -1,6 +1,6 @@
+ import { registerRootComponent } from 'expo';
+ import { fetch } from 'expo/fetch';
+-import App from './src/GympassApp';
++import App from './src/OfflineApp';
+ 
+ globalThis.fetch = fetch;
+ registerRootComponent(App);
+--- a/mobile/package-lock.json
++++ b/mobile/package-lock.json
+@@ -1,13 +1,14 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "5.0.0",
++  "version": "5.1.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-mobile",
+-      "version": "5.0.0",
+-      "dependencies": {
++      "version": "5.1.0",
++      "dependencies": {
++        "@noble/ciphers": "2.4.0",
+         "expo": "~58.0.21",
+         "expo-audio": "58.0.11",
+         "expo-camera": "~58.0.14",
+@@ -1825,6 +1826,18 @@
+       "dependencies": {
+         "@jridgewell/resolve-uri": "^3.1.0",
+         "@jridgewell/sourcemap-codec": "^1.4.14"
++      }
++    },
++    "node_modules/@noble/ciphers": {
++      "version": "2.4.0",
++      "resolved": "https://registry.npmjs.org/@noble/ciphers/-/ciphers-2.4.0.tgz",
++      "integrity": "sha512-AnjFn0Jv92laAkvMrghlFZq4qQCIN/4DxFV/eooqtC2YTjB7kBeLMS2T9KJX4Dn+ZVXLOwK0lSgqDtx9gvxtiw==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 20.19.0"
++      },
++      "funding": {
++        "url": "https://paulmillr.com/funding/"
+       }
+     },
+     "node_modules/@noxcturnal/noxcturnal-darwin-arm64": {
+--- a/mobile/package.json
++++ b/mobile/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "5.0.0",
++  "version": "5.1.0",
+   "private": true,
+   "type": "module",
+   "main": "index.ts",
+@@ -13,6 +13,7 @@
+     "verify": "npm run test && npm run typecheck"
+   },
+   "dependencies": {
++    "@noble/ciphers": "2.4.0",
+     "expo": "~58.0.21",
+     "expo-audio": "58.0.11",
+     "expo-camera": "~58.0.14",
+--- /dev/null
++++ b/mobile/plugins/native/GympassOfflineModule.kt
+@@ -0,0 +1,102 @@
++package local.gympass.controlacceso.mobile
++
++import android.net.ConnectivityManager
++import android.net.Network
++import com.facebook.react.bridge.*
++import com.facebook.react.modules.core.DeviceEventManagerModule
++import java.net.InetAddress
++import java.net.ServerSocket
++import java.net.Socket
++import java.net.URLDecoder
++import java.security.SecureRandom
++import java.util.concurrent.Executors
++
++/** Serves APK assets only. Account data and writes stay in the authenticated native bridge. */
++class GympassOfflineModule(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
++  private var server: ServerSocket? = null
++  private var address: String? = null
++  private val workers = Executors.newFixedThreadPool(4)
++  private val connections = context.getSystemService(ConnectivityManager::class.java)
++  private val callback = object : ConnectivityManager.NetworkCallback() {
++    override fun onAvailable(network: Network) { changed() }
++    override fun onLost(network: Network) { changed() }
++  }
++  init { connections.registerDefaultNetworkCallback(callback) }
++  override fun getName() = "GympassOffline"
++  private fun changed() {
++    if (context.hasActiveReactInstance()) context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java).emit("GympassConnectivity", null)
++  }
++  @ReactMethod fun addListener(name: String) {}
++  @ReactMethod fun removeListeners(count: Int) {}
++  @ReactMethod @Synchronized fun start(promise: Promise) {
++    try {
++      if (server == null || server!!.isClosed) {
++        val preferences = context.getSharedPreferences("gympass-offline-assets", 0)
++        val listener = ServerSocket(preferences.getInt("port", 0), 16, InetAddress.getByName("127.0.0.1"))
++        if (!preferences.contains("port")) preferences.edit().putInt("port", listener.localPort).apply()
++        val random = ByteArray(24); SecureRandom().nextBytes(random)
++        val capability = random.joinToString("") { "%02x".format(it.toInt() and 255) }
++        server = listener
++        address = "http://127.0.0.1:${listener.localPort}/$capability/"
++        Thread({
++          while (!listener.isClosed) {
++            try { val client = listener.accept(); workers.execute { serve(client, capability) } }
++            catch (_: Exception) { if (listener.isClosed) break }
++          }
++        }, "GymPASS-assets").apply { isDaemon = true; start() }
++      }
++      promise.resolve(address)
++    } catch (error: Exception) { promise.reject("OFFLINE_ASSETS", "No se pudo abrir la interfaz incluida en la aplicación.", error) }
++  }
++  private fun line(socket: Socket): String {
++    val result = StringBuilder()
++    while (result.length < 8192) {
++      val value = socket.getInputStream().read()
++      if (value == -1 || value == 10) return result.toString().trimEnd('\r')
++      result.append(value.toChar())
++    }
++    throw IllegalArgumentException("Petición demasiado larga")
++  }
++  private fun serve(socket: Socket, capability: String) {
++    socket.use { client ->
++      client.soTimeout = 10000
++      try {
++        val request = line(client).split(' ')
++        require(request.size == 3 && request[0] in listOf("GET", "HEAD"))
++        var headerBytes = 0
++        while (true) { val header = line(client); if (header.isEmpty()) break; headerBytes += header.length; require(headerBytes < 16384) }
++        val raw = URLDecoder.decode(request[1].substringBefore('?'), "UTF-8")
++        require(!raw.contains('\\') && raw.split('/').none { it == "." || it == ".." })
++        var path = raw.removePrefix("/$capability/").trimStart('/')
++        if (raw == "/$capability/" || raw == "/$capability/index.html") path = "index.html"
++        else require(path != "index.html" && !path.endsWith(".html"))
++        require(path.matches(Regex("[A-Za-z0-9_./-]+")))
++        val mime = when (path.substringAfterLast('.')) {
++          "html" -> "text/html; charset=utf-8"
++          "js", "mjs" -> "text/javascript; charset=utf-8"
++          "css" -> "text/css; charset=utf-8"
++          "json" -> "application/json"
++          "svg" -> "image/svg+xml"
++          "png" -> "image/png"
++          "jpg", "jpeg" -> "image/jpeg"
++          "webp" -> "image/webp"
++          "wav" -> "audio/wav"
++          "wasm" -> "application/wasm"
++          else -> "application/octet-stream"
++        }
++        context.assets.open("gympass-web/$path").use { input ->
++          val output = client.getOutputStream()
++          output.write(("HTTP/1.1 200 OK\r\nContent-Type: $mime\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n").toByteArray())
++          if (request[0] == "GET") input.copyTo(output)
++          output.flush()
++        }
++      } catch (_: Exception) {
++        try { client.getOutputStream().write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray()) } catch (_: Exception) {}
++      }
++    }
++  }
++  override fun invalidate() {
++    try { connections.unregisterNetworkCallback(callback) } catch (_: Exception) {}
++    server?.close(); workers.shutdownNow(); super.invalidate()
++  }
++}
+--- /dev/null
++++ b/mobile/plugins/native/GympassOfflinePackage.kt
+@@ -0,0 +1,10 @@
++package local.gympass.controlacceso.mobile
++import com.facebook.react.ReactPackage
++import com.facebook.react.bridge.NativeModule
++import com.facebook.react.bridge.ReactApplicationContext
++import com.facebook.react.uimanager.ViewManager
++
++class GympassOfflinePackage : ReactPackage {
++  override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> = listOf(GympassOfflineModule(reactContext))
++  override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> = emptyList()
++}
+--- /dev/null
++++ b/mobile/plugins/with-offline-management.cjs
+@@ -0,0 +1,30 @@
++const { withMainApplication, withDangerousMod, withAndroidManifest } = require('expo/config-plugins');
++const { mkdir, copyFile, cp, access } = require('node:fs/promises');
++const { join } = require('node:path');
++
++module.exports = function withOfflineManagement(config) {
++  config = withAndroidManifest(config, mod => {
++    const manifest = mod.modResults.manifest;
++    manifest['uses-permission'] ||= [];
++    if (!manifest['uses-permission'].some(entry => entry.$['android:name'] === 'android.permission.ACCESS_NETWORK_STATE')) manifest['uses-permission'].push({ $: { 'android:name': 'android.permission.ACCESS_NETWORK_STATE' } });
++    return mod;
++  });
++  config = withMainApplication(config, mod => {
++    if (!mod.modResults.contents.includes('add(GympassOfflinePackage())')) {
++      const marker = 'PackageList(this).packages.apply {';
++      if (!mod.modResults.contents.includes(marker)) throw Error('Falta el registro de paquetes Android.');
++      mod.modResults.contents = mod.modResults.contents.replace(marker, marker + '\n              add(GympassOfflinePackage())');
++    }
++    return mod;
++  });
++  return withDangerousMod(config, ['android', async mod => {
++    const source = join(mod.modRequest.projectRoot, 'offline-web');
++    await access(join(source, 'mobile-release.json'));
++    const root = join(mod.modRequest.platformProjectRoot, 'app/src/main');
++    const kotlin = join(root, 'java/local/gympass/controlacceso/mobile');
++    await mkdir(kotlin, { recursive: true });
++    for (const name of ['GympassOfflineModule.kt', 'GympassOfflinePackage.kt']) await copyFile(join(__dirname, 'native', name), join(kotlin, name));
++    await cp(source, join(root, 'assets/gympass-web'), { recursive: true });
++    return mod;
++  }]);
++};
+--- a/mobile/plugins/with-secure-transport.cjs
++++ b/mobile/plugins/with-secure-transport.cjs
+@@ -25,6 +25,9 @@
+       <certificates src="user" />
+     </trust-anchors>
+   </base-config>
++  <domain-config cleartextTrafficPermitted="true">
++    <domain includeSubdomains="false">127.0.0.1</domain>
++  </domain-config>
+ </network-security-config>
+ `,
+       );
+--- a/mobile/scripts/build-android.ps1
++++ b/mobile/scripts/build-android.ps1
+@@ -26,6 +26,8 @@
+   }
+   Push-Location $mobileRoot
+   try {
++    & node (Join-Path $mobileRoot '../scripts/build-mobile-web.mjs') (Join-Path $mobileRoot 'offline-web')
++    if ($LASTEXITCODE -ne 0) { throw 'Falló la preparación de la interfaz sin conexión.' }
+     & node node_modules/expo/bin/cli prebuild --platform android --no-install --skip-dependency-update react-native,react
+     if ($LASTEXITCODE -ne 0) { throw 'Falló la preparación Android.' }
+     Push-Location (Join-Path $mobileRoot 'android')
+--- a/mobile/src/GympassApp.tsx
++++ b/mobile/src/GympassApp.tsx
+@@ -47,14 +47,15 @@
+   phone: string;
+ };
+ 
+-export default function GympassApp() {
++type Management = { url: string; request(path: string, method: string, body: unknown): Promise<{ status?: number; data?: unknown; text?: string; mime?: string }> };
++export default function GympassApp({ management }: { management?: Management } = {}) {
+   const dimensions = useWindowDimensions();
+   const landscape = dimensions.width > dimensions.height;
+   const web = useRef<WebView<{}>>(null);
+   const transfer = useRef<Transfer | null>(null);
+   const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
+   const canGoBack = useRef(false);
+-  const documentUrl = useRef(DEFAULT_SERVER);
++  const documentUrl = useRef(management?.url || DEFAULT_SERVER);
+   const navigationChosen = useRef(false);
+   const [reader, setReader] = useState(false);
+   const [error, setError] = useState('');
+@@ -150,13 +151,13 @@
+     let active = true;
+     void loadSession(SecureStore)
+       .then((session) => {
+-        if (active && session && !navigationChosen.current) setReader(true);
++        if (active && session && !navigationChosen.current && !management) setReader(true);
+       })
+       .catch(() => {});
+     return () => {
+       active = false;
+     };
+-  }, []);
++  }, [management?.url]);
+   useEffect(() => {
+     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+       if (reader) {
+@@ -231,7 +232,12 @@
+     );
+   }
+   async function onMessage(event: WebViewMessageEvent) {
+-    if (!isGympassUrl(event.nativeEvent.url)) return;
++    // New Android WebViews report the sender origin, while older versions include its full URL.
++    const origin = management ? new URL(management.url).origin : '';
++    const trusted = management
++      ? documentUrl.current.startsWith(management.url) && (event.nativeEvent.url === origin || event.nativeEvent.url === origin + '/' || event.nativeEvent.url.startsWith(management.url))
++      : isGympassUrl(event.nativeEvent.url);
++    if (!trusted) return;
+     pageReady();
+     setDetail('la página respondió');
+     let id: string | undefined;
+@@ -240,6 +246,14 @@
+       const message = JSON.parse(event.nativeEvent.data);
+       if (typeof message.id !== 'string' || !/^[a-z0-9-]{1,80}$/.test(message.id)) return;
+       id = message.id;
++      if (message.type === 'management') {
++        if (!management || typeof message.path !== 'string' || !/^(GET|POST|PUT|PATCH|DELETE|HEAD)$/.test(message.method)) throw Error('Solicitud de gestión no válida.');
++        let reply;
++        try { reply = await management.request(message.path, message.method, message.body); }
++        catch (cause: any) { reply = { status: typeof cause?.status === 'number' && cause.status >= 400 ? cause.status : 400, data: { error: cause?.message || 'No se pudo completar la operación.' } }; }
++        web.current?.injectJavaScript(`window.__gympassManagementReply?.(${JSON.stringify(id)}, ${JSON.stringify(reply)}); true;`);
++        return;
++      }
+       switch (message.type) {
+         case 'theme':
+           if (pendingTheme.current !== null && pendingTheme.current !== (message.dark === true)) {
+@@ -345,17 +359,18 @@
+           <WebView<{}>
+             key={revision}
+             ref={web}
+-            source={{ uri: DEFAULT_SERVER }}
++            source={{ uri: management?.url || DEFAULT_SERVER }}
+             style={{ flex: 1, backgroundColor: palette.surface }}
+-            applicationNameForUserAgent="GymPASS-Android/5.0.0"
++            applicationNameForUserAgent="GymPASS-Android/5.1.0"
+             originWhitelist={['*']}
+             onShouldStartLoadWithRequest={(request) => {
+-              if (isGympassUrl(request.url) || request.url === 'about:blank') return true;
++              if ((management ? request.url.startsWith(management.url) : isGympassUrl(request.url)) || request.url === 'about:blank') return true;
+               openExternal(request.url);
+               return false;
+             }}
+             onOpenWindow={(event) => {
+-              if (isGympassUrl(event.nativeEvent.targetUrl))
++              if (management) openExternal(event.nativeEvent.targetUrl);
++              else if (isGympassUrl(event.nativeEvent.targetUrl))
+                 web.current?.injectJavaScript(`location.href = ${JSON.stringify(event.nativeEvent.targetUrl)}; true;`);
+               else openExternal(event.nativeEvent.targetUrl);
+             }}
+@@ -363,7 +378,7 @@
+               canGoBack.current = state.canGoBack;
+               documentUrl.current = state.url;
+             }}
+-            injectedJavaScript={WEB_BRIDGE}
++            injectedJavaScript={management ? WEB_BRIDGE.replace(JSON.stringify(new URL(DEFAULT_SERVER).origin), JSON.stringify(new URL(management.url).origin)) : WEB_BRIDGE}
+             onMessage={(event) => {
+               void onMessage(event);
+             }}
+--- /dev/null
++++ b/mobile/src/OfflineApp.tsx
+@@ -0,0 +1,70 @@
++import { useCallback, useEffect, useRef, useState } from 'react';
++import { ActivityIndicator, AppState, DeviceEventEmitter, NativeModules, Pressable, Text, View } from 'react-native';
++import * as SecureStore from 'expo-secure-store';
++import { LoginScreen } from '../App';
++import GympassApp from './GympassApp';
++import { loadSession, type MobileSession } from './session';
++import { activateReplica, synchronizeReplica, type MobileReplica } from './offline';
++import { logout } from './api';
++import { request as remoteRequest } from './http';
++
++type Ready = { session: MobileSession; replica: MobileReplica; url: string };
++export default function OfflineApp() {
++  const [ready, setReady] = useState<Ready | null>(null);
++  const [loading, setLoading] = useState(true);
++  const [legacy, setLegacy] = useState(false);
++  const [error, setError] = useState('');
++  const working = useRef(false);
++  const mounted = useRef(true);
++  const prepare = useCallback(async (given?: MobileSession) => {
++    if (working.current) return;
++    working.current = true; setLoading(true); setError('');
++    try {
++      const session = given || await loadSession(SecureStore);
++      if (!mounted.current) return;
++      if (!session) { setReady(null); return; }
++      if (session.server_mode !== 'platform' || session.user.role !== 'admin') { setLegacy(true); return; }
++      const replica = await activateReplica(session, false, true);
++      if (!replica?.managementEnabled) throw Error('Actualiza la plataforma y conecta una vez el teléfono para preparar la gestión sin conexión.');
++      const url = await NativeModules.GympassOffline.start();
++      if (!/^http:\/\/127\.0\.0\.1:\d+\/[a-f0-9]{48}\/$/.test(url)) throw Error('La interfaz local no devolvió una dirección válida.');
++      if (mounted.current) setReady({ session, replica, url });
++    } catch (cause) { if (mounted.current) setError((cause as Error).message); }
++    finally { working.current = false; if (mounted.current) setLoading(false); }
++  }, []);
++  useEffect(() => {
++    mounted.current = true; void prepare();
++    return () => { mounted.current = false; };
++  }, [prepare]);
++  useEffect(() => {
++    const reconnect = () => { if (ready || legacy) void synchronizeReplica(); else if (error) void prepare(); };
++    const network = DeviceEventEmitter.addListener('GympassConnectivity', reconnect);
++    const foreground = AppState.addEventListener('change', state => { if (state === 'active') reconnect(); });
++    return () => { network.remove(); foreground.remove(); };
++  }, [ready, legacy, error, prepare]);
++  if (legacy) return <GympassApp />;
++  if (ready) return <GympassApp management={{
++    url: ready.url,
++    request: async (input: string, method: string, body: unknown) => {
++      let path = input;
++      if (path.startsWith('gyms/')) {
++        const prefix = `gyms/${ready.session.gym_id}/`;
++        if (!path.startsWith(prefix)) return { status: 403, data: { error: 'La solicitud pertenece a otro gimnasio.' } };
++        path = path.slice(prefix.length);
++      }
++      if (path === 'auth/logout' && method === 'POST') {
++        setTimeout(() => { void logout(ready.session).catch(() => {}).finally(() => { if (mounted.current) setReady(null); }); }, 0);
++        return { data: { ok: true } };
++      }
++      if (path.startsWith('platform/') || path.startsWith('sync/') || path.startsWith('backups')) {
++        try {
++          return { data: await remoteRequest(ready.session.server, path.startsWith('platform/') ? path : `gyms/${ready.session.gym_id}/${path}`, method, body, ready.session.token) };
++        } catch { return { status: 503, data: { error: 'Abre Cuenta y respaldos del servidor para completar esta operación con Internet. Los datos de gestión del teléfono se conservan.' } }; }
++      }
++      return ready.replica.managementRequest(path, method, body);
++    },
++  }} />;
++  if (loading) return <View style={{ flex: 1, justifyContent: 'center', padding: 24, gap: 16 }}><ActivityIndicator /><Text>Preparando la copia de GymPASS…</Text><Text>La primera vinculación descarga los datos con Internet. Después puedes trabajar sin conexión.</Text></View>;
++  if (error) return <View style={{ flex: 1, justifyContent: 'center', padding: 24, gap: 20 }}><Text accessibilityRole="alert">{error}</Text><Pressable accessibilityRole="button" onPress={() => void prepare()}><Text>Reintentar</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setLegacy(true)}><Text>Abrir el lector y conservar sus pendientes</Text></Pressable></View>;
++  return <LoginScreen onLogin={session => void prepare(session)} />;
++}
+--- /dev/null
++++ b/mobile/src/credential-codec.ts
+@@ -0,0 +1,32 @@
++import { gcm } from '@noble/ciphers/aes.js';
++import { utf8ToBytes, bytesToUtf8 } from '@noble/ciphers/utils.js';
++import type { CredentialCodec } from '../../lib/service';
++
++export function decodeBase64(value: string): Uint8Array {
++  const raw = atob(value.replace(/-/g, '+').replace(/_/g, '/'));
++  return Uint8Array.from(raw, c => c.charCodeAt(0));
++}
++export function encodeBase64(bytes: Uint8Array, url = false): string {
++  let value = '';
++  for (let offset = 0; offset < bytes.length; offset += 8192) value += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
++  const encoded = btoa(value);
++  return url ? encoded.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') : encoded;
++}
++export function mobileCredentialCodec(key: Uint8Array, keyId: string, random: (bytes: Uint8Array) => Uint8Array): CredentialCodec {
++  if (key.length !== 32 || !/^[a-f0-9]{16}$/.test(keyId)) throw Error('La clave de credenciales no es válida.');
++  return {
++    seal(code, id) {
++      const nonce = random(new Uint8Array(12));
++      const encrypted = gcm(key, nonce, utf8ToBytes(id)).encrypt(utf8ToBytes(code));
++      return ['v1', keyId, encodeBase64(nonce, true), encodeBase64(encrypted.subarray(-16), true), encodeBase64(encrypted.subarray(0, -16), true)].join('.');
++    },
++    open(value, id) {
++      const [version, storedKey, nonce, tag, data] = value.split('.');
++      if (version !== 'v1' || storedKey !== keyId) throw Error('La credencial pertenece a otra clave.');
++      const body = decodeBase64(data), auth = decodeBase64(tag);
++      const encrypted = new Uint8Array(body.length + auth.length);
++      encrypted.set(body); encrypted.set(auth, body.length);
++      return bytesToUtf8(gcm(key, decodeBase64(nonce), utf8ToBytes(id)).decrypt(encrypted));
++    },
++  };
++}
+--- a/mobile/src/offline.ts
++++ b/mobile/src/offline.ts
+@@ -1,7 +1,9 @@
+ import * as SQLite from 'expo-sqlite';
+ import * as Crypto from 'expo-crypto';
+ import * as SecureStore from 'expo-secure-store';
+-import { Service, presenceSql, setHashImplementation, hash } from '../../lib/service';
++import { Service, presenceSql, setHashImplementation, hash, type CredentialCodec } from '../../lib/service';
++import { offlineManagement, type LocalResponse } from '../../lib/offline-management';
++import { decodeBase64, mobileCredentialCodec } from './credential-codec';
+ import { localParts } from '../../lib/domain';
+ import {
+   syncChanges,
+@@ -27,6 +29,8 @@
+   base: SyncSnapshot;
+   pending: SyncPatch | null;
+   pending_tables?: SyncTable[];
++  pending_assets?: Record<string, string>;
++  assets?: Record<string, string>;
+   event_ids?: Record<string, number>;
+   last_success: number;
+   last_clock: number;
+@@ -34,7 +38,12 @@
+   revoked: boolean;
+   conflict: string | null;
+ };
+-type Configuration = { id: string; token: string };
++type Configuration = { id: string; token: string; management?: boolean };
++function assetChanges(before: Record<string, string> = {}, after: Record<string, string> = {}) {
++  return Object.fromEntries([...new Set([...Object.keys(before), ...Object.keys(after)])]
++    .filter(name => name !== 'credentials.key' && before[name] !== after[name])
++    .map(name => [name, { before: before[name] ?? null, after: after[name] ?? null }]));
++}
+ function nativeSql(sql: string) {
+   return sql.replace(/search_fold\(([\w.]+)\)/g, (_, column: string) => {
+     let value = column;
+@@ -103,6 +112,7 @@
+   private stopped = false;
+   private state!: State;
+   private configuration!: Configuration;
++  private codec?: CredentialCodec;
+   private constructor(
+     readonly session: MobileSession,
+     readonly db: SQLite.SQLiteDatabase,
+@@ -129,10 +139,12 @@
+       { timeoutMs: 60000 },
+     );
+   }
+-  static async open(session: MobileSession, freshLogin = false) {
++  static async open(session: MobileSession, freshLogin = false, management = false) {
++    if (management && session.user.role !== 'admin') throw new ApiError('La gestión completa sin conexión requiere una cuenta administradora.', 403);
+     const profile = (await hash([session.server, session.gym_id, session.user.id].join('|'))).slice(0, 32);
+     const db = await SQLite.openDatabaseAsync('gympass-' + profile + '.sqlite');
+     const client = new MobileReplica(session, db, profile);
++    try {
+     await db.execAsync(
+       'PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS _replica_meta(id INTEGER PRIMARY KEY,value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS _replica_archives(id TEXT PRIMARY KEY,created_at INTEGER NOT NULL,value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS _replica_photos(path TEXT PRIMARY KEY,data_uri TEXT NOT NULL);',
+     );
+@@ -143,7 +155,7 @@
+         session.server,
+         `gyms/${session.gym_id}/sync/pair`,
+         'POST',
+-        { kind: 'mobile', name: 'Móvil de ' + session.user.name },
++        { kind: 'mobile', name: 'Móvil de ' + session.user.name, management },
+         session.token,
+       );
+       client.configuration = paired;
+@@ -153,11 +165,23 @@
+     if (saved) {
+       client.state = JSON.parse(saved.value);
+       validSyncSnapshot(client.state.base, session.gym_id!, session.user.id, session.installation_id);
++      if (client.state.base.scope === 'management') await client.prepareCodec();
+     } else {
+       const snapshot = await client.remote<SyncSnapshot>('snapshot');
+       validSyncSnapshot(snapshot, session.gym_id!, session.user.id, session.installation_id);
+       await client.install(snapshot);
+     }
++    if (management && client.state.base.scope !== 'management') {
++      await client.synchronize();
++      if (!client.online || client.state.pending || client.state.conflict || syncChanges(client.state.base, await client.tables()).length)
++        throw new ApiError('Conecta una vez el teléfono para preparar la gestión completa y enviar sus lecturas anteriores. Los datos guardados se conservan.', 409);
++      if (!client.configuration.management) {
++        client.configuration = await remoteRequest<Configuration>(session.server, `gyms/${session.gym_id}/sync/pair`, 'POST', { kind: 'mobile', management: true, name: 'Gestión móvil de ' + session.user.name }, session.token);
++        await SecureStore.setItemAsync('gympass-sync-' + profile, JSON.stringify(client.configuration));
++      }
++      await client.install(await client.remote<SyncSnapshot>('snapshot'));
++    }
++    management = management || client.state.base.scope === 'management';
+     if (freshLogin) {
+       await client.synchronize();
+       if (client.state.revoked) {
+@@ -165,7 +189,7 @@
+           await db.closeAsync();
+           throw new ApiError('Hay lecturas guardadas en este teléfono. Pide al administrador que reactive su vinculación para revisarlas y sincronizarlas; se conservaron sin reemplazar.', 409);
+         }
+-        const paired = await remoteRequest<Configuration>(session.server, `gyms/${session.gym_id}/sync/pair`, 'POST', { kind: 'mobile', name: 'Móvil de ' + session.user.name }, session.token);
++        const paired = await remoteRequest<Configuration>(session.server, `gyms/${session.gym_id}/sync/pair`, 'POST', { kind: 'mobile', management, name: 'Móvil de ' + session.user.name }, session.token);
+         client.configuration = paired; await SecureStore.setItemAsync('gympass-sync-' + profile, JSON.stringify(paired));
+         await client.install(await client.remote<SyncSnapshot>('snapshot'));
+       }
+@@ -173,6 +197,17 @@
+     client.timer = setInterval(() => void client.synchronize(), 30000);
+     void client.synchronize();
+     return client;
++    } catch (error) { await client.stop(); throw error; }
++  }
++  private async prepareCodec(key?: string) {
++    const name = 'gympass-vault-' + this.profile;
++    if (key) await SecureStore.setItemAsync(name, key);
++    const saved = key || await SecureStore.getItemAsync(name);
++    if (!saved) throw new ApiError('Falta la clave de las credenciales. Reconecta para recuperar la copia del gimnasio.', 409);
++    const bytes = decodeBase64(saved);
++    const digest = new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, new Uint8Array(bytes)));
++    const id = Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16);
++    this.codec = mobileCredentialCodec(bytes, id, Crypto.getRandomValues);
+   }
+   private async tables(): Promise<SyncTable[]> {
+     const result = [];
+@@ -182,7 +217,14 @@
+   }
+   private async install(snapshot: SyncSnapshot) {
+     validSyncSnapshot(snapshot, this.session.gym_id!, this.session.user.id, this.session.installation_id);
++    if (snapshot.scope === 'management') {
++      if (this.session.user.role !== 'admin') throw new ApiError('Esta cuenta no tiene autorización de gestión.', 403);
++      await this.prepareCodec(snapshot.assets?.['credentials.key']);
++      const assets = { ...snapshot.assets }; delete assets['credentials.key'];
++      snapshot = { ...snapshot, assets };
++    }
+     const archived = this.state?.pending ? JSON.stringify({ state: this.state, tables: await this.tables() }) : null;
++    const originalState = this.state;
+     await this.db.execAsync('BEGIN IMMEDIATE');
+     try {
+       const triggers = await this.db.getAllAsync<{ name: string }>(
+@@ -196,7 +238,8 @@
+           .filter((c) => c.pk)
+           .sort((a, b) => a.pk - b.pk)
+           .map((c) => c.name);
+-        await this.db.execAsync(
++        if (snapshot.scope === 'management' && table.sql) await this.db.execAsync(table.sql);
++        else await this.db.execAsync(
+           `CREATE TABLE "${table.name}"(${table.columns.map((c) => `"${c.name}" ${c.type}`).join(',')}${keys.length ? ', PRIMARY KEY(' + keys.map((k) => `"${k}"`).join(',') + ')' : ''})`,
+         );
+         const names = table.columns.map((c) => c.name);
+@@ -209,9 +252,10 @@
+       await this.db.execAsync(
+         'CREATE UNIQUE INDEX native_event_requests ON events(request_key); CREATE INDEX native_event_order ON events(person_id,zone_id,allowed,occurred_at,id); CREATE INDEX native_credential_hash ON credentials(hash); CREATE INDEX native_membership_person ON pos_memberships(person_id,status,start_date);',
+       );
+-      // Only access triggers are needed on a phone; financial mutations remain unavailable there.
++      await this.db.execAsync('CREATE TABLE IF NOT EXISTS members(user_id TEXT PRIMARY KEY,email TEXT UNIQUE,name TEXT,role TEXT,active INTEGER)');
++      await this.db.runAsync('INSERT OR REPLACE INTO members VALUES(?,?,?,?,1)', this.session.user.id, this.session.user.email, this.session.user.name, this.session.user.role);
+       for (const sql of snapshot.triggers.filter((sql) =>
+-        /CREATE TRIGGER (pos_access_use|consume_invitation|exit_reentry_invitation|manual_invitation_entry)\b/i.test(
++        snapshot.scope === 'management' || /CREATE TRIGGER (pos_access_use|consume_invitation|exit_reentry_invitation|manual_invitation_entry)\b/i.test(
+           sql,
+         ),
+       ))
+@@ -228,6 +272,7 @@
+       this.state = {
+         base: snapshot,
+         pending: null,
++        assets: { ...snapshot.assets },
+         error: '',
+         revoked: false,
+         conflict: null,
+@@ -238,6 +283,7 @@
+       await this.db.execAsync('COMMIT');
+     } catch (error) {
+       await this.db.execAsync('ROLLBACK');
++      this.state = originalState;
+       throw error;
+     }
+   }
+@@ -261,13 +307,73 @@
+       error: this.state.error,
+     };
+   }
++  get managementEnabled() { return this.state.base.scope === 'management'; }
++  async managementRequest(path: string, method = 'GET', body?: any): Promise<LocalResponse> {
++    if (!this.managementEnabled || this.session.user.role !== 'admin') throw new ApiError('La gestión sin conexión no está autorizada para esta cuenta.', 403);
++    if (path === 'cloud-sync/run' && method === 'POST') await this.synchronize();
++    return this.exclusive(async () => {
++      if (this.stopped) throw new ApiError('La sesión cambió.', 401);
++      if (this.state.revoked) throw new ApiError('La vinculación fue revocada. Tus pendientes se conservan.', 403);
++      const s = new Service(nativeDatabase(this.db), this.session.user, this.codec);
++      const url = new URL(path, 'https://local/');
++      const parts = url.pathname.replace(/^\//, '').split('/');
++      const [first, id, action] = parts;
++      if (first === 'mobile' && id === 'context') return { data: { gym_id: this.session.gym_id, user: this.session.user } };
++      if (first === 'cloud-sync' && ['status', 'run'].includes(id)) {
++        const changes = syncChanges(this.state.base, await this.tables());
++        return { data: { linked: true, required: false, server: this.session.server, gym_name: (await s.one('SELECT name FROM settings WHERE id=1'))?.name,
++          online: this.online, pending: changes.length + Object.keys(assetChanges(this.state.base.assets, this.state.assets)).length,
++          last_success: this.state.last_success, expires_at: this.state.base.expires_at, conflict: this.state.conflict,
++          error: this.state.error, revoked: this.state.revoked } };
++      }
++      if (first === 'health') return { data: { ok: true, mode: 'mobile', offline: !this.online } };
++      if (first === 'auth' && id === 'status') return { data: { setupRequired: false, user: this.session.user } };
++      if (first === 'system-info') return { data: { version: '5.1.0', desktop: false, mode: 'mobile' } };
++      if (first === 'bootstrap') {
++        let maintain = true; try { this.writable(); } catch { maintain = false; }
++        const data = await s.bootstrap({ compact: url.searchParams.get('compact') === '1', maintain });
++        if (maintain) { this.state.last_clock = Math.max(this.state.last_clock, Date.now()); await this.save(); }
++        return { data: { ...data, version: '5.1.0', replica: { linked: true }, platform: { gym_id: this.session.gym_id, gym_name: data.settings!.name, support: false, superadmin: false, read_only: !maintain } } };
++      }
++      if (first === 'members' && method === 'GET') return { data: await s.all('SELECT user_id id,email,name,role,active FROM members') };
++      if (first === 'branding' && !id && method === 'GET') return { data: await s.one('SELECT name,brand_color,logo_path FROM settings WHERE id=1') };
++      if ((first === 'people' && action === 'photo' || first === 'branding' && id === 'logo') && method === 'GET') {
++        const row = first === 'people' ? await s.one('SELECT photo_path path FROM people WHERE id=?', id) : await s.one('SELECT logo_path path FROM settings WHERE id=1');
++        const key = (first === 'people' ? 'photos/' : 'branding/') + row?.path;
++        const bytes = this.state.assets?.[key];
++        if (!bytes) throw new ApiError('La imagen no está en la copia del teléfono.', 404);
++        return { data: { base64: bytes }, mime: /\.svg$/.test(key) ? 'image/svg+xml' : /\.png$/.test(key) ? 'image/png' : 'image/webp' };
++      }
++      if (method === 'PUT' && (first === 'branding' && !id || first === 'people' && action === 'photo')) {
++        this.writable(); s.require('admin');
++        if (!body || !['image/png', 'image/webp'].includes(body.mime) || typeof body.base64 !== 'string' || body.base64.length > 4 * 1024 * 1024 || !/^[A-Za-z0-9+/]+=*$/.test(body.base64)) throw new ApiError('La imagen no es válida o supera el límite de tamaño.', 400);
++        const name = Crypto.randomUUID() + (body.mime === 'image/png' ? '.png' : '.webp');
++        const bytes = decodeBase64(body.base64);
++        if (body.mime === 'image/png' ? ![137,80,78,71,13,10,26,10].every((n, i) => bytes[i] === n) : String.fromCharCode(...bytes.subarray(0,4)) !== 'RIFF' || String.fromCharCode(...bytes.subarray(8,12)) !== 'WEBP') throw new ApiError('El contenido no coincide con el tipo de imagen.', 400);
++        const folder = first === 'branding' ? 'branding' : 'photos';
++        if (first === 'people') await s.exists('people', id);
++        const key = folder + '/' + name;
++        const previous = this.state;
++        this.state = { ...this.state, assets: { ...this.state.assets, [key]: body.base64 }, last_clock: Date.now() };
++        try {
++          await s.db.batch([first === 'branding' ? s.stmt('UPDATE settings SET logo_path=? WHERE id=1', name) : s.stmt('UPDATE people SET photo_path=? WHERE id=?', name, id), s.audit(first === 'branding' ? 'branding.updated' : 'person.photo', id || '1'), s.stmt('INSERT INTO _replica_meta VALUES(1,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value', JSON.stringify(this.state))]);
++        } catch (error) { this.state = previous; throw error; }
++        setTimeout(() => void this.synchronize(), 0);
++        return { data: { path: name } };
++      }
++      if (!['GET', 'HEAD'].includes(method)) this.writable();
++      const result = await offlineManagement(s, path, method, body);
++      if (!['GET', 'HEAD'].includes(method)) { this.state.last_clock = Date.now(); await this.save(); setTimeout(() => void this.synchronize(), 0); }
++      return result;
++    });
++  }
+   async request<T>(path: string, method: string, body: any): Promise<T> {
+     return this.exclusive(async () => {
+       if (this.stopped) throw new ApiError('La sesión cambió.', 401);
+       if (this.state.revoked) throw new ApiError('La vinculación fue revocada.', 403);
+       const url = new URL(path, 'https://local/'),
+         action = url.pathname.replace(/^\//, '');
+-      const s = new Service(nativeDatabase(this.db), this.session.user);
++      const s = new Service(nativeDatabase(this.db), this.session.user, this.codec);
+       if (action === 'mobile/bootstrap') {
+         let maintain = true;
+         try { this.writable(); } catch { maintain = false; }
+@@ -318,7 +424,8 @@
+           if (!this.state.pending) {
+             const tables = await this.tables(),
+               changes = syncChanges(this.state.base, tables);
+-            if (changes.length) {
++            const assets = assetChanges(this.state.base.assets, this.state.assets);
++            if (changes.length || Object.keys(assets).length) {
+               const base = this.state.base;
+               this.state.pending = {
+                 id: Crypto.randomUUID(),
+@@ -328,8 +435,10 @@
+                 issued_at: base.issued_at,
+                 expires_at: base.expires_at,
+                 changes,
++                ...(Object.keys(assets).length ? { assets } : {}),
+               };
+               this.state.pending_tables = tables;
++              this.state.pending_assets = { ...this.state.assets };
+               await this.save();
+             }
+           }
+@@ -341,7 +450,7 @@
+           this.online = true;
+           await this.exclusive(async () => {
+             // A scan may have been registered while the download was in flight.
+-            if (syncChanges(this.state.base, await this.tables()).length) return;
++            if (syncChanges(this.state.base, await this.tables()).length || Object.keys(assetChanges(this.state.base.assets, this.state.assets)).length) return;
+             if ('unchanged' in snapshot) {
+               this.state.base = renewSyncSnapshot(this.state.base, snapshot);
+               this.state.last_success = Date.now();
+@@ -371,7 +480,8 @@
+           if (!['applied', 'archived'].includes(result.status)) throw new ApiError('El servidor no confirmó el lote.');
+           const tables = await this.tables();
+           const changes = syncChanges({ ...this.state.base, tables: this.state.pending_tables! }, tables);
+-          if (changes.length) {
++          const assets = assetChanges(this.state.pending_assets, this.state.assets);
++          if (changes.length || Object.keys(assets).length) {
+             if (result.status === 'archived') {
+               this.state.conflict =
+                 'Hay lecturas posteriores al lote revisado. El administrador debe revisarlas también.';
+@@ -379,8 +489,10 @@
+               return false;
+             }
+             this.state.base.tables = this.state.pending_tables!;
+-            this.state.pending = { ...this.state.pending!, id: Crypto.randomUUID(), changes };
++            this.state.base.assets = this.state.pending_assets;
++            this.state.pending = { ...this.state.pending!, id: Crypto.randomUUID(), changes, assets };
+             this.state.pending_tables = tables;
++            this.state.pending_assets = { ...this.state.assets };
+             this.state.event_ids = { ...this.state.event_ids, ...result.event_ids };
+             await this.save();
+             return true;
+@@ -431,10 +543,14 @@
+ }
+ 
+ let active: MobileReplica | null = null;
+-export async function activateReplica(session: MobileSession, freshLogin = false) {
++export async function activateReplica(session: MobileSession, freshLogin = false, management = false) {
++  if (active && active.session.server === session.server && active.session.token === session.token && (!management || active.managementEnabled)) return active;
+   if (active) await active.stop();
+-  active = session.server_mode === 'platform' ? await MobileReplica.open(session, freshLogin) : null;
+-}
++  active = null;
++  active = session.server_mode === 'platform' ? await MobileReplica.open(session, freshLogin, management) : null;
++  return active;
++}
++export function synchronizeReplica() { return active?.synchronize(); }
+ export function localReplica(session: { server: string; token?: string }, path: string) {
+   if (!active || active.session.server !== session.server || active.session.token !== session.token) return null;
+   const prefix = `gyms/${active.session.gym_id}/`;
+--- /dev/null
++++ b/mobile/tests/management.test.ts
+@@ -0,0 +1,121 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { DatabaseSync } from 'node:sqlite';
++import { createHash, randomUUID, webcrypto } from 'node:crypto';
++import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
++import { join } from 'node:path';
++import { tmpdir } from 'node:os';
++import { runInNewContext } from 'node:vm';
++import ts from 'typescript';
++import { startPlatform } from '../../server/platform.ts';
++import * as service from '../../lib/service.ts';
++import * as domain from '../../lib/domain.ts';
++import * as replication from '../../lib/replication.ts';
++import * as management from '../../lib/offline-management.ts';
++import * as codec from '../src/credential-codec.ts';
++import { ApiError } from '../src/http.ts';
++
++test('gestión móvil: socios, caja, QR, fotos e informes sin red sobreviven al reinicio y se sincronizan sin duplicados', async t => {
++  const root = mkdtempSync(join(tmpdir(), 'gympass-management-'));
++  const app = await startPlatform({ dataDirectory: join(root, 'cloud'), port: 0, allowHttp: true });
++  const databases: DatabaseSync[] = [], phones: any[] = [];
++  const secure = new Map<string, string>();
++  let connected = true, loseAcknowledgement = false;
++  const automatic: (() => void)[] = [];
++  t.after(async () => { for (const phone of phones) await phone.stop(); for (const db of databases) db.close(); await app.close(); rmSync(root, { recursive: true, force: true }); });
++  const owner = await app.store.bootstrap({ name: 'Dueño', email: 'owner@example.test', password: '123456' });
++  const gym = app.store.createGym(owner, { name: 'Gimnasio sin red', slug: 'management' });
++  app.tenants.provision(gym); app.store.markGymProvisioned(gym.id);
++  const admin = await app.store.createMember(owner, gym.id, { name: 'Administración', email: 'admin@example.test', password: '123456', role: 'admin' });
++  await app.store.createMember(owner, gym.id, { name: 'Recepción', email: 'cash@example.test', password: '123456', role: 'operator' });
++  const login = await app.store.mobileLogin({ email: admin.email, password: '123456', gymId: gym.id });
++  const session = { ...login, server: 'https://management.example.test' };
++  const previousQr = await app.tenants.withTenant(gym, async ctx => {
++    const s = new service.Service(ctx.db, { ...admin, role: 'admin' }, ctx.codec);
++    const person = await s.savePerson({ name: 'Lecturas de la versión anterior', document: 'OLD-READER', kind: 'employee', status: 'active' });
++    return (await s.issueCredential(person.id, { kind: 'qr', label: 'Anterior' })).code;
++  });
++  const network = async (_server: string, path: string, method = 'GET', body?: any, token?: string) => {
++    if (!connected) throw new ApiError('Sin Internet');
++    const response = await fetch(app.url + '/api/' + path, { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', 'X-Requested-With': 'GymPASS' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
++    const data = await response.json();
++    if (!response.ok) throw new ApiError(data.error, response.status);
++    if (loseAcknowledgement && path.endsWith('/push')) { loseAcknowledgement = false; throw new ApiError('Respuesta perdida después de confirmar'); }
++    return data;
++  };
++  const bindings = (args: any[]) => args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
++  const dependencies: Record<string, any> = {
++    'expo-sqlite': { async openDatabaseAsync(name: string) { const raw = new DatabaseSync(join(root, name)); databases.push(raw); return {
++      execAsync: async (sql: string) => { raw.exec(sql); },
++      getAllAsync: async (sql: string, ...args: any[]) => raw.prepare(sql).all(...bindings(args)),
++      getFirstAsync: async (sql: string, ...args: any[]) => raw.prepare(sql).get(...bindings(args)) || null,
++      runAsync: async (sql: string, ...args: any[]) => { const r = raw.prepare(sql).run(...bindings(args)); return { changes: Number(r.changes), lastInsertRowId: Number(r.lastInsertRowid) }; },
++      closeAsync: async () => {},
++    }; } },
++    'expo-crypto': { CryptoDigestAlgorithm: { SHA256: 'SHA-256' }, digestStringAsync: async (_: unknown, value: string) => createHash('sha256').update(value).digest('hex'), digest: async (_: unknown, value: Uint8Array) => webcrypto.subtle.digest('SHA-256', new Uint8Array(value)), getRandomValues: webcrypto.getRandomValues.bind(webcrypto), randomUUID },
++    'expo-secure-store': { getItemAsync: async (key: string) => secure.get(key) || null, setItemAsync: async (key: string, value: string) => { secure.set(key, value); } },
++    '../../lib/service': service, '../../lib/domain': domain, '../../lib/replication': replication, '../../lib/offline-management': management, './credential-codec': codec, './http': { request: network, ApiError },
++  };
++  const exports: any = {};
++  runInNewContext(ts.transpileModule(readFileSync(new URL('../src/offline.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, require: (name: string) => { if (!(name in dependencies)) throw Error(name); return dependencies[name]; }, crypto: webcrypto, URL, Date, Uint8Array, atob, btoa, setTimeout, clearTimeout, setInterval: (callback: () => void, ms: number) => { automatic.push(callback); return setInterval(callback, ms); }, clearInterval, console });
++  const settled = async (phone: any) => { const deadline = Date.now() + 10000; while (phone.syncing) { if (Date.now() > deadline) throw Error('La sincronización no terminó'); await new Promise(resolve => setTimeout(resolve, 5)); } };
++  const oldReader = await exports.MobileReplica.open(session); phones.push(oldReader); await settled(oldReader);
++  connected = false;
++  for (const direction of ['entry', 'exit']) await oldReader.request('access', 'POST', { code: previousQr, direction, request_id: randomUUID(), expected_actor_id: session.user!.id, expected_installation_id: session.installation_id });
++  await settled(oldReader); await oldReader.stop(); connected = true;
++  const phone = await exports.MobileReplica.open(session, true, true); phones.push(phone); await settled(phone);
++  await app.tenants.withTenant(gym, async ctx => assert.equal(ctx.db.raw.prepare('SELECT COUNT(*) n FROM events').get()!.n, 2, 'se envían las lecturas anteriores antes de ampliar la copia'));
++  assert.equal(phone.state.base.scope, 'management');
++  assert.ok(secure.get('gympass-vault-' + phone.profile));
++  assert.equal(phone.state.base.assets['credentials.key'], undefined, 'la clave se conserva en SecureStore');
++  connected = false;
++  const call = async (path: string, method = 'GET', body?: unknown, client = phone) => (await client.managementRequest(path, method, body)).data;
++  const person = await call('people', 'POST', { name: 'Socio desconectado', document: 'OFFLINE-1', kind: 'member', status: 'active', phone: '59171234567' });
++  const plan = await call('pos/plans', 'POST', { name: 'Cinco sesiones', unit: 'sessions', duration: 5, price_cents: 5000 });
++  const product = await call('pos/products', 'POST', { name: 'Agua', price_cents: 500, stock: 10, track_stock: true });
++  const checkout = { request_id: randomUUID(), person_id: person.id, payment_method: 'cash', lines: [{ kind: 'plan', id: plan.id, quantity: 1 }, { kind: 'product', id: product.id, quantity: 2 }] };
++  const sale = await call('pos/checkout', 'POST', checkout);
++  const repeated = await call('pos/checkout', 'POST', checkout);
++  assert.equal(repeated.id, sale.id);
++  assert.ok(sale.credential?.id);
++  const card = await call('credentials/' + sale.credential.id + '/card');
++  assert.ok(card.code);
++  const scan = await phone.request('access', 'POST', { code: card.code, direction: 'auto', request_id: randomUUID(), expected_actor_id: session.user!.id, expected_installation_id: session.installation_id });
++  assert.equal(scan.allowed, 1);
++  const photo = 'iVBORw0KGgo=';
++  await call('people/' + person.id + '/photo', 'PUT', { mime: 'image/png', base64: photo });
++  const today = (await call('bootstrap?compact=1')).today;
++  const report = await call(`pos/reports?from=${today}&to=${today}&period=day`);
++  assert.ok(report);
++  const boot = await call('bootstrap?compact=1');
++  assert.equal(boot.stats.inside, 1);
++  await settled(phone); await phone.stop();
++  const restarted = await exports.MobileReplica.open(session, false, true); phones.push(restarted); await settled(restarted);
++  assert.equal((await call('people/' + person.id, 'GET', undefined, restarted)).name, 'Socio desconectado');
++  assert.ok((await call('cloud-sync/status', 'GET', undefined, restarted)).pending > 0);
++  connected = true; loseAcknowledgement = true;
++  automatic.at(-1)!(); await settled(restarted);
++  assert.ok(restarted.state.pending, 'se conserva el mismo lote al perder la confirmación');
++  await restarted.synchronize(); await settled(restarted);
++  assert.equal(restarted.state.conflict, null, restarted.state.error);
++  assert.equal((await call('cloud-sync/status', 'GET', undefined, restarted)).pending, 0);
++  await app.tenants.withTenant(gym, async ctx => {
++    assert.equal(ctx.db.raw.prepare('SELECT COUNT(*) n FROM pos_sales').get()!.n, 1);
++    assert.equal(ctx.db.raw.prepare('SELECT stock FROM pos_products WHERE id=?').get(product.id)!.stock, 8);
++    assert.equal(ctx.db.raw.prepare('SELECT sessions_remaining FROM pos_memberships WHERE person_id=?').get(person.id)!.sessions_remaining, 4);
++    const remoteCard = await new service.Service(ctx.db, { ...admin, role: 'admin' }, ctx.codec).credentialCard(sale.credential.id);
++    assert.equal(remoteCard.code, card.code, 'el QR creado sin red también se descifra en el servidor');
++    assert.equal(readFileSync(join(ctx.root, 'photos', String(ctx.db.raw.prepare('SELECT photo_path FROM people WHERE id=?').get(person.id)!.photo_path))).toString('base64'), photo);
++  });
++  const operator = await app.store.mobileLogin({ email: 'cash@example.test', password: '123456', gymId: gym.id });
++  await assert.rejects(network(session.server, `gyms/${gym.id}/sync/pair`, 'POST', { kind: 'mobile', management: true, name: 'No autorizado' }, operator.token), (error: any) => error.status === 403);
++  await assert.rejects(exports.MobileReplica.open({ ...operator, server: session.server }, true, true), (error: any) => error.status === 403);
++  connected = false;
++  await call('people/' + person.id, 'PATCH', { name: 'Nombre del teléfono', document: 'OFFLINE-1', kind: 'member', status: 'active', phone: '59171234567' }, restarted);
++  await settled(restarted);
++  await app.tenants.withTenant(gym, async ctx => { await new service.Service(ctx.db, { ...admin, role: 'admin' }, ctx.codec).savePerson({ name: 'Nombre del servidor', document: 'OFFLINE-1', kind: 'member', status: 'active', phone: '59171234567' }, person.id); });
++  connected = true; automatic.at(-1)!(); await settled(restarted);
++  assert.ok(restarted.state.conflict);
++  assert.equal((await call('people/' + person.id, 'GET', undefined, restarted)).name, 'Nombre del teléfono');
++  await assert.rejects(call('people/' + person.id, 'PATCH', { name: 'No sobrescribir' }, restarted), (error: any) => error.status === 409);
++});
+--- /dev/null
++++ b/mobile/tests/offline-app.test.ts
+@@ -0,0 +1,29 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { find, harness, native } from './component-harness.ts';
++
++test('gestión arranca desde la copia autorizada y sincroniza al volver la conexión o el primer plano', async t => {
++  const h = harness(); t.after(() => h.cleanup());
++  const listeners: Record<string, (...args: any[]) => void> = {};
++  const session = { server: 'https://gympass.site', server_mode: 'platform', gym_id: 'gym', user: { id: 'admin', role: 'admin' } };
++  let synchronized = 0, cleared = 0;
++  const requests: unknown[] = [];
++  const { default: App } = h.load('../src/OfflineApp.tsx', {
++    'react-native': { ...native, NativeModules: { GympassOffline: { start: async () => 'http://127.0.0.1:43210/' + 'a'.repeat(48) + '/' } }, AppState: { addEventListener: (_name: string, callback: any) => { listeners.foreground = callback; return { remove() {} }; } }, DeviceEventEmitter: { addListener: (_name: string, callback: any) => { listeners.network = callback; return { remove() {} }; } } },
++    'expo-secure-store': {}, '../App': { LoginScreen: 'LoginScreen' }, './GympassApp': { default: 'GympassApp' },
++    './session': { loadSession: async () => session },
++    './offline': { activateReplica: async (_session: any, _fresh: boolean, management: boolean) => { assert.equal(management, true); return { managementEnabled: true, managementRequest: async (...args: unknown[]) => { requests.push(args); return { data: { ok: true } }; } }; }, synchronizeReplica: async () => { synchronized++; } },
++    './api': { logout: async () => { cleared++; } }, './http': { request: async () => { throw Error('Sin red'); } },
++  });
++  h.render(() => App());
++  const tree = await h.settle();
++  const panel = find(tree, el => el.type === 'GympassApp');
++  assert.match(panel.props.management.url, /^http:\/\/127\.0\.0\.1:/);
++  await panel.props.management.request('gyms/gym/people', 'POST', { name: 'Socio' });
++  assert.equal(requests.length, 1);
++  assert.equal((await panel.props.management.request('gyms/other/people', 'POST', {})).status, 403);
++  assert.equal((await panel.props.management.request('backups', 'POST', {})).status, 503);
++  listeners.network(); listeners.foreground('active');
++  assert.equal(synchronized, 2);
++  assert.equal(cleared, 0);
++});
+--- a/mobile/tests/offline.test.ts
++++ b/mobile/tests/offline.test.ts
+@@ -11,6 +11,8 @@
+ import * as serviceModule from '../../lib/service.ts';
+ import * as domain from '../../lib/domain.ts';
+ import * as replication from '../../lib/replication.ts';
++import * as management from '../../lib/offline-management.ts';
++import * as credentialCodec from '../src/credential-codec.ts';
+ import { PosService } from '../../lib/pos.ts';
+ import { ApiError } from '../src/http.ts';
+ 
+@@ -127,6 +129,8 @@
+       '../../lib/service': serviceModule,
+       '../../lib/domain': domain,
+       '../../lib/replication': replication,
++      '../../lib/offline-management': management,
++      './credential-codec': credentialCodec,
+       './http': { request: network, ApiError },
+     };
+     const exports: any = {};
+--- a/mobile/tests/web-native.test.ts
++++ b/mobile/tests/web-native.test.ts
+@@ -73,13 +73,14 @@
+   assert.equal(print, '<html>Comprobante</html>');
+ });
+ 
+-function managementScreen(t: any, overrides: Record<string, unknown> = {}, saved: string | null = null) {
++function managementScreen(t: any, overrides: Record<string, unknown> = {}, saved: string | null = null, management?: any) {
+   const h = harness({ atob });
+   t.after(() => h.cleanup());
+   const { default: App } = h.load('../src/GympassApp.tsx', {
+     'react-native': {
+       ...native,
+       BackHandler: { addEventListener: () => ({ remove() {} }) },
++      Linking: { openURL: async () => {} },
+       Alert: { alert() {} },
+     },
+     'react-native-safe-area-context': { SafeAreaProvider: 'SafeAreaProvider', SafeAreaView: 'SafeAreaView' },
+@@ -94,9 +95,28 @@
+     './web-policy.ts': { ...policy, LOAD_TIMEOUT: 20, ...overrides },
+     './web-bridge.ts': { WEB_BRIDGE: '' },
+   });
+-  const tree = h.render(() => App());
++  const tree = h.render(() => App({ management }));
+   return { h, tree, web: find(tree, node => node.type === 'WebView') };
+ }
++
++test('la gestión local solo acepta solicitudes del documento incluido en el APK', async t => {
++  const calls: unknown[] = [], replies: string[] = [];
++  const url = 'http://127.0.0.1:43210/' + 'a'.repeat(48) + '/';
++  const screen = managementScreen(t, {}, null, { url, request: async (...args: unknown[]) => { calls.push(args); return { data: { saved: true } }; } });
++  assert.equal(screen.web.props.source.uri, url);
++  screen.web.props.ref.current = { injectJavaScript: (code: string) => replies.push(code) };
++  for (const origin of ['https://gympass.site/', 'http://127.0.0.1:43210/other/', url, new URL(url).origin]) {
++    screen.web.props.onMessage({ nativeEvent: { url: origin, data: JSON.stringify({ id: 'api-test', type: 'management', path: 'people', method: 'POST', body: { name: 'Prueba' } }) } });
++    await screen.h.settle();
++  }
++  assert.equal(calls.length, 2);
++  assert.match(replies.at(-1)!, /__gympassManagementReply/);
++  assert.match(replies.at(-1)!, /saved/);
++  assert.equal(screen.web.props.onShouldStartLoadWithRequest({ url: 'https://gympass.site/' }), false);
++  screen.web.props.onNavigationStateChange({ url: 'https://other.test/', canGoBack: false });
++  screen.web.props.onMessage({ nativeEvent: { url: new URL(url).origin, data: JSON.stringify({ id: 'api-late', type: 'management', path: 'people', method: 'GET' }) } });
++  await screen.h.settle(); assert.equal(calls.length, 2);
++});
+ 
+ test('arranca directamente en el lector con la última cuenta guardada aunque la web no responda', async t => {
+   const saved = {
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "5.0.0",
++  "version": "5.1.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-control-acceso",
+-      "version": "5.0.0",
++      "version": "5.1.0",
+       "dependencies": {
+         "lucide-react": "1.57.0",
+         "qrcode-generator": "2.0.4",
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "5.0.0",
++  "version": "5.1.0",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+--- /dev/null
++++ b/scripts/build-mobile-web.mjs
+@@ -0,0 +1,19 @@
++import { build } from 'vite';
++import { resolve, dirname } from 'node:path';
++import { fileURLToPath } from 'node:url';
++import { readFileSync, writeFileSync } from 'node:fs';
++import { createHash } from 'node:crypto';
++
++const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
++const outDir = resolve(process.argv[2] || resolve(root, 'mobile/offline-web'));
++await build({
++  root,
++  base: './',
++  plugins: [{ name: 'gympass-mobile-entry', enforce: 'pre',
++    resolveId(source, importer) { if (source === './PlatformKiosk' && importer?.replaceAll('\\', '/').endsWith('/src/App.tsx')) return resolve(root, 'src/mobile-kiosk.tsx'); },
++    transformIndexHtml: { order: 'pre', handler: html => html.replace('/src/main.tsx', '/src/mobile-main.tsx') } }],
++  build: { outDir, emptyOutDir: true },
++});
++const html = readFileSync(resolve(outDir, 'index.html'));
++writeFileSync(resolve(outDir, 'mobile-release.json'), JSON.stringify({ version: JSON.parse(readFileSync(resolve(root, 'package.json'))).version, html_sha256: createHash('sha256').update(html).digest('hex') }) + '\n');
++console.log('Interfaz de gestión incluida para Android:', outDir);
+--- a/scripts/check-android-start.mjs
++++ b/scripts/check-android-start.mjs
+@@ -7,8 +7,8 @@
+ const apk = resolve(process.argv[2] || '');
+ const serial = process.argv[3];
+ const expectedInterface = process.argv[4] || 'any';
+-if (!process.argv[2] || !/^emulator-\d+$/.test(serial || '') || !['any', 'web', 'reader'].includes(expectedInterface))
+-  throw Error('Uso: node scripts/check-android-start.mjs ruta/al/APK emulator-5554 [web|reader]. Solo se prueba en emuladores.');
++if (!process.argv[2] || !/^emulator-\d+$/.test(serial || '') || !['any', 'web', 'reader', 'management'].includes(expectedInterface))
++  throw Error('Uso: node scripts/check-android-start.mjs ruta/al/APK emulator-5554 [web|reader|management]. Solo se prueba en emuladores.');
+ const executable = process.env.ADB_BINARY || (process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Android/Sdk/platform-tools/adb.exe') : 'adb');
+ const adb = (args, encoding = 'utf8') => execFileSync(executable, ['-s', serial, ...args], { encoding, timeout: 120000, maxBuffer: 32 * 1024 * 1024, windowsHide: true });
+ const packageName = 'local.gympass.controlacceso.mobile';
+@@ -34,8 +34,9 @@
+       const webLogin = ui.includes('android.webkit.WebView') && ui.includes('Iniciar sesión') && ui.includes('Correo electrónico') && ui.includes('Gestión');
+       const readerLogin = ui.includes('Te damos la bienvenida') && ui.includes('Dirección HTTPS de GymPASS');
+       const readerReady = ui.includes('Recepción') && ui.includes('Lector sin conexión') && (ui.includes('Centra el QR en el recuadro') || ui.includes('Coloca el QR completo dentro de la imagen')) && !ui.includes('Iniciar sesión');
+-      if ((expectedInterface === 'reader' && readerReady) || (expectedInterface !== 'reader' && (webLogin || (expectedInterface !== 'web' && readerLogin)))) {
+-        starts.push({ attempt: attempt + 1, pid, login_visible: !readerReady, interface: readerReady ? 'reader-session' : webLogin ? 'web' : 'reader' });
++      const managementReady = ui.includes('android.webkit.WebView') && ui.includes('Sincronización automática') && (ui.includes('Hoy en tu gimnasio') || ui.includes('Socios'));
++      if ((expectedInterface === 'management' && managementReady) || (expectedInterface === 'any' && managementReady) || (expectedInterface === 'reader' && readerReady) || (!['reader', 'management'].includes(expectedInterface) && (webLogin || (expectedInterface !== 'web' && readerLogin)))) {
++        starts.push({ attempt: attempt + 1, pid, login_visible: !readerReady && !managementReady, interface: managementReady ? 'management-local' : readerReady ? 'reader-session' : webLogin ? 'web' : 'reader' });
+         ready = true;
+         break;
+       }
+--- a/server/replication.ts
++++ b/server/replication.ts
+@@ -30,6 +30,7 @@
+   id: string;
+   user_id: string;
+   kind: "desktop" | "mobile";
++  management?: number;
+   token_hash: string;
+   password_revision: string;
+   expires_at: number;
+@@ -48,6 +49,8 @@
+     )
+   )
+     raw.exec("ALTER TABLE sync_devices ADD COLUMN password_revision TEXT");
++  if (!(raw.prepare("PRAGMA table_info(sync_devices)").all() as any[]).some(column => column.name === "management"))
++    raw.exec("ALTER TABLE sync_devices ADD COLUMN management INTEGER NOT NULL DEFAULT 0 CHECK(management IN(0,1))");
+ }
+ export function authorizeReplica(
+   store: PlatformStore,
+@@ -73,7 +76,7 @@
+       "La contraseña de la cuenta cambió. Vuelve a vincular el dispositivo.",
+     );
+   const auth = store.authorizeLinkedUser(device.user_id, ctx.id);
+-  if (device.kind === "desktop" && auth.actor.role !== "admin")
++  if ((device.kind === "desktop" || device.management) && auth.actor.role !== "admin")
+     throw new ApiError(
+       403,
+       "La copia de escritorio requiere un administrador activo.",
+@@ -90,11 +93,13 @@
+ ) {
+   initializeReplication(ctx.db.raw);
+   const kind = input.kind;
++  const management = input.management === true;
+   if (
+     !["desktop", "mobile"].includes(String(kind)) ||
+     auth.support ||
+     auth.readOnly ||
+     (kind === "desktop" && auth.actor.role !== "admin")
++    || (management && (kind !== "mobile" || auth.actor.role !== "admin"))
+   )
+     throw new ApiError(
+       403,
+@@ -121,7 +126,7 @@
+     token = "s_" + randomBytes(32).toString("hex");
+   ctx.db.raw
+     .prepare(
+-      "INSERT INTO sync_devices(id,user_id,name,kind,token_hash,password_revision,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)",
++      "INSERT INTO sync_devices(id,user_id,name,kind,token_hash,password_revision,created_at,expires_at,management) VALUES(?,?,?,?,?,?,?,?,?)",
+     )
+     .run(
+       id,
+@@ -132,8 +137,9 @@
+       passwordRevision,
+       Date.now(),
+       Date.now() + 90 * 86400000,
++      management ? 1 : 0,
+     );
+-  return { id, token, gym_id: ctx.id, user: auth.actor, kind, offline_days: 7 };
++  return { id, token, gym_id: ctx.id, user: auth.actor, kind, management, offline_days: 7 };
+ }
+ export function replicaTables(
+   raw: DatabaseSync,
+@@ -174,7 +180,7 @@
+           rows = [...selected.values()];
+         }
+       }
+-      return { name, columns, rows };
++      return { name, columns, rows, ...(kind === "desktop" ? { sql: String(raw.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name)!.sql) } : {}) };
+     });
+ }
+ export function replicaAssets(root: string) {
+@@ -200,9 +206,9 @@
+   device: Device,
+   auth: GymAuthorization,
+ ): Promise<SyncSnapshot> {
+-  const tables = replicaTables(ctx.db.raw, device.kind);
++  const tables = replicaTables(ctx.db.raw, device.management ? "desktop" : device.kind);
+   const assets =
+-    device.kind === "desktop" ? replicaAssets(ctx.root) : undefined;
++    device.kind === "desktop" || device.management ? replicaAssets(ctx.root) : undefined;
+   const triggers = (
+     ctx.db.raw
+       .prepare(
+@@ -234,6 +240,7 @@
+     issued_at: issued,
+     expires_at: issued + lease,
+     kind: device.kind,
++    ...(device.management ? { scope: "management" as const } : {}),
+     user: { ...auth.actor, role: auth.actor.role as "admin" | "operator" },
+     tables,
+     triggers,
+@@ -342,7 +349,7 @@
+       );
+     return { status: "conflict", conflict: message };
+   }
+-  const schema = replicaTables(raw, device.kind);
++  const schema = replicaTables(raw, device.management ? "desktop" : device.kind);
+   const seen = new Set<string>();
+   for (const change of patch.changes) {
+     const table = schema.find((t) => t.name === change.table),
+@@ -371,7 +378,7 @@
+         400,
+         "No se puede cambiar la identidad de un registro.",
+       );
+-    if (device.kind === "mobile") mobileChange(change, auth.actor.id);
++    if (device.kind === "mobile" && !device.management) mobileChange(change, auth.actor.id);
+     if (
+       change.table === "settings" &&
+       change.after &&
+@@ -385,7 +392,7 @@
+         "La sincronización no cambia la identidad ni la recuperación del gimnasio.",
+       );
+   }
+-  if (device.kind === "mobile" && Object.keys(patch.assets || {}).length)
++  if (device.kind === "mobile" && !device.management && Object.keys(patch.assets || {}).length)
+     throw new ApiError(403, "El móvil no modifica los archivos del gimnasio.");
+   const triggers = raw
+     .prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger'")
+--- a/src/AppDownloads.tsx
++++ b/src/AppDownloads.tsx
+@@ -1,8 +1,8 @@
+ import { Download, Monitor, Smartphone } from 'lucide-react';
+ import './styles/app-downloads.css';
+ 
+-const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.0.0/';
+-const androidApk = release + 'GymPASS-Android-5.0.0.apk';
++const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.1.0/';
++const androidApk = release + 'GymPASS-Android-5.1.0.apk';
+ 
+ export default function AppDownloads() {
+   if (
+@@ -22,33 +22,33 @@
+           <Smartphone size={24} aria-hidden="true" />
+           <span>
+             <strong>Móvil Android</strong>
+-            <small>Descargar APK · v5.0.0</small>
++            <small>Descargar APK · v5.1.0</small>
+           </span>
+           <Download size={16} aria-hidden="true" />
+         </a>
+         <a
+           className="app-download"
+-          href={release + 'GymPASS-Setup-5.0.0.exe'}
++          href={release + 'GymPASS-Setup-5.1.0.exe'}
+           target="_blank"
+           rel="noopener noreferrer"
+         >
+           <Monitor size={24} aria-hidden="true" />
+           <span>
+             <strong>Escritorio Windows</strong>
+-            <small>Descargar instalador · v5.0.0</small>
++            <small>Descargar instalador · v5.1.0</small>
+           </span>
+           <Download size={16} aria-hidden="true" />
+         </a>
+         <a
+           className="app-download"
+-          href={release + 'GymPASS-Portable-5.0.0.exe'}
++          href={release + 'GymPASS-Portable-5.1.0.exe'}
+           target="_blank"
+           rel="noopener noreferrer"
+         >
+           <Monitor size={24} aria-hidden="true" />
+           <span>
+             <strong>Windows portable</strong>
+-            <small>Descargar sin instalar · v5.0.0</small>
++            <small>Descargar sin instalar · v5.1.0</small>
+           </span>
+           <Download size={16} aria-hidden="true" />
+         </a>
+--- a/src/ConnectionStatus.tsx
++++ b/src/ConnectionStatus.tsx
+@@ -38,8 +38,8 @@
+   const problem = reachable === false || sync?.revoked || !!sync?.conflict || !!sync?.error;
+   const label = reachable === false
+     ? 'Sin conexión al servidor'
++    : replica ? sync?.online && !problem ? 'Servidor conectado · copia local' : 'Servidor local · copia del gimnasio'
+     : platform ? 'Servidor central'
+-    : replica ? sync?.online && !problem ? 'Servidor conectado · copia local' : 'Servidor local · copia del gimnasio'
+     : 'Servidor local · computadora';
+   const Icon = reachable === false ? WifiOff : platform ? Cloud : HardDrive;
+   return (
+--- a/src/Pos.tsx
++++ b/src/Pos.tsx
+@@ -570,7 +570,7 @@
+               </div>
+             )}
+           </fieldset>
+-          <p className="helper">Recibe el pago primero y después confirma el cobro. Necesitas conexión a internet.</p>
++          <p className="helper">Recibe el pago primero y después confirma el cobro. {data.replica?.linked ? 'El cobro se guarda en la copia local y se sincroniza al reconectar.' : 'Necesitas conexión a internet.'}</p>
+           {uncertain && (
+             <p className="error-message" role="alert">
+               No se pudo confirmar la respuesta del servidor. Reintenta esta misma operación para consultar o completar
+--- a/src/live-updates.ts
++++ b/src/live-updates.ts
+@@ -33,6 +33,7 @@
+     }, delay);
+   };
+   const connect = () => {
++    if ('ReactNativeWebView' in window && location.hostname === '127.0.0.1') return;
+     if (stopped || signal.aborted || !visible() || !context || typeof WebSocket === 'undefined') return;
+     const url = new URL(apiUrl('realtime'), location.href);
+     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+--- /dev/null
++++ b/src/mobile-kiosk.tsx
+@@ -0,0 +1,13 @@
++import { useEffect, useState } from 'react';
++import { api } from './api';
++import type { Bootstrap } from '../lib/domain';
++import Kiosk from './Kiosk';
++
++export function StartPlatformKiosk() {
++  const [data, setData] = useState<Bootstrap | null>(null);
++  const [error, setError] = useState('');
++  const reload = async () => { setData(await api<Bootstrap>('bootstrap?compact=1')); setError(''); };
++  useEffect(() => { void reload().catch(cause => setError(cause.message)); const timer = setInterval(() => void reload().catch(() => {}), 30000); return () => clearInterval(timer); }, []);
++  if (error) return <main><p role="alert">{error}</p><a href="#access">Volver a Recepción</a></main>;
++  return data ? <Kiosk data={data} reload={reload} /> : <p>Abriendo acceso automático…</p>;
++}
+--- /dev/null
++++ b/src/mobile-main.tsx
+@@ -0,0 +1,42 @@
++import React, { useEffect, useState } from 'react';
++import { createRoot } from 'react-dom/client';
++import App from './App';
++import { installMobileTransport } from './mobile-transport';
++import { setPlatformContext } from './platform-context';
++import { applyPreferences } from './preferences';
++import { api } from './api';
++import './styles/index.css';
++
++installMobileTransport();
++applyPreferences();
++
++function MobileStatus() {
++  const [status, setStatus] = useState<{ online: boolean; pending: number; server: string; conflict?: string; error?: string; revoked?: boolean }>();
++  useEffect(() => {
++    let active = true;
++    const update = () => void api('cloud-sync/status').then(value => { if (active) setStatus(value); }).catch(() => {});
++    update();
++    const timer = setInterval(update, 3000);
++    return () => { active = false; clearInterval(timer); };
++  }, []);
++  useEffect(() => {
++    const element = document.getElementById('mobile-sync-status');
++    if (!element) return;
++    const resize = new ResizeObserver(() => document.documentElement.style.setProperty('--gympass-sync-height', element.getBoundingClientRect().height + 'px'));
++    resize.observe(element); return () => resize.disconnect();
++  }, []);
++  return <div id="mobile-sync-status" role="status" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100, padding: '8px 12px', background: 'var(--surface)', borderTop: '1px solid var(--border-strong)', color: 'var(--ink)', fontSize: 12 }}>
++    {status ? status.revoked ? 'Acceso revocado. Los pendientes se conservan.' : status.conflict ? 'Cambios guardados. Hay un conflicto para revisar.' : `${status.online ? 'Conectado' : 'Sin Internet'} · ${status.pending ? status.pending + ' cambios guardados en este teléfono' : 'Sin cambios pendientes'} · Sincronización automática` : 'Abriendo la copia del teléfono…'}
++    {status?.server && <a href={status.server} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 4 }}>Cuenta y respaldos del servidor</a>}
++  </div>;
++}
++
++async function start() {
++  const context = await api<{ gym_id: string }>('mobile/context');
++  setPlatformContext({ gymId: context.gym_id });
++  const style = document.createElement('style');
++  style.textContent = '.app-shell{padding-bottom:var(--gympass-sync-height,60px)}.app-shell .mobile-navigation{bottom:var(--gympass-sync-height,60px)}';
++  document.head.append(style);
++  createRoot(document.getElementById('root')!).render(<React.StrictMode><React.Suspense fallback={<p>Abriendo GymPASS…</p>}><App onLogout={() => location.reload()} /><MobileStatus /></React.Suspense></React.StrictMode>);
++}
++void start().catch(error => { document.getElementById('root')!.textContent = 'No se pudo abrir la copia local: ' + error.message; });
+--- /dev/null
++++ b/src/mobile-transport.ts
+@@ -0,0 +1,48 @@
++type Reply = { status?: number; data?: unknown; text?: string; mime?: string; base64?: string };
++declare global {
++  interface Window {
++    ReactNativeWebView?: { postMessage(value: string): void };
++    __gympassManagementReply?: (id: string, reply: Reply) => void;
++  }
++}
++
++export function installMobileTransport() {
++  const original = window.fetch.bind(window);
++  const requests = new Map<string, { resolve(reply: Reply): void; reject(error: Error): void }>();
++  let sequence = 0;
++  window.__gympassManagementReply = (id, reply) => {
++    const request = requests.get(id);
++    if (!request) return;
++    requests.delete(id);
++    request.resolve(reply);
++  };
++  window.fetch = async (input, options = {}) => {
++    const request = new Request(new URL(input instanceof Request ? input.url : String(input), location.href), options);
++    const url = new URL(request.url);
++    if (url.origin !== location.origin || !url.pathname.startsWith('/api/')) return original(request);
++    if (request.signal.aborted) throw new DOMException('Solicitud cancelada.', 'AbortError');
++    let body: unknown;
++    if (!['GET', 'HEAD'].includes(request.method)) {
++      if ((request.headers.get('Content-Type') || '').startsWith('application/json')) body = await request.json();
++      else {
++        const bytes = new Uint8Array(await request.arrayBuffer());
++        let binary = '';
++        for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
++        body = { mime: request.headers.get('Content-Type') || 'application/octet-stream', base64: btoa(binary) };
++      }
++    }
++    const id = 'api-' + Date.now().toString(36) + '-' + (++sequence);
++    const reply = await new Promise<Reply>((resolve, reject) => {
++      const cancel = () => { cleanup(); requests.delete(id); reject(new DOMException('Solicitud cancelada.', 'AbortError')); };
++      const timer = setTimeout(() => { cleanup(); requests.delete(id); reject(new Error('El teléfono no confirmó la operación. Comprueba los pendientes antes de repetirla.')); }, 120000);
++      const cleanup = () => { clearTimeout(timer); request.signal.removeEventListener('abort', cancel); };
++      requests.set(id, { resolve: value => { cleanup(); resolve(value); }, reject: error => { cleanup(); reject(error); } });
++      request.signal.addEventListener('abort', cancel, { once: true });
++      try { window.ReactNativeWebView!.postMessage(JSON.stringify({ type: 'management', id, path: url.pathname.slice(5) + url.search, method: request.method, body })); }
++      catch (error) { requests.delete(id); cleanup(); reject(error); }
++    });
++    const encoded = reply.base64 || (reply.data as { base64?: string } | undefined)?.base64;
++    const data = encoded && reply.mime ? Uint8Array.from(atob(encoded), c => c.charCodeAt(0)) : reply.text !== undefined ? reply.text : JSON.stringify(reply.data ?? null);
++    return new Response(data, { status: reply.status || 200, headers: { 'Content-Type': reply.mime || 'application/json' } });
++  };
++}
+--- a/tests/release-version.test.ts
++++ b/tests/release-version.test.ts
+@@ -2,14 +2,14 @@
+ import { test } from 'node:test';
+ import { readFile } from 'node:fs/promises';
+ 
+-test('web, Android y Windows usan 5.0.0', async () => {
++test('web, Android y Windows usan 5.1.0', async () => {
+   for (const path of ['package.json', 'desktop/package.json', 'desktop-runtime/package.json']) {
+     const manifest = JSON.parse(await readFile(new URL('../' + path, import.meta.url), 'utf8'));
+-    assert.equal(manifest.version, '5.0.0', path);
++    assert.equal(manifest.version, '5.1.0', path);
+   }
+   const app = JSON.parse(await readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'));
+-  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '5.0.0');
+-  assert.equal(app.expo.version, '5.0.0');
+-  assert.equal(app.expo.android.versionCode, 5000);
+-  assert.equal(app.expo.ios.buildNumber, '5000');
++  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '5.1.0');
++  assert.equal(app.expo.version, '5.1.0');
++  assert.equal(app.expo.android.versionCode, 5100);
++  assert.equal(app.expo.ios.buildNumber, '5100');
+ });

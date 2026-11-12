@@ -1,5 +1,13 @@
 # Cambios
 
+## 5.1.0
+
+- Gestión Android incluida en el APK y conectada a una copia SQLite del gimnasio para administradores: socios, planes, productos, cobros, credenciales, fotos, logotipo, configuración e informes sin Internet.
+- Sincronización automática al recuperar conexión, volver a la aplicación y durante su uso. Los lotes persisten al reiniciar, los reintentos conservan sus identificadores y los conflictos no sobrescriben los cambios locales.
+- Ampliación de una copia lectora anterior después de enviar sus accesos pendientes, sin borrar sus datos. Se conserva el paquete y la firma Android; código de compilación 5100.
+- Las operaciones de cuenta central y los respaldos del servidor conservan su necesidad de Internet. La autorización local sigue siendo de siete días desde la última sincronización; las consultas y los pendientes se conservan al vencer.
+- Web y Windows en 5.1.0 con el protocolo compatible; se conserva la interfaz web 5.0.0 para sesiones abiertas.
+
 ## 5.0.0
 
 - Web, Android y Windows actualizados a 5.0.0; Android usa el código 5000 y conserva el paquete y su firma.

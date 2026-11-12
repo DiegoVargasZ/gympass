@@ -1,6 +1,8 @@
-# GymPASS 5.0.0
+# GymPASS 5.1.0
 
 Plataforma para socios, planes, caja y control de acceso. La web, Android y Windows se publican con la misma versión.
+
+Android incluye gestión sin conexión para administradores y sincronización automática de los datos al reconectar. Consulta la [guía móvil](docs/MOVIL-SIN-CONEXION.md) para preparar la copia, revisar pendientes y conocer las operaciones de cuenta central que necesitan Internet.
 
 ## Desarrollo y verificación
 

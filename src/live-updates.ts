@@ -33,6 +33,7 @@ export function startLiveUpdates(refresh: (topics?: string[]) => Promise<void>) 
     }, delay);
   };
   const connect = () => {
+    if ('ReactNativeWebView' in window && location.hostname === '127.0.0.1') return;
     if (stopped || signal.aborted || !visible() || !context || typeof WebSocket === 'undefined') return;
     const url = new URL(apiUrl('realtime'), location.href);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
