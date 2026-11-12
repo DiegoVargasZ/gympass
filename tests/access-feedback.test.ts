@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { componentHarness } from './component-harness.ts';
+import { defaultVoiceSettings, recordedAccessVoice } from '../lib/access-feedback.ts';
 
-function fixture(t: test.TestContext, options: { speech?: boolean; audio?: boolean; delayedVoices?: boolean; silent?: boolean } = {}) {
+function fixture(t: test.TestContext, options: { speech?: boolean; audio?: boolean; delayedVoices?: boolean; silent?: boolean; recordingDelay?: Promise<void>; recordingsFail?: boolean } = {}) {
   const spoken: any[] = [];
   const tones: string[] = [];
   const vibration: unknown[] = [];
@@ -39,7 +40,13 @@ function fixture(t: test.TestContext, options: { speech?: boolean; audio?: boole
     SpeechSynthesisUtterance: options.speech === false ? undefined : Utterance,
     AudioContext: options.audio === false ? undefined : Audio,
     navigator: { onLine: true, vibrate: (pattern: unknown) => vibration.push(pattern) },
-    fetch: async (name: string) => ({ ok: true, arrayBuffer: async () => ({ name }) }),
+    fetch: async (name: string) => ({
+      ok: !options.recordingsFail || !name.includes('-recorded'),
+      arrayBuffer: async () => {
+        if (name.includes('-recorded')) await options.recordingDelay;
+        return { name };
+      },
+    }),
   });
   const api = h.load('../src/feedback.ts');
   t.after(() => api.accessFeedback(false, false, false));
@@ -67,6 +74,37 @@ test('entrada y salida pronuncian el nombre con voz española y conservan la vib
   assert.ok(f.cancellations >= 2);
   assert.deepEqual(f.vibration.map(String), ['80']);
   assert.deepEqual(f.tones, []);
+});
+
+test('los audios grabados distinguen entrada y salida sin añadir una voz sintetizada', async t => {
+  const f = fixture(t);
+  const settings = { ...defaultVoiceSettings, voiceURI: recordedAccessVoice };
+  assert.equal(await f.api.accessFeedback(true, true, false, 'entry', 'Ana', settings), 'recorded');
+  assert.equal(await f.api.accessFeedback(true, true, false, 'exit', 'Ana', settings), 'recorded');
+  assert.deepEqual(f.tones, ['/sounds/entry-recorded.wav', '/sounds/exit-recorded.wav']);
+  assert.deepEqual(f.spoken, []);
+  await f.api.accessFeedback(false, true, false, 'exit', 'Ana', settings);
+  assert.equal(f.tones.at(-1), '/sounds/denied.wav');
+});
+
+test('un audio grabado que llega tarde no tapa el último movimiento ni ignora el silencio', async t => {
+  let ready!: () => void;
+  const f = fixture(t, { recordingDelay: new Promise<void>(resolve => { ready = resolve; }) });
+  const settings = { ...defaultVoiceSettings, voiceURI: recordedAccessVoice };
+  const first = f.api.accessFeedback(true, true, false, 'entry', 'Ana', settings);
+  const last = f.api.accessFeedback(true, true, false, 'exit', 'Ana', settings);
+  ready();
+  assert.deepEqual(await Promise.all([first, last]), ['none', 'recorded']);
+  assert.deepEqual(f.tones, ['/sounds/exit-recorded.wav']);
+  assert.equal(await f.api.accessFeedback(true, false, false, 'entry', 'Ana', settings), 'none');
+  assert.deepEqual(f.spoken, []);
+});
+
+test('si no se carga una grabación se conserva el tono de confirmación', async t => {
+  const f = fixture(t, { recordingsFail: true });
+  assert.equal(await f.api.accessFeedback(true, true, false, 'entry', 'Ana', { ...defaultVoiceSettings, voiceURI: recordedAccessVoice }), 'tone');
+  assert.deepEqual(f.tones, ['/sounds/entry.wav']);
+  assert.deepEqual(f.spoken, []);
 });
 
 test('el aviso usa la voz exacta y la velocidad seleccionadas', async (t) => {

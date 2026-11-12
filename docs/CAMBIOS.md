@@ -1,5 +1,13 @@
 # Cambios
 
+## 4.8.2
+
+- Añadidas las dos grabaciones proporcionadas: el primer audio para la entrada y el segundo para la salida, con volumen ajustado sin saturación.
+- Nueva opción «Audios de entrada y salida» en Apariencia, seleccionada por defecto para las preferencias automáticas anteriores. Se mantienen las voces elegidas y la opción de silenciar los avisos.
+- Las pruebas de entrada y salida reproducen las grabaciones sin añadir nombres ni voces sintetizadas.
+- El lector Android incluye los audios para usarlos sin conexión y descarta avisos pendientes cuando llega un movimiento nuevo.
+- Web, Windows y Android actualizados a 4.8.2; Android usa el código 4802. Se conserva la interfaz publicada 4.8.1 para las sesiones abiertas.
+
 ## 4.8.1
 
 - Verde oliva `#636B2F` en los botones principales de web, Windows y Android, con texto blanco legible.

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { defaultVoiceSettings, type VoiceSettings } from '../lib/access-feedback.ts';
+import { defaultVoiceSettings, recordedAccessVoice, type VoiceSettings } from '../lib/access-feedback.ts';
 import { componentHarness, elementText, findElement } from './component-harness.ts';
 
 test('Apariencia prueba voces sin guardarlas y confirma ajustes de hasta 300 %', async (t) => {
@@ -69,4 +69,34 @@ test('Apariencia prueba voces sin guardarlas y confirma ajustes de hasta 300 %',
   assert.equal(preferences.voiceRate, 3);
   assert.equal(preferences.theme, 'dark');
   assert.match(elementText(tree), /Cambios guardados en este navegador/);
+});
+
+test('Apariencia permite probar las grabaciones y oculta ajustes que sólo afectan a las voces', async t => {
+  const h = componentHarness(); t.after(() => h.cleanup());
+  const calls: string[] = [];
+  const { default: Appearance } = h.load('../src/Appearance.tsx', {
+    './preferences': {
+      usePreferences: () => ({ ...defaultVoiceSettings, voiceURI: recordedAccessVoice, theme: 'light', density: 'comfortable', sound: true, vibration: false }),
+      updatePreferences() {},
+    },
+    './feedback': {
+      subscribeAccessVoices: () => () => {}, prepareAudio() {}, prepareAccessVoice() {}, stopFeedback() {},
+      accessFeedback: async (_allowed: boolean, _sound: boolean, _vibration: boolean, direction: string, _name: string, settings: VoiceSettings) => {
+        assert.equal(settings.voiceURI, recordedAccessVoice);
+        calls.push(direction); return 'recorded';
+      },
+    },
+    './ui': { Field: 'Field' }, './styles/appearance.css': {},
+  });
+  let tree = h.render(Appearance);
+  const picker = findElement(tree, e => e.type === 'Field' && e.props.label === 'Voz de los avisos').props.children;
+  assert.equal(picker.props.value, recordedAccessVoice);
+  assert.throws(() => findElement(tree, e => e.type === 'input' && e.props.type === 'range'));
+  assert.throws(() => findElement(tree, e => e.type === 'Field' && e.props.label === 'Nombre para probar'));
+  for (const [direction, label] of [['entry', 'entrada'], ['exit', 'salida']]) {
+    findElement(tree, e => e.type === 'button' && elementText(e) === `Probar ${label}`).props.onClick();
+    tree = await h.settle();
+    assert.equal(calls.at(-1), direction);
+    assert.match(elementText(tree), new RegExp(`Audio de ${label} reproducido`));
+  }
 });

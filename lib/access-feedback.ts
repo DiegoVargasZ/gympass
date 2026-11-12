@@ -15,6 +15,10 @@ export type VoiceGender = 'auto' | 'female' | 'male';
 export type VoiceSettings = { voiceURI: string; voiceGender: VoiceGender; voiceRate: number };
 export const voiceRateLimits = { min: 0.5, max: 3, step: 0.01 } as const;
 export const defaultVoiceSettings: VoiceSettings = { voiceURI: '', voiceGender: 'auto', voiceRate: 0.98 };
+export const recordedAccessVoice = 'recorded:access';
+export function recordedAccessSound(direction: string) {
+  return direction === 'exit' ? 'exit-recorded' : 'entry-recorded';
+}
 export function normalizeVoiceSettings(value: Partial<VoiceSettings>): VoiceSettings {
   return {
     voiceURI: typeof value.voiceURI === 'string' ? value.voiceURI : '',

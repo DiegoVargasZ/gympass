@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { isNaturalVoice, voiceGender, voiceIdentity, voiceRateLimits } from '../lib/access-feedback';
+import { isNaturalVoice, recordedAccessVoice, voiceGender, voiceIdentity, voiceRateLimits } from '../lib/access-feedback';
 import { findGympassVoice, gympassVoiceId, gympassVoices } from '../lib/voice-catalog';
 import { Field } from './ui';
 import { usePreferences, updatePreferences, type Preferences } from './preferences';
@@ -32,8 +32,11 @@ export default function Appearance() {
   }, []);
 
   const gympassVoice = findGympassVoice(draft.voiceURI);
-  const selected = gympassVoice || voices.some((voice) => voiceIdentity(voice) === draft.voiceURI);
-  const voiceHint = gympassVoice
+  const recorded = draft.voiceURI === recordedAccessVoice;
+  const selected = recorded || gympassVoice || voices.some((voice) => voiceIdentity(voice) === draft.voiceURI);
+  const voiceHint = recorded
+    ? 'Tus grabaciones: el primer audio para la entrada y el segundo para la salida. Se reproducen sin añadir nombres.'
+    : gympassVoice
     ? 'La primera prueba descarga unos 110 MB. Después, la voz se genera en este dispositivo.'
     : 'Elige una voz de GymPASS o usa las voces en español de tu dispositivo.';
   const cancelPreview = () => {
@@ -68,12 +71,13 @@ export default function Appearance() {
   const preview = async (direction: 'entry' | 'exit') => {
     const id = ++previewId.current;
     setTesting(true);
-    setPreviewMessage(gympassVoice ? `Preparando la voz de ${gympassVoice.name}…` : 'Probando la voz…');
+    setPreviewMessage(recorded ? 'Reproduciendo el audio…' : gympassVoice ? `Preparando la voz de ${gympassVoice.name}…` : 'Probando la voz…');
     const played = await accessFeedback(true, true, false, direction, sampleName.trim() || 'María Pérez', draft, true);
     if (id !== previewId.current) return;
     setTesting(false);
     setPreviewMessage(played === 'none' ? 'No se pudo reproducir el aviso. Comprueba el audio del dispositivo.'
-      : played === 'tone' ? 'No se pudo reproducir la voz. Se usó el tono de confirmación.'
+      : played === 'tone' ? 'No se pudo reproducir el aviso seleccionado. Se usó el tono de confirmación.'
+      : played === 'recorded' ? `Audio de ${direction === 'exit' ? 'salida' : 'entrada'} reproducido.`
       : gympassVoice && played === 'device' ? 'No se pudo cargar esta voz. Se usó una voz del dispositivo.' : '');
   };
   return (
@@ -127,7 +131,7 @@ export default function Appearance() {
             checked={draft.sound}
             onChange={(event) => edit({ sound: event.target.checked })}
           />{' '}
-          Voz al registrar entrada y salida
+          Reproducir avisos de entrada y salida
         </label>
         <label>
           <input
@@ -140,10 +144,11 @@ export default function Appearance() {
         </div>
       </section>
       <section className="access-voice-settings" aria-label="Avisos de voz">
-        <h3>Personaliza la voz</h3>
+        <h3>Sonidos y voces</h3>
         <div className="form-grid">
           <Field label="Voz de los avisos" hint={voiceHint}>
             <select value={selected ? draft.voiceURI : ''} onChange={(event) => selectVoice(event.target.value)}>
+              <option value={recordedAccessVoice}>Audios de entrada y salida</option>
               <option value="">Automática (voz del dispositivo)</option>
               {voiceGroups.map(({ gender, label }) => (
                 <optgroup key={gender} label={label}>
@@ -163,12 +168,12 @@ export default function Appearance() {
               )}
             </select>
           </Field>
-          <Field label={`Velocidad de voz (${Math.round(draft.voiceRate * 100)} %)`} hint="De 50 % a 300 %. 100 % es la velocidad normal.">
+          {!recorded && <Field label={`Velocidad de voz (${Math.round(draft.voiceRate * 100)} %)`} hint="De 50 % a 300 %. 100 % es la velocidad normal.">
             <input type="range" {...voiceRateLimits} value={draft.voiceRate} onChange={(event) => changeVoice({ voiceRate: event.target.valueAsNumber })} />
-          </Field>
-          <Field label="Nombre para probar">
+          </Field>}
+          {!recorded && <Field label="Nombre para probar">
             <input value={sampleName} maxLength={80} onChange={(event) => setSampleName(event.target.value)} />
-          </Field>
+          </Field>}
         </div>
         <div className="voice-preview-actions">
           <button type="button" className="btn secondary" disabled={testing} onClick={() => void preview('entry')}>Probar entrada</button>

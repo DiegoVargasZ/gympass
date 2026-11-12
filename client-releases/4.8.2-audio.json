@@ -1,0 +1,21 @@
+{
+  "version": "4.8.2",
+  "recordings": [
+    {
+      "movement": "entry",
+      "source_sha256": "9f74468ba03c4c11bcfe4928317abf6ab7dbfd5a9ffac70dfbc212a25e1a58aa",
+      "wav_sha256": "c6e877fc44ed2a5185590125ba9a73a8d22b08fd4a725c0da179613ee04349a7",
+      "seconds": 1.6718367346938776,
+      "peak": 0.8500000238418579,
+      "rms": 0.14465796947479248
+    },
+    {
+      "movement": "exit",
+      "source_sha256": "232d9b5c0c2503931a257d29729951eebaf0251329a8a1bbe43e206b114678ac",
+      "wav_sha256": "68570a8d9b9a8db7159f5d46b6d1c7410763ed16475d949a8d4e89fa57249306",
+      "seconds": 1.9040362811791383,
+      "peak": 0.8500000238418579,
+      "rms": 0.14445073902606964
+    }
+  ]
+}

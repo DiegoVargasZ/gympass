@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { defaultVoiceSettings, normalizeVoiceSettings, type VoiceSettings } from '../lib/access-feedback';
+import { defaultVoiceSettings, normalizeVoiceSettings, recordedAccessVoice, type VoiceSettings } from '../lib/access-feedback';
 
 export type Preferences = VoiceSettings & {
   theme: 'light' | 'dark';
@@ -8,11 +8,11 @@ export type Preferences = VoiceSettings & {
   vibration: boolean;
 };
 const key = 'gympass.preferences';
-const preferencesVersion = 3;
+const preferencesVersion = 4;
 let user = '';
 const listeners = new Set<() => void>();
 function load(): Preferences {
-  const defaults: Preferences = { theme: 'light', density: 'comfortable', sound: false, vibration: false, ...defaultVoiceSettings };
+  const defaults: Preferences = { theme: 'light', density: 'comfortable', sound: false, vibration: false, ...defaultVoiceSettings, voiceURI: recordedAccessVoice };
   try {
     const saved = JSON.parse(localStorage.getItem(key) || '{}') || {};
     const theme =
@@ -26,7 +26,11 @@ function load(): Preferences {
       theme: theme === 'dark' ? 'dark' : 'light',
       sound: saved.sound === true,
       vibration: saved.vibration === true,
-      ...normalizeVoiceSettings(saved),
+      ...normalizeVoiceSettings({
+        ...saved,
+        voiceURI: typeof saved.voiceURI === 'string' && (saved.version === preferencesVersion || saved.voiceURI !== '')
+          ? saved.voiceURI : recordedAccessVoice,
+      }),
     };
   } catch {
     return defaults;

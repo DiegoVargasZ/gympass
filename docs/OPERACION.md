@@ -34,15 +34,15 @@ Para restaurar la plataforma, extrae el `.tar.gz` en un directorio nuevo y utili
 
 ## Aplicaciones y trabajo sin conexión
 
-Instala Android y Windows 4.8.1 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
+Instala Android y Windows 4.8.2 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
 
 En Windows, Configuración → Conexión permite utilizar servidor o copia local sincronizada. En Android, Gestión utiliza la web y requiere Internet; Lector sin conexión conserva su copia autorizada. Los conflictos se revisan antes de reemplazar datos locales. Windows sigue la política existente de distribución sin firma de código.
 
-El instalador Windows 4.8.1 conserva Electron 45 y requiere Windows 10 o posterior, en equipos x64. La compatibilidad web con Chrome/Edge 109 no amplía los sistemas admitidos por ese instalador. [Electron retiró Windows 7, 8 y 8.1 desde su versión 23](https://www.electronjs.org/blog/windows-7-to-8-1-deprecation-notice).
+El instalador Windows 4.8.2 conserva Electron 45 y requiere Windows 10 o posterior, en equipos x64. La compatibilidad web con Chrome/Edge 109 no amplía los sistemas admitidos por ese instalador. [Electron retiró Windows 7, 8 y 8.1 desde su versión 23](https://www.electronjs.org/blog/windows-7-to-8-1-deprecation-notice).
 
 ## Recepción y caja
 
-En **Configuración → Apariencia** elige una de las diez voces de GymPASS o una voz del dispositivo y ajusta la velocidad entre 50 % y 300 %. Puedes probar entrada o salida antes de pulsar **Guardar cambios**. El navegador descarga el modelo compartido una vez (alrededor de 110 MB), sintetiza los nombres localmente y reutiliza los últimos avisos de esa sesión. Si la voz está cargando o no se puede reproducir, recepción usa la voz del dispositivo o el tono de confirmación.
+En **Configuración → Apariencia** activa **Reproducir avisos de entrada y salida** y selecciona **Audios de entrada y salida** para usar las grabaciones proporcionadas. El primer audio anuncia la entrada y el segundo la salida; Android los incluye para el lector sin conexión. Puedes probar ambos antes de pulsar **Guardar cambios**. También siguen disponibles las diez voces de GymPASS y las voces del dispositivo, con velocidad entre 50 % y 300 % y lectura del nombre. Las grabaciones mantienen su velocidad original. Si un audio no se puede cargar, se usa el tono de confirmación.
 
 Registra al socio con su WhatsApp, crea un plan y confirma el cobro. El primer pago crea su QR permanente de forma atómica; los reintentos no duplican el cobro. La fecha inicial del plan determina cuándo puede entrar. Comparte la credencial existente desde la ficha o comprobante.
 

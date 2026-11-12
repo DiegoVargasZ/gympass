@@ -41,6 +41,7 @@ export function componentHarness(globals: Record<string, unknown> = {}) {
   let renderComponent: () => unknown;
   let tree: unknown;
   const hooks = {
+    useSyncExternalStore(_subscribe: unknown, snapshot: () => unknown) { return snapshot(); },
     lazy(load: () => Promise<{ default: unknown }>) {
       const component: { resolved?: unknown } = {};
       void load().then((module) => {

@@ -16,6 +16,7 @@ const mime: Record<string, string> = {
   '.woff2': 'font/woff2',
   '.apk': 'application/vnd.android.package-archive',
   '.txt': 'text/plain; charset=utf-8',
+  '.wav': 'audio/wav',
 };
 
 /** Desde este tamaño el archivo se envía por partes en vez de cargarse completo en memoria. */
