@@ -50,9 +50,10 @@ const date = z
   .refine((v) => !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v, 'Fecha inválida');
 const productSchema = z.object({
   name: text,
-  sku: z.string().trim().max(80).default(''),
+  sku: z.string().trim().max(80).optional(),
   category: z.string().trim().max(100).default(''),
   price_cents: cents,
+  cost_cents: cents.nullable().optional(),
   stock: z.number().int().min(0).max(1000000000).optional(),
   track_stock: flag.default(1),
   active: flag.default(1),
@@ -140,22 +141,26 @@ export class PosService {
     await this.atomic([
       id
         ? this.service.stmt(
-            'UPDATE pos_products SET name=?,sku=?,category=?,price_cents=?,track_stock=?,active=? WHERE id=?',
+            'UPDATE pos_products SET name=?,sku=CASE WHEN ? THEN ? ELSE sku END,category=?,price_cents=?,cost_cents=CASE WHEN ? THEN ? ELSE cost_cents END,track_stock=?,active=? WHERE id=?',
             p.name,
-            p.sku,
+            p.sku !== undefined ? 1 : 0,
+            p.sku ?? '',
             p.category,
             p.price_cents,
+            p.cost_cents !== undefined ? 1 : 0,
+            p.cost_cents ?? null,
             p.track_stock,
             p.active,
             key,
           )
         : this.service.stmt(
-            'INSERT INTO pos_products(id,name,sku,category,price_cents,stock,track_stock,active) VALUES(?,?,?,?,?,?,?,?)',
+            'INSERT INTO pos_products(id,name,sku,category,price_cents,cost_cents,stock,track_stock,active) VALUES(?,?,?,?,?,?,?,?,?)',
             key,
             p.name,
-            p.sku,
+            p.sku ?? '',
             p.category,
             p.price_cents,
+            p.cost_cents ?? null,
             p.stock || 0,
             p.track_stock,
             p.active,
@@ -352,7 +357,8 @@ export class PosService {
       const item = line.item;
       statements.push(
         this.service.stmt(
-          'INSERT INTO pos_sale_lines(id,sale_id,kind,item_id,name,quantity,price_cents,total_cents,track_stock,unit,duration) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+          `INSERT INTO pos_sale_lines(id,sale_id,kind,item_id,name,quantity,price_cents,total_cents,track_stock,unit,duration,cost_cents)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,CASE WHEN ?='product' THEN (SELECT cost_cents FROM pos_products WHERE id=?) END)`,
           line.lineId,
           id,
           line.kind,
@@ -364,6 +370,8 @@ export class PosService {
           line.kind === 'product' ? item.track_stock : 0,
           item.unit || null,
           item.duration || null,
+          line.kind,
+          line.id,
         ),
       );
       if (line.kind === 'plan')
@@ -487,16 +495,20 @@ export class PosService {
     const days = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
     const previous = { from: nextDate(from, -days), to: nextDate(from, -1) };
     const paid = "s.status='paid' AND s.local_date BETWEEN ? AND ?";
+    const marginFields = `COALESCE(SUM(l.quantity),0) quantity,COALESCE(SUM(l.total_cents),0) revenue_cents,
+      COALESCE(SUM(l.cost_cents*l.quantity),0) cost_cents,
+      COALESCE(SUM(CASE WHEN l.cost_cents IS NOT NULL THEN l.total_cents-l.cost_cents*l.quantity ELSE 0 END),0) profit_cents,
+      COALESCE(SUM(CASE WHEN l.cost_cents IS NULL THEN l.quantity ELSE 0 END),0) missing_cost_quantity`;
     const item = (kind: 'plan' | 'product') =>
       this.service.all(
-        `SELECT l.item_id,MAX(l.name) name,SUM(l.quantity) quantity,SUM(l.total_cents) total_cents
+        `SELECT l.item_id,MAX(l.name) name,SUM(l.total_cents) total_cents,${kind === 'product' ? marginFields : 'SUM(l.quantity) quantity'}
          FROM pos_sale_lines l JOIN pos_sales s ON s.id=l.sale_id
          WHERE ${paid} AND l.kind=? GROUP BY l.item_id ORDER BY total_cents DESC,quantity DESC,name LIMIT 20`,
         from,
         to,
         kind,
       );
-    const [totals, voided, before, rows, plans, products, by_method, by_cashier] = await Promise.all([
+    const [totals, voided, before, rows, plans, products, by_method, by_cashier, productMargin] = await Promise.all([
       this.service.one(
         `SELECT COUNT(*) count,COALESCE(SUM(total_cents),0) total_cents FROM pos_sales s WHERE ${paid}`,
         from,
@@ -530,6 +542,11 @@ export class PosService {
         from,
         to,
       ),
+      this.service.one(
+        `SELECT ${marginFields} FROM pos_sale_lines l JOIN pos_sales s ON s.id=l.sale_id WHERE ${paid} AND l.kind='product'`,
+        from,
+        to,
+      ),
     ]);
     const found = new Map(rows.map((row) => [String(row.bucket), row]));
     return {
@@ -543,6 +560,7 @@ export class PosService {
         void_count: voided!.count,
         void_cents: voided!.total_cents,
         previous: { ...previous, count: before!.count, total_cents: before!.total_cents },
+        product_margin: productMargin,
       },
       series: keys.map((key) => ({
         bucket: key,
@@ -550,7 +568,8 @@ export class PosService {
         total_cents: Number(found.get(key)?.total_cents ?? 0),
       })),
       plans,
-      products,
+      products: products.map((row) => ({ item_id: row.item_id, name: row.name, quantity: row.quantity, total_cents: row.total_cents,
+        margin: { quantity: row.quantity, revenue_cents: row.revenue_cents, cost_cents: row.cost_cents, profit_cents: row.profit_cents, missing_cost_quantity: row.missing_cost_quantity } })),
       by_method,
       by_cashier,
     } as PosReport;

@@ -1,0 +1,1106 @@
+--- a/desktop/package.json
++++ b/desktop/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "gympass-desktop",
+   "productName": "GymPASS",
+-  "version": "5.2.2",
++  "version": "5.3.0",
+   "description": "Entradas, salidas y tiempos de permanencia para gimnasios",
+   "author": "GymPASS",
+   "license": "UNLICENSED",
+--- a/lib/pos-types.ts
++++ b/lib/pos-types.ts
+@@ -1,3 +1,4 @@
++import type { ProductMargin } from './product-costs.ts';
+ export type PlanUnit = 'days' | 'months' | 'sessions';
+ export function planEndDate(start: string, unit: PlanUnit, duration: number): string | null {
+   if (unit === 'sessions') return null;
+@@ -19,6 +20,7 @@
+   sku: string;
+   category: string;
+   price_cents: number;
++  cost_cents: number | null;
+   stock: number;
+   track_stock: number;
+   active: number;
+@@ -66,6 +68,7 @@
+   price_cents: number;
+   total_cents: number;
+   track_stock: number;
++  cost_cents: number | null;
+   unit: PlanUnit | null;
+   duration: number | null;
+ };
+@@ -132,7 +135,7 @@
+ };
+ export type PosReportPeriod = 'day' | 'week' | 'month' | 'year';
+ export type PosReportTotals = { total_cents: number; count: number };
+-export type PosReportItem = { item_id: string; name: string; quantity: number; total_cents: number };
++export type PosReportItem = { item_id: string; name: string; quantity: number; total_cents: number; margin?: ProductMargin };
+ export type PosReport = {
+   period: PosReportPeriod;
+   from: string;
+@@ -142,6 +145,7 @@
+     void_count: number;
+     void_cents: number;
+     previous: PosReportTotals & { from: string; to: string };
++    product_margin?: ProductMargin;
+   };
+   series: ({ bucket: string } & PosReportTotals)[];
+   plans: PosReportItem[];
+--- a/lib/pos.ts
++++ b/lib/pos.ts
+@@ -50,9 +50,10 @@
+   .refine((v) => !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v, 'Fecha inválida');
+ const productSchema = z.object({
+   name: text,
+-  sku: z.string().trim().max(80).default(''),
++  sku: z.string().trim().max(80).optional(),
+   category: z.string().trim().max(100).default(''),
+   price_cents: cents,
++  cost_cents: cents.nullable().optional(),
+   stock: z.number().int().min(0).max(1000000000).optional(),
+   track_stock: flag.default(1),
+   active: flag.default(1),
+@@ -140,22 +141,26 @@
+     await this.atomic([
+       id
+         ? this.service.stmt(
+-            'UPDATE pos_products SET name=?,sku=?,category=?,price_cents=?,track_stock=?,active=? WHERE id=?',
++            'UPDATE pos_products SET name=?,sku=CASE WHEN ? THEN ? ELSE sku END,category=?,price_cents=?,cost_cents=CASE WHEN ? THEN ? ELSE cost_cents END,track_stock=?,active=? WHERE id=?',
+             p.name,
+-            p.sku,
++            p.sku !== undefined ? 1 : 0,
++            p.sku ?? '',
+             p.category,
+             p.price_cents,
++            p.cost_cents !== undefined ? 1 : 0,
++            p.cost_cents ?? null,
+             p.track_stock,
+             p.active,
+             key,
+           )
+         : this.service.stmt(
+-            'INSERT INTO pos_products(id,name,sku,category,price_cents,stock,track_stock,active) VALUES(?,?,?,?,?,?,?,?)',
++            'INSERT INTO pos_products(id,name,sku,category,price_cents,cost_cents,stock,track_stock,active) VALUES(?,?,?,?,?,?,?,?,?)',
+             key,
+             p.name,
+-            p.sku,
++            p.sku ?? '',
+             p.category,
+             p.price_cents,
++            p.cost_cents ?? null,
+             p.stock || 0,
+             p.track_stock,
+             p.active,
+@@ -352,7 +357,8 @@
+       const item = line.item;
+       statements.push(
+         this.service.stmt(
+-          'INSERT INTO pos_sale_lines(id,sale_id,kind,item_id,name,quantity,price_cents,total_cents,track_stock,unit,duration) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
++          `INSERT INTO pos_sale_lines(id,sale_id,kind,item_id,name,quantity,price_cents,total_cents,track_stock,unit,duration,cost_cents)
++           VALUES(?,?,?,?,?,?,?,?,?,?,?,CASE WHEN ?='product' THEN (SELECT cost_cents FROM pos_products WHERE id=?) END)`,
+           line.lineId,
+           id,
+           line.kind,
+@@ -364,6 +370,8 @@
+           line.kind === 'product' ? item.track_stock : 0,
+           item.unit || null,
+           item.duration || null,
++          line.kind,
++          line.id,
+         ),
+       );
+       if (line.kind === 'plan')
+@@ -487,16 +495,20 @@
+     const days = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
+     const previous = { from: nextDate(from, -days), to: nextDate(from, -1) };
+     const paid = "s.status='paid' AND s.local_date BETWEEN ? AND ?";
++    const marginFields = `COALESCE(SUM(l.quantity),0) quantity,COALESCE(SUM(l.total_cents),0) revenue_cents,
++      COALESCE(SUM(l.cost_cents*l.quantity),0) cost_cents,
++      COALESCE(SUM(CASE WHEN l.cost_cents IS NOT NULL THEN l.total_cents-l.cost_cents*l.quantity ELSE 0 END),0) profit_cents,
++      COALESCE(SUM(CASE WHEN l.cost_cents IS NULL THEN l.quantity ELSE 0 END),0) missing_cost_quantity`;
+     const item = (kind: 'plan' | 'product') =>
+       this.service.all(
+-        `SELECT l.item_id,MAX(l.name) name,SUM(l.quantity) quantity,SUM(l.total_cents) total_cents
++        `SELECT l.item_id,MAX(l.name) name,SUM(l.total_cents) total_cents,${kind === 'product' ? marginFields : 'SUM(l.quantity) quantity'}
+          FROM pos_sale_lines l JOIN pos_sales s ON s.id=l.sale_id
+          WHERE ${paid} AND l.kind=? GROUP BY l.item_id ORDER BY total_cents DESC,quantity DESC,name LIMIT 20`,
+         from,
+         to,
+         kind,
+       );
+-    const [totals, voided, before, rows, plans, products, by_method, by_cashier] = await Promise.all([
++    const [totals, voided, before, rows, plans, products, by_method, by_cashier, productMargin] = await Promise.all([
+       this.service.one(
+         `SELECT COUNT(*) count,COALESCE(SUM(total_cents),0) total_cents FROM pos_sales s WHERE ${paid}`,
+         from,
+@@ -527,6 +539,11 @@
+       this.service.all(
+         `SELECT s.actor,COALESCE(m.name,s.actor) name,SUM(s.total_cents) total_cents,COUNT(*) count
+          FROM pos_sales s LEFT JOIN members m ON m.email=s.actor WHERE ${paid} GROUP BY s.actor ORDER BY total_cents DESC`,
++        from,
++        to,
++      ),
++      this.service.one(
++        `SELECT ${marginFields} FROM pos_sale_lines l JOIN pos_sales s ON s.id=l.sale_id WHERE ${paid} AND l.kind='product'`,
+         from,
+         to,
+       ),
+@@ -543,6 +560,7 @@
+         void_count: voided!.count,
+         void_cents: voided!.total_cents,
+         previous: { ...previous, count: before!.count, total_cents: before!.total_cents },
++        product_margin: productMargin,
+       },
+       series: keys.map((key) => ({
+         bucket: key,
+@@ -550,7 +568,8 @@
+         total_cents: Number(found.get(key)?.total_cents ?? 0),
+       })),
+       plans,
+-      products,
++      products: products.map((row) => ({ item_id: row.item_id, name: row.name, quantity: row.quantity, total_cents: row.total_cents,
++        margin: { quantity: row.quantity, revenue_cents: row.revenue_cents, cost_cents: row.cost_cents, profit_cents: row.profit_cents, missing_cost_quantity: row.missing_cost_quantity } })),
+       by_method,
+       by_cashier,
+     } as PosReport;
+--- /dev/null
++++ b/lib/product-costs.ts
+@@ -0,0 +1,19 @@
++export const productCostTables = ['pos_products', 'pos_sale_lines'] as const;
++export const productCostColumnSql = "INTEGER CHECK(cost_cents IS NULL OR (typeof(cost_cents)='integer' AND cost_cents BETWEEN 0 AND 1000000000))";
++
++export type ProductMargin = {
++  quantity: number;
++  revenue_cents: number;
++  cost_cents: number;
++  profit_cents: number;
++  missing_cost_quantity: number;
++};
++
++export function marginComplete(margin: ProductMargin) {
++  return margin.missing_cost_quantity === 0;
++}
++
++/** Do not present unknown purchase costs as zero profit or free stock. */
++export function marginKnown(margin: ProductMargin) {
++  return !margin.quantity || margin.missing_cost_quantity < margin.quantity;
++}
+--- a/lib/replication.ts
++++ b/lib/replication.ts
+@@ -1,4 +1,6 @@
+ import { appearanceColumns } from './gym-appearance.ts';
++import { productCostColumnSql, productCostTables } from './product-costs.ts';
++export { productCostColumnSql, productCostTables };
+ export type SyncValue = string | number | null;
+ export type SyncRow = Record<string, SyncValue>;
+ export type SyncColumn = { name: string; type: string; pk: number };
+@@ -40,6 +42,26 @@
+     return { ...table, columns: [...table.columns, ...missing.map(field => ({ name: field.name, type: 'TEXT', pk: 0 }))],
+       rows: table.rows.map(row => ({ ...Object.fromEntries(missing.map(field => [field.name, field.value])), ...row })) };
+   }) };
++}
++/** Extend older cached copies without assigning a fabricated purchase cost. */
++export function upgradeManagementSnapshot(snapshot: SyncSnapshot): SyncSnapshot {
++  const appearance = upgradeAppearanceSnapshot(snapshot);
++  return { ...appearance, tables: appearance.tables.map(table => {
++    if (!productCostTables.some(name => name === table.name) || table.columns.some(column => column.name === 'cost_cents')) return table;
++    const sql = table.sql && !/\bcost_cents\b/.test(table.sql)
++      ? table.sql.replace(/\)\s*$/, ', cost_cents ' + productCostColumnSql + ')') : table.sql;
++    return { ...table, columns: [...table.columns, { name: 'cost_cents', type: 'INTEGER', pk: 0 }],
++      rows: table.rows.map(row => ({ cost_cents: null, ...row })), ...(sql ? { sql } : {}) };
++  }) };
++}
++
++/** Desktop versions before 5.3 cannot install snapshots containing these columns. */
++export function legacyProductCostTable(table: SyncTable): SyncTable {
++  if (!productCostTables.some(name => name === table.name)) return table;
++  const sql = table.sql?.replace(', cost_cents ' + productCostColumnSql, '');
++  return { ...table, columns: table.columns.filter(column => column.name !== 'cost_cents'),
++    rows: table.rows.map(row => Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'cost_cents'))),
++    ...(sql ? { sql } : {}) };
+ }
+ export function renewSyncSnapshot(
+   base: SyncSnapshot,
+--- a/mobile/README.md
++++ b/mobile/README.md
+@@ -1,8 +1,8 @@
+-# GymPASS Android 5.2.2
++# GymPASS Android 5.3.0
+ 
+ La gestión para administradores incluye la interfaz en el APK y guarda socios, caja, productos, planes, credenciales, accesos, imágenes, configuración e informes en SQLite. La primera vinculación necesita Internet; después se puede abrir la gestión sin red y sincronizar automáticamente al reconectar o volver a la aplicación. Se conservan siete días de autorización local y los conflictos requieren revisión sin sobrescribir los pendientes.
+ 
+-Las cuentas centrales, las contraseñas, el personal y los respaldos del servidor siguen necesitando Internet. Las cuentas de recepción conservan el lector y sus consultas. Instala esta versión sobre la anterior para mantener los datos; no borres la aplicación. Versión 5.2.2 y compilación Android 5220.
++Las cuentas centrales, las contraseñas, el personal y los respaldos del servidor siguen necesitando Internet. Las cuentas de recepción conservan el lector y sus consultas. Instala esta versión sobre la anterior para mantener los datos; no borres la aplicación. Versión 5.3.0 y compilación Android 5300.
+ 
+ La compilación `scripts/build-android.ps1` prepara la interfaz con `../scripts/build-mobile-web.mjs` antes de generar y firmar el APK. Los recursos se sirven únicamente a la vista local y las operaciones se atienden en la sesión SQLite vinculada.
+ 
+--- a/mobile/app.json
++++ b/mobile/app.json
+@@ -6,12 +6,12 @@
+       "ios",
+       "android"
+     ],
+-    "version": "5.2.2",
++    "version": "5.3.0",
+     "orientation": "default",
+     "userInterfaceStyle": "automatic",
+     "ios": {
+       "bundleIdentifier": "local.gympass.controlacceso.mobile",
+-      "buildNumber": "5220",
++      "buildNumber": "5300",
+       "supportsTablet": true,
+       "infoPlist": {
+         "NSLocalNetworkUsageDescription": "GymPASS se conecta con la computadora de la misma red Wi-Fi para registrar accesos.",
+@@ -24,7 +24,7 @@
+     },
+     "android": {
+       "package": "local.gympass.controlacceso.mobile",
+-      "versionCode": 5220,
++      "versionCode": 5300,
+       "permissions": [
+         "android.permission.CAMERA"
+       ],
+--- a/mobile/package-lock.json
++++ b/mobile/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "5.2.2",
++  "version": "5.3.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-mobile",
+-      "version": "5.2.2",
++      "version": "5.3.0",
+       "dependencies": {
+         "@noble/ciphers": "2.4.0",
+         "expo": "~58.0.21",
+--- a/mobile/package.json
++++ b/mobile/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "5.2.2",
++  "version": "5.3.0",
+   "private": true,
+   "type": "module",
+   "main": "index.ts",
+--- a/mobile/src/GympassApp.tsx
++++ b/mobile/src/GympassApp.tsx
+@@ -363,7 +363,7 @@
+             ref={web}
+             source={{ uri: management?.url || DEFAULT_SERVER }}
+             style={{ flex: 1, backgroundColor: palette.surface }}
+-            applicationNameForUserAgent="GymPASS-Android/5.2.2"
++            applicationNameForUserAgent="GymPASS-Android/5.3.0"
+             originWhitelist={['*']}
+             onShouldStartLoadWithRequest={(request) => {
+               if ((management ? request.url.startsWith(management.url) : isGympassUrl(request.url)) || request.url === 'about:blank') return true;
+--- a/mobile/src/http.ts
++++ b/mobile/src/http.ts
+@@ -36,6 +36,7 @@
+         headers: {
+           'Content-Type': 'application/json',
+           'X-Requested-With': 'GymPASS',
++          ...(path.includes('/sync/') ? { 'X-GymPASS-Product-Costs': '1' } : {}),
+           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+           ...(options.pairing ? { 'X-GymPASS-Pairing': options.pairing } : {}),
+         },
+--- a/mobile/src/offline.ts
++++ b/mobile/src/offline.ts
+@@ -7,7 +7,9 @@
+ import { appearanceColumns } from '../../lib/gym-appearance';
+ import { localParts } from '../../lib/domain';
+ import {
+-  upgradeAppearanceSnapshot,
++  upgradeManagementSnapshot,
++  productCostColumnSql,
++  productCostTables,
+   syncChanges,
+   mappedSyncPatch,
+   validSyncSnapshot,
+@@ -166,8 +168,8 @@
+     const saved = await db.getFirstAsync<{ value: string }>('SELECT value FROM _replica_meta WHERE id=1');
+     if (saved) {
+       client.state = JSON.parse(saved.value);
+-      await client.ensureAppearance();
+-      client.state.base = upgradeAppearanceSnapshot(client.state.base);
++      await client.ensureManagementSchema();
++      client.state.base = upgradeManagementSnapshot(client.state.base);
+       await client.save();
+       validSyncSnapshot(client.state.base, session.gym_id!, session.user.id, session.installation_id);
+       if (client.state.base.scope === 'management') await client.prepareCodec();
+@@ -220,13 +222,18 @@
+       result.push({ ...table, rows: await this.db.getAllAsync<any>(`SELECT * FROM "${table.name}" ORDER BY rowid`) });
+     return result;
+   }
+-  private async ensureAppearance() {
++  private async ensureManagementSchema() {
+     const fields = await this.db.getAllAsync<{ name: string }>('PRAGMA table_info(settings)');
+     if (!fields.length) return;
+     for (const field of appearanceColumns) if (!fields.some(c => c.name === field.name)) await this.db.execAsync(`ALTER TABLE settings ADD COLUMN ${field.name} ${field.sql}`);
++    for (const table of productCostTables) {
++      const columns = await this.db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
++      if (columns.length && !columns.some(column => column.name === 'cost_cents'))
++        await this.db.execAsync(`ALTER TABLE ${table} ADD COLUMN cost_cents ${productCostColumnSql}`);
++    }
+   }
+   private async install(snapshot: SyncSnapshot) {
+-    snapshot = upgradeAppearanceSnapshot(snapshot);
++    snapshot = upgradeManagementSnapshot(snapshot);
+     validSyncSnapshot(snapshot, this.session.gym_id!, this.session.user.id, this.session.installation_id);
+     if (snapshot.scope === 'management') {
+       if (this.session.user.role !== 'admin') throw new ApiError('Esta cuenta no tiene autorización de gestión.', 403);
+@@ -253,7 +260,7 @@
+         else await this.db.execAsync(
+           `CREATE TABLE "${table.name}"(${table.columns.map((c) => `"${c.name}" ${c.type}`).join(',')}${keys.length ? ', PRIMARY KEY(' + keys.map((k) => `"${k}"`).join(',') + ')' : ''})`,
+         );
+-        if (table.name === 'settings') await this.ensureAppearance();
++        if (table.name === 'settings') await this.ensureManagementSchema();
+         const names = table.columns.map((c) => c.name);
+         for (const row of table.rows)
+           await this.db.runAsync(
+@@ -340,12 +347,12 @@
+       }
+       if (first === 'health') return { data: { ok: true, mode: 'mobile', offline: !this.online } };
+       if (first === 'auth' && id === 'status') return { data: { setupRequired: false, user: this.session.user } };
+-      if (first === 'system-info') return { data: { version: '5.2.2', desktop: false, mode: 'mobile' } };
++      if (first === 'system-info') return { data: { version: '5.3.0', desktop: false, mode: 'mobile' } };
+       if (first === 'bootstrap') {
+         let maintain = true; try { this.writable(); } catch { maintain = false; }
+         const data = await s.bootstrap({ compact: url.searchParams.get('compact') === '1', maintain });
+         if (maintain) { this.state.last_clock = Math.max(this.state.last_clock, Date.now()); await this.save(); }
+-        return { data: { ...data, version: '5.2.2', replica: { linked: true }, platform: { gym_id: this.session.gym_id, gym_name: data.settings!.name, support: false, superadmin: false, read_only: !maintain } } };
++        return { data: { ...data, version: '5.3.0', replica: { linked: true }, platform: { gym_id: this.session.gym_id, gym_name: data.settings!.name, support: false, superadmin: false, read_only: !maintain } } };
+       }
+       if (first === 'members' && method === 'GET') return { data: await s.all('SELECT user_id id,email,name,role,active FROM members') };
+       if (first === 'branding' && !id && method === 'GET') return { data: await s.one('SELECT name,brand_color,logo_path FROM settings WHERE id=1') };
+--- a/mobile/tests/management.test.ts
++++ b/mobile/tests/management.test.ts
+@@ -38,7 +38,7 @@
+   });
+   const network = async (_server: string, path: string, method = 'GET', body?: any, token?: string) => {
+     if (!connected) throw new ApiError('Sin Internet');
+-    const response = await fetch(app.url + '/api/' + path, { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', 'X-Requested-With': 'GymPASS' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
++    const response = await fetch(app.url + '/api/' + path, { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', 'X-Requested-With': 'GymPASS', 'X-GymPASS-Product-Costs': '1' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+     const data = await response.json();
+     if (!response.ok) throw new ApiError(data.error, response.status);
+     if (loseAcknowledgement && path.endsWith('/push')) { loseAcknowledgement = false; throw new ApiError('Respuesta perdida después de confirmar'); }
+@@ -77,15 +77,18 @@
+   const oldSettings = oldState.base.tables.find((table: any) => table.name === 'settings');
+   oldSettings.columns = oldSettings.columns.filter((column: any) => !column.name.startsWith('ui_'));
+   for (const row of oldSettings.rows) for (const key of Object.keys(row)) if (key.startsWith('ui_')) delete row[key];
++  oldState.base.tables = oldState.base.tables.map(replication.legacyProductCostTable);
+   stored.prepare('UPDATE _replica_meta SET value=? WHERE id=1').run(JSON.stringify(oldState));
+   for (const column of ['ui_theme', 'ui_accent', 'ui_density']) stored.exec('ALTER TABLE settings DROP COLUMN ' + column);
++  for (const table of ['pos_products', 'pos_sale_lines']) stored.exec('ALTER TABLE ' + table + ' DROP COLUMN cost_cents');
+   phone = await exports.MobileReplica.open(session, false, true); phones.push(phone); await settled(phone);
+   assert.equal((await phone.managementRequest('bootstrap?compact=1', 'GET')).data.settings.ui_theme, 'light');
++  assert.ok(databases.at(-1)!.prepare('PRAGMA table_info(pos_products)').all().some(row => row.name === 'cost_cents'));
+   const call = async (path: string, method = 'GET', body?: unknown, client = phone) => (await client.managementRequest(path, method, body)).data;
+   await call('settings', 'PATCH', { ui_theme: 'dark', ui_accent: '#2455a4', ui_density: 'compact' });
+   const person = await call('people', 'POST', { name: 'Socio desconectado', document: 'OFFLINE-1', kind: 'member', status: 'active', phone: '59171234567' });
+   const plan = await call('pos/plans', 'POST', { name: 'Cinco sesiones', unit: 'sessions', duration: 5, price_cents: 5000 });
+-  const product = await call('pos/products', 'POST', { name: 'Agua', price_cents: 500, stock: 10, track_stock: true });
++  const product = await call('pos/products', 'POST', { name: 'Agua', price_cents: 500, cost_cents: 225, stock: 10, track_stock: true });
+   const checkout = { request_id: randomUUID(), person_id: person.id, payment_method: 'cash', lines: [{ kind: 'plan', id: plan.id, quantity: 1 }, { kind: 'product', id: product.id, quantity: 2 }] };
+   const sale = await call('pos/checkout', 'POST', checkout);
+   const repeated = await call('pos/checkout', 'POST', checkout);
+@@ -100,6 +103,10 @@
+   const today = (await call('bootstrap?compact=1')).today;
+   const report = await call(`pos/reports?from=${today}&to=${today}&period=day`);
+   assert.ok(report);
++  assert.equal(report.summary.product_margin.cost_cents, 450);
++  assert.equal(report.summary.product_margin.profit_cents, 550);
++  assert.equal(report.summary.product_margin.missing_cost_quantity, 0);
++  assert.equal(sale.lines.find((line: any) => line.kind === 'product').cost_cents, 225);
+   const boot = await call('bootstrap?compact=1');
+   assert.equal(boot.stats.inside, 1);
+   await settled(phone); await phone.stop();
+@@ -117,6 +124,8 @@
+     assert.equal(ctx.db.raw.prepare('SELECT COUNT(*) n FROM pos_sales').get()!.n, 1);
+     assert.equal(ctx.db.raw.prepare('SELECT ui_theme FROM settings').get()!.ui_theme, 'dark');
+     assert.equal(ctx.db.raw.prepare('SELECT stock FROM pos_products WHERE id=?').get(product.id)!.stock, 8);
++    assert.equal(ctx.db.raw.prepare('SELECT cost_cents FROM pos_products WHERE id=?').get(product.id)!.cost_cents, 225);
++    assert.equal(ctx.db.raw.prepare("SELECT cost_cents FROM pos_sale_lines WHERE sale_id=? AND kind='product'").get(sale.id)!.cost_cents, 225);
+     assert.equal(ctx.db.raw.prepare('SELECT sessions_remaining FROM pos_memberships WHERE person_id=?').get(person.id)!.sessions_remaining, 4);
+     const remoteCard = await new service.Service(ctx.db, { ...admin, role: 'admin' }, ctx.codec).credentialCard(sale.credential.id);
+     assert.equal(remoteCard.code, card.code, 'el QR creado sin red también se descifra en el servidor');
+--- a/mobile/tests/offline.test.ts
++++ b/mobile/tests/offline.test.ts
+@@ -105,6 +105,7 @@
+           Authorization: 'Bearer ' + token,
+           'Content-Type': 'application/json',
+           'X-Requested-With': 'GymPASS',
++            'X-GymPASS-Product-Costs': '1',
+         },
+         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+       });
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "5.2.2",
++  "version": "5.3.0",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-control-acceso",
+-      "version": "5.2.2",
++      "version": "5.3.0",
+       "dependencies": {
+         "lucide-react": "1.57.0",
+         "qrcode-generator": "2.0.4",
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "5.2.2",
++  "version": "5.3.0",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+--- /dev/null
++++ b/server/migrations/025_product_costs.sql
+@@ -0,0 +1,3 @@
++-- NULL preserves the distinction between an unknown historical cost and a free product.
++ALTER TABLE pos_products ADD COLUMN cost_cents INTEGER CHECK(cost_cents IS NULL OR (typeof(cost_cents)='integer' AND cost_cents BETWEEN 0 AND 1000000000));
++ALTER TABLE pos_sale_lines ADD COLUMN cost_cents INTEGER CHECK(cost_cents IS NULL OR (typeof(cost_cents)='integer' AND cost_cents BETWEEN 0 AND 1000000000));
+--- a/server/replica-client.ts
++++ b/server/replica-client.ts
+@@ -4,7 +4,7 @@
+ import { Backups } from "./backups.ts";
+ import { ApiError, hash } from "../lib/service.ts";
+ import {
+-  upgradeAppearanceSnapshot,
++  upgradeManagementSnapshot,
+   syncChanges,
+   validSyncSnapshot,
+   mappedSyncPatch,
+@@ -79,7 +79,7 @@
+       .get();
+     if (!row) return null;
+     const state = JSON.parse(String(row.state)) as State;
+-    state.base = upgradeAppearanceSnapshot(state.base);
++    state.base = upgradeManagementSnapshot(state.base);
+     return state;
+   }
+   private save(state: State) {
+@@ -179,6 +179,7 @@
+         headers: {
+           "Content-Type": "application/json",
+           "X-Requested-With": "GymPASS",
++          "X-GymPASS-Product-Costs": "1",
+           ...headers,
+         },
+         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+@@ -311,8 +312,8 @@
+     return { linked: true, user: snapshot.user };
+   }
+   private install(snapshot: SyncSnapshot, state: State) {
+-    snapshot = upgradeAppearanceSnapshot(snapshot);
+-    state = { ...state, base: upgradeAppearanceSnapshot(state.base) };
++    snapshot = upgradeManagementSnapshot(snapshot);
++    state = { ...state, base: upgradeManagementSnapshot(state.base) };
+     validSyncSnapshot(snapshot, snapshot.gym_id, snapshot.user.id);
+     const raw = this.db.raw;
+     const triggers = raw
+--- a/server/replication-api.ts
++++ b/server/replication-api.ts
+@@ -161,7 +161,7 @@
+         data_uri: `data:image/${String(person.photo_path).endsWith('.webp') ? 'webp' : 'png'};base64,${bytes.toString('base64')}` });
+     }
+     if (action === "snapshot" && method === "GET") {
+-      const snapshot = await replicaSnapshot(ctx, device, auth);
++      const snapshot = await replicaSnapshot(ctx, device, auth, req.headers['x-gympass-product-costs'] === '1');
+       authorizeReplica(store, ctx, token);
+       if (url.searchParams.get("revision") === snapshot.revision)
+         return json(res, {
+@@ -197,7 +197,7 @@
+         event_ids: ids,
+         ...(result.status === "conflict"
+           ? {}
+-          : { snapshot: await replicaSnapshot(ctx, device, auth) }),
++          : { snapshot: await replicaSnapshot(ctx, device, auth, req.headers['x-gympass-product-costs'] === '1') }),
+       });
+     }
+     throw new ApiError(404, "Operación de sincronización no disponible.");
+--- a/server/replication.ts
++++ b/server/replication.ts
+@@ -16,6 +16,7 @@
+   syncTables,
+   mobileSyncTables,
+   sameValue,
++  legacyProductCostTable,
+   syncKey,
+   type SyncSnapshot,
+   type SyncTable,
+@@ -205,8 +206,10 @@
+   ctx: TenantContext,
+   device: Device,
+   auth: GymAuthorization,
++  productCosts = true,
+ ): Promise<SyncSnapshot> {
+-  const tables = replicaTables(ctx.db.raw, device.management ? "desktop" : device.kind);
++  const currentTables = replicaTables(ctx.db.raw, device.management ? "desktop" : device.kind);
++  const tables = productCosts ? currentTables : currentTables.map(legacyProductCostTable);
+   const assets =
+     device.kind === "desktop" || device.management ? replicaAssets(ctx.root) : undefined;
+   const triggers = (
+@@ -470,6 +473,11 @@
+           : (raw
+               .prepare(`SELECT * FROM "${table.name}" WHERE ${where}`)
+               .get(...args) as SyncRow | undefined);
++      // Older clients never read these columns. Their edits must preserve the cloud cost.
++      if (table.name === 'pos_products' || table.name === 'pos_sale_lines')
++        for (const value of [before, after])
++          if (value && !Object.prototype.hasOwnProperty.call(value, 'cost_cents'))
++            value.cost_cents = current?.cost_cents ?? null;
+       if (!after) {
+         if (!current) continue;
+         if (
+--- a/src/AppDownloads.tsx
++++ b/src/AppDownloads.tsx
+@@ -1,8 +1,8 @@
+ import { Download, Monitor, Smartphone } from 'lucide-react';
+ import './styles/app-downloads.css';
+ 
+-const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.2.2/';
+-const androidApk = release + 'GymPASS-Android-5.2.2.apk';
++const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.3.0/';
++const androidApk = release + 'GymPASS-Android-5.3.0.apk';
+ 
+ export default function AppDownloads() {
+   if (
+@@ -22,20 +22,20 @@
+           <Smartphone size={24} aria-hidden="true" />
+           <span>
+             <strong>Móvil Android</strong>
+-            <small>Descargar APK · v5.2.2</small>
++            <small>Descargar APK · v5.3.0</small>
+           </span>
+           <Download size={16} aria-hidden="true" />
+         </a>
+         <a
+           className="app-download"
+-          href={release + 'GymPASS-Setup-5.2.2.exe'}
++          href={release + 'GymPASS-Setup-5.3.0.exe'}
+           target="_blank"
+           rel="noopener noreferrer"
+         >
+           <Monitor size={24} aria-hidden="true" />
+           <span>
+             <strong>Escritorio Windows</strong>
+-            <small>Descargar instalador · v5.2.2</small>
++            <small>Descargar instalador · v5.3.0</small>
+           </span>
+           <Download size={16} aria-hidden="true" />
+         </a>
+--- a/src/Pos.tsx
++++ b/src/Pos.tsx
+@@ -163,7 +163,7 @@
+   }
+   const matches = (name: string) => name.toLocaleLowerCase().includes(search.toLocaleLowerCase());
+   const products = catalog.products.filter(
+-    (item) => item.active && matches(item.name + ' ' + item.sku + ' ' + item.category),
++    (item) => item.active && matches(item.name + ' ' + item.category),
+   );
+   const plans = catalog.plans.filter((item) => item.active && matches(item.name));
+   return (
+@@ -650,7 +650,7 @@
+   );
+ }
+ 
+-function CatalogEditor({
++export function CatalogEditor({
+   kind,
+   item,
+   onClose,
+@@ -664,6 +664,11 @@
+   const savedId = useRef(item?.id);
+   const product = kind === 'product' ? (item as PosProduct | undefined) : undefined;
+   const plan = kind === 'plan' ? (item as PosPlan | undefined) : undefined;
++  const [cost, setCost] = useState(product?.cost_cents == null ? '' : (product.cost_cents / 100).toFixed(2));
++  const [salePrice, setSalePrice] = useState(((item?.price_cents || 0) / 100).toFixed(2));
++  const amount = (value: string) => /^\d+(?:[.,]\d{1,2})?$/.test(value.trim())
++    ? Math.round(Number(value.trim().replace(',', '.')) * 100) : null;
++  const costValue = amount(cost), priceValue = amount(salePrice);
+   return (
+     <Modal title={`${item ? 'Editar' : 'Nuevo'} ${kind === 'product' ? 'producto' : 'plan'}`} onClose={onClose}>
+       <Form
+@@ -672,7 +677,10 @@
+           const price = String(form.get('price')).trim();
+           if (!/^\d+(?:[.,]\d{1,2})?$/.test(price)) throw Error('Indica un precio válido con hasta dos decimales.');
+           const priceCents = Math.round(Number(price.replace(',', '.')) * 100);
+-          if (!Number.isSafeInteger(priceCents) || priceCents < 0) throw Error('El precio no es válido.');
++          if (!Number.isSafeInteger(priceCents) || priceCents < 0 || priceCents > 1000000000) throw Error('El precio no es válido.');
++          const purchaseCost = amount(String(form.get('cost') ?? ''));
++          if (kind === 'product' && (purchaseCost === null || !Number.isSafeInteger(purchaseCost) || purchaseCost < 0 || purchaseCost > 1000000000))
++            throw Error('Indica un costo de compra válido con hasta dos decimales.');
+           const result = await api<{ id: string }>(
+             `pos/${kind === 'product' ? 'products' : 'plans'}${savedId.current ? '/' + encodeURIComponent(savedId.current) : ''}`,
+             savedId.current ? 'PATCH' : 'POST',
+@@ -682,7 +690,7 @@
+               active: form.get('active') === '1' ? 1 : 0,
+               ...(kind === 'product'
+                 ? {
+-                    sku: String(form.get('sku') || '').trim(),
++                    cost_cents: purchaseCost,
+                     category: String(form.get('category') || '').trim(),
+                     track_stock: form.get('track_stock') === '1' ? 1 : 0,
+                     ...(!item ? { stock: Number(form.get('stock') || 0) } : {}),
+@@ -698,25 +706,33 @@
+         <Field label="Nombre">
+           <input name="name" required maxLength={120} defaultValue={item?.name} />
+         </Field>
++        {kind === 'product' && (
++          <Field label="Costo de compra por unidad (BOB)" hint="Lo que te cuesta comprar una unidad del producto.">
++            <input name="cost" required inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?"
++              placeholder="0,00" value={cost} onChange={(event) => setCost(event.target.value)} />
++          </Field>
++        )}
+         <Field label="Precio de venta (BOB)">
+           <input
+             name="price"
+             required
+             inputMode="decimal"
+             pattern="[0-9]+([.,][0-9]{1,2})?"
+-            defaultValue={((item?.price_cents || 0) / 100).toFixed(2)}
++            value={salePrice}
++            onChange={(event) => setSalePrice(event.target.value)}
+           />
+         </Field>
++        {kind === 'product' && costValue !== null && priceValue !== null && (
++          <p className="helper" role="status">
++            Ganancia bruta por unidad: <strong>{money(priceValue - costValue)}</strong>.
++            {priceValue < costValue && ' El precio de venta está por debajo del costo de compra.'}
++          </p>
++        )}
+         {kind === 'product' ? (
+           <>
+-            <div className="form-grid">
+-              <Field label="Código / SKU">
+-                <input name="sku" maxLength={80} defaultValue={product?.sku} />
+-              </Field>
+-              <Field label="Categoría">
+-                <input name="category" maxLength={80} defaultValue={product?.category} />
+-              </Field>
+-            </div>
++            <Field label="Categoría">
++              <input name="category" maxLength={100} defaultValue={product?.category} />
++            </Field>
+             <Field label="Inventario">
+               <select name="track_stock" defaultValue={product?.track_stock ?? 1}>
+                 <option value="1">Controlar stock</option>
+@@ -1269,8 +1285,10 @@
+                   headers={
+                     <tr>
+                       <th>Nombre</th>
+-                      <th>{tab === 'products' ? 'Código / categoría' : 'Modalidad'}</th>
+-                      <th className="num">Precio</th>
++                      <th>{tab === 'products' ? 'Categoría' : 'Modalidad'}</th>
++                      {admin && tab === 'products' && <th className="num">Costo de compra</th>}
++                      <th className="num">Precio de venta</th>
++                      {admin && tab === 'products' && <th className="num">Ganancia por unidad</th>}
+                       <th>Estado / stock</th>
+                       {admin && <th>Acciones</th>}
+                     </tr>
+@@ -1281,16 +1299,11 @@
+                         <strong>{item.name}</strong>
+                       </td>
+                       <td>
+-                        {'sku' in item ? (
+-                          <>
+-                            {item.sku || 'Sin código'}
+-                            <small>{item.category || 'Sin categoría'}</small>
+-                          </>
+-                        ) : (
+-                          duration(item)
+-                        )}
++                        {'stock' in item ? item.category || 'Sin categoría' : duration(item)}
+                       </td>
++                      {admin && tab === 'products' && <td className="num">{'stock' in item && item.cost_cents != null ? money(item.cost_cents) : 'Sin registrar'}</td>}
+                       <td className="num">{money(item.price_cents)}</td>
++                      {admin && tab === 'products' && <td className="num">{'stock' in item && item.cost_cents != null ? money(item.price_cents - item.cost_cents) : 'Sin registrar'}</td>}
+                       <td>
+                         <Badge tone={item.active ? 'green' : 'gray'}>{item.active ? 'Activo' : 'Inactivo'}</Badge>
+                         {'stock' in item && (
+@@ -1330,6 +1343,9 @@
+                             : 'Sin control de stock'
+                           : duration(item)}
+                       </p>
++                      {admin && 'stock' in item && (
++                        <p>Costo: {item.cost_cents == null ? 'Sin registrar' : money(item.cost_cents)} · Ganancia por unidad: {item.cost_cents == null ? 'Sin registrar' : money(item.price_cents - item.cost_cents)}</p>
++                      )}
+                       {admin && (
+                         <div className="button-row">
+                           <button
+--- a/src/PosReports.tsx
++++ b/src/PosReports.tsx
+@@ -10,6 +10,7 @@
+   defaultRange,
+   methodNames,
+   money,
++  marginMoney,
+   periodNames,
+   reportCsv,
+   reportFileName,
+@@ -70,7 +71,7 @@
+   );
+ }
+ 
+-function Ranking({ title, items, empty }: { title: string; items: PosReportItem[]; empty: string }) {
++function Ranking({ title, items, empty, showMargin = false }: { title: string; items: PosReportItem[]; empty: string; showMargin?: boolean }) {
+   const total = items.reduce((sum, row) => sum + row.total_cents, 0);
+   const parts = foldParts(
+     items.map((row) => ({
+@@ -94,6 +95,8 @@
+                   <th className="num">Cantidad</th>
+                   <th className="num">Ingresos</th>
+                   <th className="num">% del total</th>
++                  {showMargin && <th className="num">Costo de compra</th>}
++                  {showMargin && <th className="num">Ganancia bruta</th>}
+                 </tr>
+               </thead>
+               <tbody>
+@@ -108,6 +111,8 @@
+                     <td className="num">{row.quantity}</td>
+                     <td className="num">{money(row.total_cents)}</td>
+                     <td className="num">{total ? Math.round((row.total_cents / total) * 100) : 0} %</td>
++                    {showMargin && <td className="num">{marginMoney(row.margin, 'cost_cents')}</td>}
++                    {showMargin && <td className="num">{marginMoney(row.margin, 'profit_cents')}</td>}
+                   </tr>
+                 ))}
+               </tbody>
+@@ -255,7 +260,16 @@
+               <dd>{summary.void_count}</dd>
+               <small>{money(summary.void_cents)} no cobrados</small>
+             </div>
++            {summary.product_margin && <>
++              <div><dt>Ingresos por productos</dt><dd>{money(summary.product_margin.revenue_cents)}</dd><small>Solo ventas de productos</small></div>
++              <div><dt>Costo de productos vendidos</dt><dd>{marginMoney(summary.product_margin, 'cost_cents')}</dd><small>Costo registrado al cobrar cada venta</small></div>
++              <div><dt>Ganancia bruta de productos</dt><dd>{marginMoney(summary.product_margin, 'profit_cents')}</dd><small>Ingresos por productos menos su costo de compra</small></div>
++            </>}
+           </dl>
++          {summary.product_margin && summary.product_margin.missing_cost_quantity > 0 && (
++            <p className="helper" role="status">Hay {summary.product_margin.missing_cost_quantity} unidades vendidas sin costo registrado. Su ganancia no está calculada; los importes parciales incluyen únicamente las unidades con costo conocido.</p>
++          )}
++          {summary.product_margin && <p className="helper">La ganancia bruta de productos excluye los planes y otros gastos del gimnasio.</p>}
+           <h2>Ingresos por {periodNames[report.period].toLowerCase()}</h2>
+           {summary.count ? <Bars report={report} /> : <p className="helper">No hay ventas pagadas en este rango.</p>}
+           <div className="table-scroll">
+@@ -282,6 +296,7 @@
+             <Ranking title="Planes más vendidos" items={report.plans} empty="No se vendieron planes en este rango." />
+             <Ranking
+               title="Productos más vendidos"
++              showMargin
+               items={report.products}
+               empty="No se vendieron productos en este rango."
+             />
+--- a/src/pos-report-export.ts
++++ b/src/pos-report-export.ts
+@@ -1,6 +1,7 @@
+ import { toCsv } from '../lib/csv.ts';
+ import { nextDate } from '../lib/domain.ts';
+ import type { PaymentMethod, PosReport, PosReportPeriod } from '../lib/pos-types.ts';
++import { marginComplete, marginKnown, type ProductMargin } from '../lib/product-costs.ts';
+ 
+ export const money = (cents: number) =>
+   new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(cents / 100);
+@@ -38,6 +39,21 @@
+   return bucket;
+ }
+ const decimal = (cents: number) => (cents / 100).toFixed(2);
++export function marginMoney(margin: ProductMargin | undefined, field: 'cost_cents' | 'profit_cents') {
++  if (!margin || !marginKnown(margin)) return 'Sin registrar';
++  return money(margin[field]) + (marginComplete(margin) ? '' : ' (parcial)');
++}
++
++function marginCsv(section: string, name: string, margin: ProductMargin): unknown[][] {
++  const suffix = marginComplete(margin) ? '' : ' (parcial)';
++  const known = margin.quantity - margin.missing_cost_quantity;
++  return [
++    [section, name + ' · ingresos', margin.quantity, decimal(margin.revenue_cents)],
++    [section, name + ' · costo de compra' + suffix, known, marginKnown(margin) ? decimal(margin.cost_cents) : 'Sin registrar'],
++    [section, name + ' · ganancia bruta' + suffix, known, marginKnown(margin) ? decimal(margin.profit_cents) : 'Sin registrar'],
++    ...(margin.missing_cost_quantity ? [[section, name + ' · unidades sin costo registrado', margin.missing_cost_quantity, 'No calculado']] : []),
++  ];
++}
+ 
+ export function reportCsv(report: PosReport) {
+   const { summary } = report;
+@@ -46,6 +62,7 @@
+     ['Resumen', 'Ingresos', summary.count, decimal(summary.total_cents)],
+     ['Resumen', 'Ticket promedio', '', decimal(summary.average_cents)],
+     ['Resumen', 'Ventas anuladas', summary.void_count, decimal(summary.void_cents)],
++    ...(summary.product_margin ? marginCsv('Resumen de productos', 'Productos', summary.product_margin) : []),
+     [
+       'Resumen',
+       `Período anterior (${day(summary.previous.from)} al ${day(summary.previous.to)})`,
+@@ -60,6 +77,7 @@
+     ]),
+     ...report.plans.map((row) => ['Planes', row.name, row.quantity, decimal(row.total_cents)]),
+     ...report.products.map((row) => ['Productos', row.name, row.quantity, decimal(row.total_cents)]),
++    ...report.products.flatMap((row) => row.margin ? marginCsv('Costos y ganancias', row.name, row.margin) : []),
+     ...report.by_method.map((row) => [
+       'Método de pago',
+       methodNames[row.payment_method],
+@@ -104,6 +122,12 @@
+     `<div>Ventas<strong>${summary.count}</strong></div>` +
+     `<div>Ticket promedio<strong>${escapeHtml(money(summary.average_cents))}</strong></div>` +
+     `<div>Anuladas<strong>${summary.void_count}</strong></div></div>` +
++    (summary.product_margin ? table('Costos y ganancias de productos', ['Concepto', 'Unidades', 'Importe (BOB)'], [
++      ['Ingresos por productos', summary.product_margin.quantity, money(summary.product_margin.revenue_cents)],
++      ['Costo de productos vendidos', summary.product_margin.quantity - summary.product_margin.missing_cost_quantity, marginMoney(summary.product_margin, 'cost_cents')],
++      ['Ganancia bruta de productos', summary.product_margin.quantity - summary.product_margin.missing_cost_quantity, marginMoney(summary.product_margin, 'profit_cents')],
++      ...(summary.product_margin.missing_cost_quantity ? [['Unidades sin costo registrado', summary.product_margin.missing_cost_quantity, 'Ganancia pendiente de calcular']] : []),
++    ]) + '<p>La ganancia bruta de productos excluye los planes y otros gastos del gimnasio.</p>' : '') +
+     table(
+       'Evolución',
+       [periodNames[report.period], 'Ventas', 'Ingresos'],
+@@ -116,12 +140,14 @@
+     ) +
+     table(
+       'Productos más vendidos',
+-      ['Producto', 'Cantidad', 'Ingresos', '% de productos'],
++      ['Producto', 'Cantidad', 'Ingresos', '% de productos', 'Costo de compra', 'Ganancia bruta'],
+       report.products.map((row) => [
+         row.name,
+         row.quantity,
+         money(row.total_cents),
+         pct(row.total_cents, productTotal),
++        marginMoney(row.margin, 'cost_cents'),
++        marginMoney(row.margin, 'profit_cents'),
+       ]),
+     ) +
+     table(
+--- /dev/null
++++ b/tests/product-costs-ui.test.ts
+@@ -0,0 +1,51 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { componentHarness, componentStubs, elementText, findElement } from './component-harness.ts';
++
++function editor(t: { after(fn: () => void): void }, item?: unknown) {
++  const calls: any[] = [];
++  const h = componentHarness(); t.after(() => h.cleanup());
++  const { CatalogEditor } = h.load('../src/Pos.tsx', {
++    'react-dom': { createPortal: (value: unknown) => value }, 'lucide-react': componentStubs,
++    '../lib/pos-types': {}, './api': { api: async (...args: unknown[]) => { calls.push(args); return { id: 'product' }; } },
++    './usePeople': {}, './browser': {}, './PersonMemberships': { default: 'PersonMemberships' },
++    './PosReports': { default: 'PosReports' }, './ShareCredentialButton': { default: 'ShareCredentialButton' },
++    './ui': componentStubs, './styles/pos.css': {},
++  });
++  const tree = h.render(() => CatalogEditor({ kind: 'product', item, onClose() {}, onSaved: async () => {} }));
++  return { h, tree, calls };
++}
++
++test('el producto pide costo y precio, no muestra SKU y envía centavos con coma decimal', async t => {
++  const { tree, calls } = editor(t);
++  assert.ok(findElement(tree, el => el.props.label === 'Costo de compra por unidad (BOB)'));
++  assert.ok(findElement(tree, el => el.props.label === 'Precio de venta (BOB)'));
++  assert.throws(() => findElement(tree, el => el.props.name === 'sku'));
++  assert.doesNotMatch(elementText(tree), /SKU|Código/);
++  assert.equal(findElement(tree, el => el.type === 'input' && el.props.name === 'cost').props.required, true);
++  const form = new FormData();
++  for (const [key, value] of Object.entries({ name: 'Agua', price: '5,50', cost: '2,25', stock: '10', active: '1', track_stock: '1' })) form.set(key, value);
++  await findElement(tree, el => el.type === 'Form').props.onSubmit(form);
++  assert.equal(calls.length, 1);
++  assert.equal(calls[0][2].cost_cents, 225);
++  assert.equal(calls[0][2].price_cents, 550);
++  assert.ok(!('sku' in calls[0][2]));
++});
++
++test('un costo ausente o inválido impide guardar; el cero sí se guarda', async t => {
++  const { tree, calls } = editor(t);
++  const submit = findElement(tree, el => el.type === 'Form').props.onSubmit;
++  const form = new FormData(); form.set('name', 'Agua'); form.set('price', '5');
++  for (const cost of ['', '-1', '1.234', '10000001', 'abc']) { form.set('cost', cost); await assert.rejects(submit(form), /costo/); }
++  assert.equal(calls.length, 0);
++  form.set('cost', '0'); await submit(form);
++  assert.equal(calls[0][2].cost_cents, 0);
++});
++
++test('previsualiza pérdidas y distingue un costo antiguo sin registrar', async t => {
++  const { h, tree } = editor(t, { id: 'product', name: 'Agua', price_cents: 500, cost_cents: null });
++  assert.equal(findElement(tree, el => el.type === 'input' && el.props.name === 'cost').props.value, '');
++  findElement(tree, el => el.type === 'input' && el.props.name === 'cost').props.onChange({ target: { value: '6' } });
++  const updated = await h.settle();
++  assert.match(elementText(updated), /precio de venta está por debajo/);
++});
+--- /dev/null
++++ b/tests/product-costs.test.ts
+@@ -0,0 +1,142 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { DatabaseSync } from 'node:sqlite';
++import { readFileSync, readdirSync } from 'node:fs';
++import { SqliteDatabase, migrateDatabase } from '../server/database.ts';
++import { Service } from '../lib/service.ts';
++import { PosService } from '../lib/pos.ts';
++import { legacyProductCostTable, upgradeManagementSnapshot, type SyncSnapshot } from '../lib/replication.ts';
++import { replicaTables } from '../server/replication.ts';
++import { reportCsv, reportPrintHtml, marginMoney } from '../src/pos-report-export.ts';
++
++function fixture(t: { after(fn: () => void): void }) {
++  const db = new SqliteDatabase(':memory:');
++  t.after(() => db.close());
++  db.raw.exec("INSERT INTO settings(id,owner,name,timezone) VALUES(1,'owner','Gym','America/La_Paz')");
++  const service = new Service(db, { id: 'owner', email: 'owner@test.test', name: 'Admin', role: 'admin' });
++  const pos = new PosService(service);
++  const buy = (id: string, quantity = 1, request_id = crypto.randomUUID()) => pos.checkout({ request_id, payment_method: 'cash', lines: [{ kind: 'product', id, quantity }] });
++  const report = async () => { const today = await pos.today(); return pos.report(new URLSearchParams({ from: today, to: today })); };
++  return { db, service, pos, buy, report };
++}
++
++test('costos: guarda enteros, acepta cero y conserva costo y código antiguos cuando se omiten', async t => {
++  const { pos } = fixture(t);
++  const product = await pos.saveProduct({ name: 'Agua', price_cents: 500, cost_cents: 250, sku: 'ANTIGUO' });
++  assert.equal(product.cost_cents, 250);
++  const updated = await pos.saveProduct({ name: 'Agua nueva', price_cents: 600 }, product.id);
++  assert.equal(updated.cost_cents, 250);
++  assert.equal(updated.sku, 'ANTIGUO');
++  assert.equal((await pos.saveProduct({ name: 'Gratis', price_cents: 100, cost_cents: 0 })).cost_cents, 0);
++  assert.equal((await pos.saveProduct({ name: 'Anterior', price_cents: 100 })).cost_cents, null);
++  for (const cost of [-1, 1.5, 1000000001, '2.50', NaN, Infinity])
++    await assert.rejects(pos.saveProduct({ name: 'Inválido', price_cents: 500, cost_cents: cost }));
++});
++
++test('cada venta conserva su costo histórico, incluso después de editar, reintentar y anular', async t => {
++  const { pos, buy, report } = fixture(t);
++  const product = await pos.saveProduct({ name: 'Agua', price_cents: 500, cost_cents: 200, stock: 20 });
++  const request = crypto.randomUUID();
++  const first = await buy(product.id, 3, request);
++  assert.equal(first.lines[0].cost_cents, 200);
++  await pos.saveProduct({ name: 'Agua', price_cents: 600, cost_cents: 350 }, product.id);
++  const retried = await buy(product.id, 3, request);
++  assert.equal(retried.id, first.id);
++  assert.equal(retried.lines[0].cost_cents, 200);
++  const second = await buy(product.id, 2);
++  let margin = (await report()).summary.product_margin!;
++  assert.deepEqual({ ...margin }, { quantity: 5, revenue_cents: 2700, cost_cents: 1300, profit_cents: 1400, missing_cost_quantity: 0 });
++  await pos.voidSale(second.id, { reason: 'Cobro equivocado' });
++  margin = (await report()).summary.product_margin!;
++  assert.deepEqual({ ...margin }, { quantity: 3, revenue_cents: 1500, cost_cents: 600, profit_cents: 900, missing_cost_quantity: 0 });
++  assert.equal((await pos.sale(first.id)).lines[0].cost_cents, 200);
++});
++
++test('el costo se toma al registrar la venta, aunque cambie después de consultar el catálogo', async t => {
++  const { db, service, pos, buy } = fixture(t);
++  const product = await pos.saveProduct({ name: 'Agua', price_cents: 500, cost_cents: 200, stock: 5 });
++  const original = service.one.bind(service);
++  t.mock.method(service, 'one', async (sql: string, ...args: any[]) => {
++    const row = await original(sql, ...args);
++    if (sql === 'SELECT * FROM pos_products WHERE id=?')
++      db.raw.prepare('UPDATE pos_products SET cost_cents=300 WHERE id=?').run(product.id);
++    return row;
++  });
++  const sale = await buy(product.id);
++  assert.equal(sale.lines[0].cost_cents, 300);
++});
++
++test('distingue costos desconocidos, costo cero y pérdidas sin alterar los ingresos', async t => {
++  const { pos, buy, report } = fixture(t);
++  const unknown = await pos.saveProduct({ name: 'Anterior', price_cents: 500, track_stock: 0 });
++  const free = await pos.saveProduct({ name: 'Obsequio', price_cents: 100, cost_cents: 0, track_stock: 0 });
++  const loss = await pos.saveProduct({ name: 'Liquidación', price_cents: 200, cost_cents: 300, track_stock: 0 });
++  await buy(unknown.id, 2); await buy(free.id); await buy(loss.id);
++  await pos.saveProduct({ name: 'Anterior', price_cents: 500, cost_cents: 250, track_stock: 0 }, unknown.id);
++  const data = await report();
++  assert.equal(data.summary.total_cents, 1300);
++  assert.deepEqual({ ...data.summary.product_margin }, { quantity: 4, revenue_cents: 1300, cost_cents: 300, profit_cents: 0, missing_cost_quantity: 2 });
++  const unknownMargin = data.products.find(row => row.item_id === unknown.id)!.margin!;
++  assert.equal(marginMoney(unknownMargin, 'cost_cents'), 'Sin registrar');
++  assert.equal(marginMoney(unknownMargin, 'profit_cents'), 'Sin registrar');
++  assert.match(marginMoney(data.summary.product_margin, 'profit_cents'), /parcial/);
++  assert.equal(data.products.find(row => row.item_id === loss.id)!.margin!.profit_cents, -100);
++  assert.match(reportCsv(data), /unidades sin costo registrado/);
++  assert.match(reportPrintHtml(data, 'Gym'), /Ganancia pendiente de calcular/);
++});
++
++test('la ganancia de productos excluye planes y suma también los productos fuera del ranking', async t => {
++  const { pos, service, buy, report } = fixture(t);
++  for (let i = 0; i < 22; i++) {
++    const product = await pos.saveProduct({ name: 'Producto ' + i, price_cents: 500, cost_cents: 200, track_stock: 0 });
++    await buy(product.id);
++  }
++  const person = await service.savePerson({ name: 'Socio', document: 'COST', phone: '59171234567', kind: 'member', status: 'active' });
++  const plan = await pos.savePlan({ name: 'Mes', price_cents: 20000, unit: 'months', duration: 1 });
++  const sale = await pos.checkout({ request_id: crypto.randomUUID(), person_id: person.id, payment_method: 'cash', lines: [{ kind: 'plan', id: plan.id, quantity: 1 }] });
++  assert.equal(sale.lines[0].cost_cents, null);
++  const data = await report();
++  assert.equal(data.products.length, 20);
++  assert.equal(data.summary.total_cents, 31000);
++  assert.deepEqual({ ...data.summary.product_margin }, { quantity: 22, revenue_cents: 11000, cost_cents: 4400, profit_cents: 6600, missing_cost_quantity: 0 });
++  assert.match(reportCsv(data), /"Productos · ganancia bruta","22","66\.00"/);
++});
++
++test('migración 25 conserva productos y ventas anteriores con costo desconocido', () => {
++  const raw = new DatabaseSync(':memory:');
++  try {
++    const directory = new URL('../server/migrations/', import.meta.url);
++    for (const name of readdirSync(directory).filter(name => /^\d+.*\.sql$/.test(name) && name < '025').sort()) {
++      raw.exec(readFileSync(new URL(name, directory), 'utf8'));
++      raw.prepare('INSERT OR IGNORE INTO schema_version VALUES(?)').run(Number(name.slice(0, 3)));
++    }
++    raw.exec("INSERT INTO pos_products(id,name,sku,price_cents,stock) VALUES('old','Agua','OLD',500,5)");
++    raw.exec("INSERT INTO pos_sales(id,request_id,payload_hash,actor,created_at,local_date,start_date,payment_method,total_cents) VALUES('sale','request','hash','owner',1,'2026-11-13','2026-11-13','cash',500)");
++    raw.exec("INSERT INTO pos_sale_lines(id,sale_id,kind,item_id,name,quantity,price_cents,total_cents,track_stock) VALUES('line','sale','product','old','Agua',1,500,500,1)");
++    migrateDatabase(raw);
++    assert.equal(raw.prepare('SELECT cost_cents FROM pos_products').get()!.cost_cents, null);
++    assert.equal(raw.prepare('SELECT cost_cents FROM pos_sale_lines').get()!.cost_cents, null);
++    assert.equal(raw.prepare('SELECT sku FROM pos_products').get()!.sku, 'OLD');
++    assert.equal(raw.prepare('SELECT stock FROM pos_products').get()!.stock, 4);
++    assert.equal(raw.prepare('SELECT total_cents FROM pos_sales').get()!.total_cents, 500);
++  } finally { raw.close(); }
++});
++
++test('las copias antiguas se amplían con NULL; el formato compatible conserva el esquema anterior', t => {
++  const { db } = fixture(t);
++  const tables = replicaTables(db.raw, 'desktop').filter(table => table.name === 'pos_products' || table.name === 'pos_sale_lines');
++  const legacy = tables.map(legacyProductCostTable);
++  for (const table of legacy) {
++    assert.ok(!table.columns.some(column => column.name === 'cost_cents'));
++    assert.ok(!table.sql!.includes('cost_cents'));
++    const check = new DatabaseSync(':memory:');
++    try { check.exec(table.sql!); } finally { check.close(); }
++  }
++  const upgraded = upgradeManagementSnapshot({ tables: legacy } as SyncSnapshot);
++  for (const table of upgraded.tables) {
++    assert.ok(table.columns.some(column => column.name === 'cost_cents'));
++    const check = new DatabaseSync(':memory:');
++    try { check.exec(table.sql!); assert.ok(check.prepare(`PRAGMA table_info(${table.name})`).all().some(column => column.name === 'cost_cents')); } finally { check.close(); }
++  }
++  assert.deepEqual(upgradeManagementSnapshot(upgraded), upgraded);
++});
+--- a/tests/release-version.test.ts
++++ b/tests/release-version.test.ts
+@@ -2,14 +2,14 @@
+ import { test } from 'node:test';
+ import { readFile } from 'node:fs/promises';
+ 
+-test('web, Android y Windows usan 5.2.2', async () => {
++test('web, Android y Windows usan 5.3.0', async () => {
+   for (const path of ['package.json', 'desktop/package.json', 'desktop-runtime/package.json']) {
+     const manifest = JSON.parse(await readFile(new URL('../' + path, import.meta.url), 'utf8'));
+-    assert.equal(manifest.version, '5.2.2', path);
++    assert.equal(manifest.version, '5.3.0', path);
+   }
+   const app = JSON.parse(await readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'));
+-  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '5.2.2');
+-  assert.equal(app.expo.version, '5.2.2');
+-  assert.equal(app.expo.android.versionCode, 5220);
+-  assert.equal(app.expo.ios.buildNumber, '5220');
++  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '5.3.0');
++  assert.equal(app.expo.version, '5.3.0');
++  assert.equal(app.expo.android.versionCode, 5300);
++  assert.equal(app.expo.ios.buildNumber, '5300');
+ });

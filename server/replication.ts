@@ -16,6 +16,7 @@ import {
   syncTables,
   mobileSyncTables,
   sameValue,
+  legacyProductCostTable,
   syncKey,
   type SyncSnapshot,
   type SyncTable,
@@ -205,8 +206,10 @@ export async function replicaSnapshot(
   ctx: TenantContext,
   device: Device,
   auth: GymAuthorization,
+  productCosts = true,
 ): Promise<SyncSnapshot> {
-  const tables = replicaTables(ctx.db.raw, device.management ? "desktop" : device.kind);
+  const currentTables = replicaTables(ctx.db.raw, device.management ? "desktop" : device.kind);
+  const tables = productCosts ? currentTables : currentTables.map(legacyProductCostTable);
   const assets =
     device.kind === "desktop" || device.management ? replicaAssets(ctx.root) : undefined;
   const triggers = (
@@ -470,6 +473,11 @@ export function mergeReplica(
           : (raw
               .prepare(`SELECT * FROM "${table.name}" WHERE ${where}`)
               .get(...args) as SyncRow | undefined);
+      // Older clients never read these columns. Their edits must preserve the cloud cost.
+      if (table.name === 'pos_products' || table.name === 'pos_sale_lines')
+        for (const value of [before, after])
+          if (value && !Object.prototype.hasOwnProperty.call(value, 'cost_cents'))
+            value.cost_cents = current?.cost_cents ?? null;
       if (!after) {
         if (!current) continue;
         if (

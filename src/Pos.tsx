@@ -163,7 +163,7 @@ export function Checkout({
   }
   const matches = (name: string) => name.toLocaleLowerCase().includes(search.toLocaleLowerCase());
   const products = catalog.products.filter(
-    (item) => item.active && matches(item.name + ' ' + item.sku + ' ' + item.category),
+    (item) => item.active && matches(item.name + ' ' + item.category),
   );
   const plans = catalog.plans.filter((item) => item.active && matches(item.name));
   return (
@@ -650,7 +650,7 @@ export function Checkout({
   );
 }
 
-function CatalogEditor({
+export function CatalogEditor({
   kind,
   item,
   onClose,
@@ -664,6 +664,11 @@ function CatalogEditor({
   const savedId = useRef(item?.id);
   const product = kind === 'product' ? (item as PosProduct | undefined) : undefined;
   const plan = kind === 'plan' ? (item as PosPlan | undefined) : undefined;
+  const [cost, setCost] = useState(product?.cost_cents == null ? '' : (product.cost_cents / 100).toFixed(2));
+  const [salePrice, setSalePrice] = useState(((item?.price_cents || 0) / 100).toFixed(2));
+  const amount = (value: string) => /^\d+(?:[.,]\d{1,2})?$/.test(value.trim())
+    ? Math.round(Number(value.trim().replace(',', '.')) * 100) : null;
+  const costValue = amount(cost), priceValue = amount(salePrice);
   return (
     <Modal title={`${item ? 'Editar' : 'Nuevo'} ${kind === 'product' ? 'producto' : 'plan'}`} onClose={onClose}>
       <Form
@@ -672,7 +677,10 @@ function CatalogEditor({
           const price = String(form.get('price')).trim();
           if (!/^\d+(?:[.,]\d{1,2})?$/.test(price)) throw Error('Indica un precio válido con hasta dos decimales.');
           const priceCents = Math.round(Number(price.replace(',', '.')) * 100);
-          if (!Number.isSafeInteger(priceCents) || priceCents < 0) throw Error('El precio no es válido.');
+          if (!Number.isSafeInteger(priceCents) || priceCents < 0 || priceCents > 1000000000) throw Error('El precio no es válido.');
+          const purchaseCost = amount(String(form.get('cost') ?? ''));
+          if (kind === 'product' && (purchaseCost === null || !Number.isSafeInteger(purchaseCost) || purchaseCost < 0 || purchaseCost > 1000000000))
+            throw Error('Indica un costo de compra válido con hasta dos decimales.');
           const result = await api<{ id: string }>(
             `pos/${kind === 'product' ? 'products' : 'plans'}${savedId.current ? '/' + encodeURIComponent(savedId.current) : ''}`,
             savedId.current ? 'PATCH' : 'POST',
@@ -682,7 +690,7 @@ function CatalogEditor({
               active: form.get('active') === '1' ? 1 : 0,
               ...(kind === 'product'
                 ? {
-                    sku: String(form.get('sku') || '').trim(),
+                    cost_cents: purchaseCost,
                     category: String(form.get('category') || '').trim(),
                     track_stock: form.get('track_stock') === '1' ? 1 : 0,
                     ...(!item ? { stock: Number(form.get('stock') || 0) } : {}),
@@ -698,25 +706,33 @@ function CatalogEditor({
         <Field label="Nombre">
           <input name="name" required maxLength={120} defaultValue={item?.name} />
         </Field>
+        {kind === 'product' && (
+          <Field label="Costo de compra por unidad (BOB)" hint="Lo que te cuesta comprar una unidad del producto.">
+            <input name="cost" required inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?"
+              placeholder="0,00" value={cost} onChange={(event) => setCost(event.target.value)} />
+          </Field>
+        )}
         <Field label="Precio de venta (BOB)">
           <input
             name="price"
             required
             inputMode="decimal"
             pattern="[0-9]+([.,][0-9]{1,2})?"
-            defaultValue={((item?.price_cents || 0) / 100).toFixed(2)}
+            value={salePrice}
+            onChange={(event) => setSalePrice(event.target.value)}
           />
         </Field>
+        {kind === 'product' && costValue !== null && priceValue !== null && (
+          <p className="helper" role="status">
+            Ganancia bruta por unidad: <strong>{money(priceValue - costValue)}</strong>.
+            {priceValue < costValue && ' El precio de venta está por debajo del costo de compra.'}
+          </p>
+        )}
         {kind === 'product' ? (
           <>
-            <div className="form-grid">
-              <Field label="Código / SKU">
-                <input name="sku" maxLength={80} defaultValue={product?.sku} />
-              </Field>
-              <Field label="Categoría">
-                <input name="category" maxLength={80} defaultValue={product?.category} />
-              </Field>
-            </div>
+            <Field label="Categoría">
+              <input name="category" maxLength={100} defaultValue={product?.category} />
+            </Field>
             <Field label="Inventario">
               <select name="track_stock" defaultValue={product?.track_stock ?? 1}>
                 <option value="1">Controlar stock</option>
@@ -1269,8 +1285,10 @@ export default function Pos({
                   headers={
                     <tr>
                       <th>Nombre</th>
-                      <th>{tab === 'products' ? 'Código / categoría' : 'Modalidad'}</th>
-                      <th className="num">Precio</th>
+                      <th>{tab === 'products' ? 'Categoría' : 'Modalidad'}</th>
+                      {admin && tab === 'products' && <th className="num">Costo de compra</th>}
+                      <th className="num">Precio de venta</th>
+                      {admin && tab === 'products' && <th className="num">Ganancia por unidad</th>}
                       <th>Estado / stock</th>
                       {admin && <th>Acciones</th>}
                     </tr>
@@ -1281,16 +1299,11 @@ export default function Pos({
                         <strong>{item.name}</strong>
                       </td>
                       <td>
-                        {'sku' in item ? (
-                          <>
-                            {item.sku || 'Sin código'}
-                            <small>{item.category || 'Sin categoría'}</small>
-                          </>
-                        ) : (
-                          duration(item)
-                        )}
+                        {'stock' in item ? item.category || 'Sin categoría' : duration(item)}
                       </td>
+                      {admin && tab === 'products' && <td className="num">{'stock' in item && item.cost_cents != null ? money(item.cost_cents) : 'Sin registrar'}</td>}
                       <td className="num">{money(item.price_cents)}</td>
+                      {admin && tab === 'products' && <td className="num">{'stock' in item && item.cost_cents != null ? money(item.price_cents - item.cost_cents) : 'Sin registrar'}</td>}
                       <td>
                         <Badge tone={item.active ? 'green' : 'gray'}>{item.active ? 'Activo' : 'Inactivo'}</Badge>
                         {'stock' in item && (
@@ -1330,6 +1343,9 @@ export default function Pos({
                             : 'Sin control de stock'
                           : duration(item)}
                       </p>
+                      {admin && 'stock' in item && (
+                        <p>Costo: {item.cost_cents == null ? 'Sin registrar' : money(item.cost_cents)} · Ganancia por unidad: {item.cost_cents == null ? 'Sin registrar' : money(item.price_cents - item.cost_cents)}</p>
+                      )}
                       {admin && (
                         <div className="button-row">
                           <button

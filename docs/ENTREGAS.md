@@ -8,7 +8,7 @@ GitHub Actions publica el mismo `dist/` generado y verificado en su trabajo de c
 
 ## Retención de recursos
 
-Se distribuyen dos conjuntos: el actual y el descrito en `web-releases/previous.json`. Para 5.2.2 se conserva el grafo completo publicado de 5.2.1. Esto permite que sus pestañas abiertas soliciten sus pantallas diferidas tras actualizar. Las sesiones de versiones anteriores deben recargarse.
+Se distribuyen dos conjuntos: el actual y el descrito en `web-releases/previous.json`. Para 5.3.0 se conserva el grafo completo publicado de 5.2.2. Esto permite que sus pestañas abiertas soliciten sus pantallas diferidas tras actualizar. Las sesiones de versiones anteriores deben recargarse.
 
 Los lectores QR referenciados por clientes existentes se conservan además en `web-releases/compatibility.json`. La compilación entrega **todos** los recursos emitidos por Vite y valida las importaciones de JavaScript mediante su árbol de sintaxis, incluidas las cadenas entre comillas invertidas. No se eliminan archivos de la compilación actual basándose en una búsqueda textual.
 
@@ -42,3 +42,5 @@ Windows se prepara con `npm run dist:desktop` desde el proyecto local. Comprueba
 Los cambios nativos de 5.2.0 a 5.2.1 están en `client-releases/5.2.1-native.patch`, incluidas las restricciones de respaldos y sus pruebas. Se aplica después de los parches anteriores.
 
 Los cambios de clientes de 5.2.1 a 5.2.2 están en `client-releases/5.2.2-native.patch`. Incluyen el lector persistente al navegar, la recuperación de cámara y la apertura directa de WhatsApp en Windows con alternativa web. Al aplicar este parche desde `GymPASS/`, utiliza `git apply --check --ignore-space-change --directory=acceso pagina/gympass/client-releases/5.2.2-native.patch` y después el mismo comando sin `--check` para admitir las fuentes locales con finales de línea CRLF.
+
+Los cambios de 5.2.2 a 5.3.0 están en `client-releases/5.3.0-native.patch`, incluida la migración 025 de costos, la gestión sin conexión, la compatibilidad de sincronización y sus pruebas. Se aplica con el mismo procedimiento. Los clientes nuevos anuncian `X-GymPASS-Product-Costs: 1`; los anteriores reciben su esquema compatible y sus ediciones conservan los costos de la nube.

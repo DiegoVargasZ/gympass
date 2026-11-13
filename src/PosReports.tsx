@@ -10,6 +10,7 @@ import {
   defaultRange,
   methodNames,
   money,
+  marginMoney,
   periodNames,
   reportCsv,
   reportFileName,
@@ -70,7 +71,7 @@ function Bars({ report }: { report: PosReport }) {
   );
 }
 
-function Ranking({ title, items, empty }: { title: string; items: PosReportItem[]; empty: string }) {
+function Ranking({ title, items, empty, showMargin = false }: { title: string; items: PosReportItem[]; empty: string; showMargin?: boolean }) {
   const total = items.reduce((sum, row) => sum + row.total_cents, 0);
   const parts = foldParts(
     items.map((row) => ({
@@ -94,6 +95,8 @@ function Ranking({ title, items, empty }: { title: string; items: PosReportItem[
                   <th className="num">Cantidad</th>
                   <th className="num">Ingresos</th>
                   <th className="num">% del total</th>
+                  {showMargin && <th className="num">Costo de compra</th>}
+                  {showMargin && <th className="num">Ganancia bruta</th>}
                 </tr>
               </thead>
               <tbody>
@@ -108,6 +111,8 @@ function Ranking({ title, items, empty }: { title: string; items: PosReportItem[
                     <td className="num">{row.quantity}</td>
                     <td className="num">{money(row.total_cents)}</td>
                     <td className="num">{total ? Math.round((row.total_cents / total) * 100) : 0} %</td>
+                    {showMargin && <td className="num">{marginMoney(row.margin, 'cost_cents')}</td>}
+                    {showMargin && <td className="num">{marginMoney(row.margin, 'profit_cents')}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -255,7 +260,16 @@ export default function PosReports({ data, notify }: { data: Bootstrap; notify: 
               <dd>{summary.void_count}</dd>
               <small>{money(summary.void_cents)} no cobrados</small>
             </div>
+            {summary.product_margin && <>
+              <div><dt>Ingresos por productos</dt><dd>{money(summary.product_margin.revenue_cents)}</dd><small>Solo ventas de productos</small></div>
+              <div><dt>Costo de productos vendidos</dt><dd>{marginMoney(summary.product_margin, 'cost_cents')}</dd><small>Costo registrado al cobrar cada venta</small></div>
+              <div><dt>Ganancia bruta de productos</dt><dd>{marginMoney(summary.product_margin, 'profit_cents')}</dd><small>Ingresos por productos menos su costo de compra</small></div>
+            </>}
           </dl>
+          {summary.product_margin && summary.product_margin.missing_cost_quantity > 0 && (
+            <p className="helper" role="status">Hay {summary.product_margin.missing_cost_quantity} unidades vendidas sin costo registrado. Su ganancia no está calculada; los importes parciales incluyen únicamente las unidades con costo conocido.</p>
+          )}
+          {summary.product_margin && <p className="helper">La ganancia bruta de productos excluye los planes y otros gastos del gimnasio.</p>}
           <h2>Ingresos por {periodNames[report.period].toLowerCase()}</h2>
           {summary.count ? <Bars report={report} /> : <p className="helper">No hay ventas pagadas en este rango.</p>}
           <div className="table-scroll">
@@ -282,6 +296,7 @@ export default function PosReports({ data, notify }: { data: Bootstrap; notify: 
             <Ranking title="Planes más vendidos" items={report.plans} empty="No se vendieron planes en este rango." />
             <Ranking
               title="Productos más vendidos"
+              showMargin
               items={report.products}
               empty="No se vendieron productos en este rango."
             />

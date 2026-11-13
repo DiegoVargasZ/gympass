@@ -161,7 +161,7 @@ export async function replicationApi(
         data_uri: `data:image/${String(person.photo_path).endsWith('.webp') ? 'webp' : 'png'};base64,${bytes.toString('base64')}` });
     }
     if (action === "snapshot" && method === "GET") {
-      const snapshot = await replicaSnapshot(ctx, device, auth);
+      const snapshot = await replicaSnapshot(ctx, device, auth, req.headers['x-gympass-product-costs'] === '1');
       authorizeReplica(store, ctx, token);
       if (url.searchParams.get("revision") === snapshot.revision)
         return json(res, {
@@ -197,7 +197,7 @@ export async function replicationApi(
         event_ids: ids,
         ...(result.status === "conflict"
           ? {}
-          : { snapshot: await replicaSnapshot(ctx, device, auth) }),
+          : { snapshot: await replicaSnapshot(ctx, device, auth, req.headers['x-gympass-product-costs'] === '1') }),
       });
     }
     throw new ApiError(404, "Operación de sincronización no disponible.");

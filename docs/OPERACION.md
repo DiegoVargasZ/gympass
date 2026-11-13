@@ -40,11 +40,11 @@ Para restaurar la plataforma, extrae el `.tar.gz` en un directorio nuevo y utili
 
 ## Aplicaciones y trabajo sin conexión
 
-Instala Android y Windows 5.2.2 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
+Instala Android y Windows 5.3.0 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
 
 En Windows, Configuración → Conexión permite utilizar servidor o copia local sincronizada. En Android, Gestión incluye una copia local para administradores y sincroniza automáticamente al reconectar; el lector conserva su copia autorizada para recepción. Consulta la [guía móvil sin conexión](MOVIL-SIN-CONEXION.md). Los conflictos se revisan antes de reemplazar datos locales. Windows sigue la política existente de distribución sin firma de código.
 
-El instalador Windows 5.2.2 conserva Electron 45 y requiere Windows 10 o posterior, en equipos x64. La compatibilidad web con Chrome/Edge 109 no amplía los sistemas admitidos por ese instalador. [Electron retiró Windows 7, 8 y 8.1 desde su versión 23](https://www.electronjs.org/blog/windows-7-to-8-1-deprecation-notice).
+El instalador Windows 5.3.0 conserva Electron 45 y requiere Windows 10 o posterior, en equipos x64. La compatibilidad web con Chrome/Edge 109 no amplía los sistemas admitidos por ese instalador. [Electron retiró Windows 7, 8 y 8.1 desde su versión 23](https://www.electronjs.org/blog/windows-7-to-8-1-deprecation-notice).
 
 ## Recepción y caja
 
@@ -59,6 +59,16 @@ Después de activarla, la cámara de recepción sigue habilitada al navegar por 
 Un lector USB debe funcionar como teclado y terminar cada lectura con Enter. Un lector de red utiliza la clave de dispositivo y las rutas mostradas en Configuración → Lectores. Una respuesta HTTP 200 no basta para abrir: el conector debe exigir `allowed: true`.
 
 El cierre automático se configura con la zona horaria del gimnasio. Las salidas recuperadas se identifican como estimadas. Los informes de accesos y horas permanecen operativos.
+
+## Costos y ganancias de productos
+
+En **Caja y planes → Productos**, registra el costo de compra por unidad y el precio de venta en BOB. El formulario muestra su diferencia como ganancia bruta por unidad y avisa si vendes por debajo del costo. El campo código/SKU ya no aparece; los códigos anteriores se conservan internamente.
+
+En **Informes**, consulta los ingresos por productos, el costo de los productos vendidos y la ganancia bruta, también en CSV o al imprimir/guardar PDF. El costo se guarda al cobrar cada venta: editar el producto no recalcula las ventas anteriores. Las ventas anuladas se excluyen. Esta ganancia no incluye planes ni descuenta alquiler, sueldos u otros gastos del gimnasio.
+
+Los productos y ventas anteriores sin costo muestran **Sin registrar**. Registrar un costo ahora sirve para las ventas nuevas; los reportes anteriores mantienen ese costo desconocido e indican las unidades pendientes y los importes parciales. Un costo cero indica expresamente que la unidad no tuvo costo.
+
+La gestión sin conexión guarda los mismos costos e históricos. Actualiza las aplicaciones a 5.3.0 para usar estos campos; las versiones anteriores siguen sincronizando sus datos sin borrar los costos registrados en la web.
 
 ## Apariencia compartida
 

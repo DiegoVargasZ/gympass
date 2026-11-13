@@ -126,6 +126,56 @@ const sale = (person_id, plan) => ({
   lines: [{ kind: "plan", id: plan.id, quantity: 1 }],
 });
 
+test('un cliente anterior recibe su esquema y sus ediciones no borran los costos nuevos', async t => {
+  const f = await fixture(t);
+  try {
+    const product = await f.cloud(s => new PosService(s).saveProduct({ name: 'Agua', price_cents: 500, cost_cents: 200, stock: 10 }));
+    const pair = await f.request(`gyms/${f.gym.id}/sync/pair`, 'POST', { kind: 'desktop', name: 'Escritorio anterior' });
+    assert.equal(pair.response.status, 201);
+    const result = await f.request(`gyms/${f.gym.id}/sync/snapshot`, 'GET', undefined, pair.data.token, true);
+    assert.equal(result.response.status, 200);
+    const snapshot = result.data;
+    const products = snapshot.tables.find(table => table.name === 'pos_products');
+    assert.ok(!products.columns.some(column => column.name === 'cost_cents'));
+    assert.ok(!products.sql.includes('cost_cents'));
+    const before = products.rows.find(row => row.id === product.id);
+    assert.ok(!('cost_cents' in before));
+    await f.cloud(s => new PosService(s).saveProduct({ name: 'Agua', price_cents: 500, cost_cents: 350 }, product.id));
+    const pushed = await f.request(`gyms/${f.gym.id}/sync/push`, 'POST', {
+      id: crypto.randomUUID(), gym_id: f.gym.id, installation_id: snapshot.installation_id,
+      base_revision: snapshot.revision, issued_at: snapshot.issued_at, expires_at: snapshot.expires_at,
+      changes: [{ table: 'pos_products', before, after: { ...before, name: 'Agua fría' } }],
+    }, pair.data.token, true);
+    assert.equal(pushed.response.status, 200);
+    assert.equal(pushed.data.status, 'applied');
+    const saved = await f.cloud(s => s.one('SELECT name,cost_cents FROM pos_products WHERE id=?', product.id));
+    assert.equal(saved.name, 'Agua fría');
+    assert.equal(saved.cost_cents, 350);
+  } finally { await f.app.close(); }
+});
+
+test('una venta sin conexión conserva su costo al sincronizar aunque el catálogo central cambie', async t => {
+  const f = await fixture(t);
+  let copy;
+  try {
+    const product = await f.cloud(s => new PosService(s).saveProduct({ name: 'Agua', price_cents: 500, cost_cents: 200, stock: 10 }));
+    copy = await f.local('Caja con costos');
+    const pos = new PosService(copy.service());
+    assert.equal((await pos.catalog()).products[0].cost_cents, 200);
+    const sale = await pos.checkout({ request_id: crypto.randomUUID(), payment_method: 'cash', lines: [{ kind: 'product', id: product.id, quantity: 2 }] });
+    await f.cloud(s => new PosService(s).saveProduct({ name: 'Agua', price_cents: 500, cost_cents: 300 }, product.id));
+    await copy.replica.synchronize();
+    assert.equal(copy.replica.status().conflict, null);
+    assert.equal(copy.replica.status().pending, 0, copy.replica.status().error);
+    await f.cloud(async s => {
+      const detail = await new PosService(s).sale(sale.id);
+      assert.equal(detail.lines[0].cost_cents, 200);
+      assert.equal((await new PosService(s).catalog()).products[0].cost_cents, 300);
+    });
+    assert.equal((await pos.sale(sale.id)).lines[0].cost_cents, 200);
+  } finally { if (copy) { await copy.replica.stop(); copy.db.close(); } await f.app.close(); }
+});
+
 test('un gimnasio recién creado permite entrar con su administrador y preparar la copia de escritorio', async t => {
   const f = await fixture(t);
   let copy;

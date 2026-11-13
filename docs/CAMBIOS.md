@@ -1,5 +1,14 @@
 # Cambios
 
+## 5.3.0
+
+- Productos con costo de compra y precio de venta por unidad. El formulario muestra la ganancia bruta esperada y avisa cuando se vende por debajo del costo. El código/SKU deja de aparecer en formularios, búsquedas y listados.
+- Cada venta conserva su costo unitario al cobrarla. Cambiar después el catálogo no altera los costos ni las ganancias históricas; las ventas anuladas se excluyen del reporte.
+- Informes, CSV e impresión/PDF distinguen ingresos por productos, costo de productos vendidos y ganancia bruta. Los planes y otros gastos del gimnasio quedan fuera de esa ganancia.
+- Los productos y ventas anteriores mantienen su costo sin registrar: no se les asigna cero ni el costo actual. Los reportes identifican las unidades pendientes y los importes parciales.
+- Migración 025 sin pérdida de stock ni ventas. La gestión sin conexión conserva costos e históricos; el servidor mantiene un formato de sincronización compatible con las aplicaciones anteriores.
+- Web, Windows y Android en 5.3.0; Android conserva paquete y firma y usa el código 5300. Se conserva la web 5.2.2 para sesiones abiertas.
+
 ## 5.2.2
 
 - La cámara de recepción permanece habilitada al cambiar de pestaña del navegador, pantalla de gestión o método de registro. Se apaga con su botón o al terminar la sesión.

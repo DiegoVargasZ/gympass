@@ -1,3 +1,4 @@
+import type { ProductMargin } from './product-costs.ts';
 export type PlanUnit = 'days' | 'months' | 'sessions';
 export function planEndDate(start: string, unit: PlanUnit, duration: number): string | null {
   if (unit === 'sessions') return null;
@@ -19,6 +20,7 @@ export type PosProduct = {
   sku: string;
   category: string;
   price_cents: number;
+  cost_cents: number | null;
   stock: number;
   track_stock: number;
   active: number;
@@ -66,6 +68,7 @@ export type PosSaleLine = {
   price_cents: number;
   total_cents: number;
   track_stock: number;
+  cost_cents: number | null;
   unit: PlanUnit | null;
   duration: number | null;
 };
@@ -132,7 +135,7 @@ export type PosSales = {
 };
 export type PosReportPeriod = 'day' | 'week' | 'month' | 'year';
 export type PosReportTotals = { total_cents: number; count: number };
-export type PosReportItem = { item_id: string; name: string; quantity: number; total_cents: number };
+export type PosReportItem = { item_id: string; name: string; quantity: number; total_cents: number; margin?: ProductMargin };
 export type PosReport = {
   period: PosReportPeriod;
   from: string;
@@ -142,6 +145,7 @@ export type PosReport = {
     void_count: number;
     void_cents: number;
     previous: PosReportTotals & { from: string; to: string };
+    product_margin?: ProductMargin;
   };
   series: ({ bucket: string } & PosReportTotals)[];
   plans: PosReportItem[];

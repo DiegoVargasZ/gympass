@@ -1,4 +1,6 @@
 import { appearanceColumns } from './gym-appearance.ts';
+import { productCostColumnSql, productCostTables } from './product-costs.ts';
+export { productCostColumnSql, productCostTables };
 export type SyncValue = string | number | null;
 export type SyncRow = Record<string, SyncValue>;
 export type SyncColumn = { name: string; type: string; pk: number };
@@ -40,6 +42,26 @@ export function upgradeAppearanceSnapshot(snapshot: SyncSnapshot): SyncSnapshot 
     return { ...table, columns: [...table.columns, ...missing.map(field => ({ name: field.name, type: 'TEXT', pk: 0 }))],
       rows: table.rows.map(row => ({ ...Object.fromEntries(missing.map(field => [field.name, field.value])), ...row })) };
   }) };
+}
+/** Extend older cached copies without assigning a fabricated purchase cost. */
+export function upgradeManagementSnapshot(snapshot: SyncSnapshot): SyncSnapshot {
+  const appearance = upgradeAppearanceSnapshot(snapshot);
+  return { ...appearance, tables: appearance.tables.map(table => {
+    if (!productCostTables.some(name => name === table.name) || table.columns.some(column => column.name === 'cost_cents')) return table;
+    const sql = table.sql && !/\bcost_cents\b/.test(table.sql)
+      ? table.sql.replace(/\)\s*$/, ', cost_cents ' + productCostColumnSql + ')') : table.sql;
+    return { ...table, columns: [...table.columns, { name: 'cost_cents', type: 'INTEGER', pk: 0 }],
+      rows: table.rows.map(row => ({ cost_cents: null, ...row })), ...(sql ? { sql } : {}) };
+  }) };
+}
+
+/** Desktop versions before 5.3 cannot install snapshots containing these columns. */
+export function legacyProductCostTable(table: SyncTable): SyncTable {
+  if (!productCostTables.some(name => name === table.name)) return table;
+  const sql = table.sql?.replace(', cost_cents ' + productCostColumnSql, '');
+  return { ...table, columns: table.columns.filter(column => column.name !== 'cost_cents'),
+    rows: table.rows.map(row => Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'cost_cents'))),
+    ...(sql ? { sql } : {}) };
 }
 export function renewSyncSnapshot(
   base: SyncSnapshot,

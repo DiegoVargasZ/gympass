@@ -1,6 +1,7 @@
 import { toCsv } from '../lib/csv.ts';
 import { nextDate } from '../lib/domain.ts';
 import type { PaymentMethod, PosReport, PosReportPeriod } from '../lib/pos-types.ts';
+import { marginComplete, marginKnown, type ProductMargin } from '../lib/product-costs.ts';
 
 export const money = (cents: number) =>
   new Intl.NumberFormat('es-BO', { style: 'currency', currency: 'BOB' }).format(cents / 100);
@@ -38,6 +39,21 @@ export function bucketLabel(period: PosReportPeriod, bucket: string) {
   return bucket;
 }
 const decimal = (cents: number) => (cents / 100).toFixed(2);
+export function marginMoney(margin: ProductMargin | undefined, field: 'cost_cents' | 'profit_cents') {
+  if (!margin || !marginKnown(margin)) return 'Sin registrar';
+  return money(margin[field]) + (marginComplete(margin) ? '' : ' (parcial)');
+}
+
+function marginCsv(section: string, name: string, margin: ProductMargin): unknown[][] {
+  const suffix = marginComplete(margin) ? '' : ' (parcial)';
+  const known = margin.quantity - margin.missing_cost_quantity;
+  return [
+    [section, name + ' · ingresos', margin.quantity, decimal(margin.revenue_cents)],
+    [section, name + ' · costo de compra' + suffix, known, marginKnown(margin) ? decimal(margin.cost_cents) : 'Sin registrar'],
+    [section, name + ' · ganancia bruta' + suffix, known, marginKnown(margin) ? decimal(margin.profit_cents) : 'Sin registrar'],
+    ...(margin.missing_cost_quantity ? [[section, name + ' · unidades sin costo registrado', margin.missing_cost_quantity, 'No calculado']] : []),
+  ];
+}
 
 export function reportCsv(report: PosReport) {
   const { summary } = report;
@@ -46,6 +62,7 @@ export function reportCsv(report: PosReport) {
     ['Resumen', 'Ingresos', summary.count, decimal(summary.total_cents)],
     ['Resumen', 'Ticket promedio', '', decimal(summary.average_cents)],
     ['Resumen', 'Ventas anuladas', summary.void_count, decimal(summary.void_cents)],
+    ...(summary.product_margin ? marginCsv('Resumen de productos', 'Productos', summary.product_margin) : []),
     [
       'Resumen',
       `Período anterior (${day(summary.previous.from)} al ${day(summary.previous.to)})`,
@@ -60,6 +77,7 @@ export function reportCsv(report: PosReport) {
     ]),
     ...report.plans.map((row) => ['Planes', row.name, row.quantity, decimal(row.total_cents)]),
     ...report.products.map((row) => ['Productos', row.name, row.quantity, decimal(row.total_cents)]),
+    ...report.products.flatMap((row) => row.margin ? marginCsv('Costos y ganancias', row.name, row.margin) : []),
     ...report.by_method.map((row) => [
       'Método de pago',
       methodNames[row.payment_method],
@@ -104,6 +122,12 @@ export function reportPrintHtml(report: PosReport, gym: string) {
     `<div>Ventas<strong>${summary.count}</strong></div>` +
     `<div>Ticket promedio<strong>${escapeHtml(money(summary.average_cents))}</strong></div>` +
     `<div>Anuladas<strong>${summary.void_count}</strong></div></div>` +
+    (summary.product_margin ? table('Costos y ganancias de productos', ['Concepto', 'Unidades', 'Importe (BOB)'], [
+      ['Ingresos por productos', summary.product_margin.quantity, money(summary.product_margin.revenue_cents)],
+      ['Costo de productos vendidos', summary.product_margin.quantity - summary.product_margin.missing_cost_quantity, marginMoney(summary.product_margin, 'cost_cents')],
+      ['Ganancia bruta de productos', summary.product_margin.quantity - summary.product_margin.missing_cost_quantity, marginMoney(summary.product_margin, 'profit_cents')],
+      ...(summary.product_margin.missing_cost_quantity ? [['Unidades sin costo registrado', summary.product_margin.missing_cost_quantity, 'Ganancia pendiente de calcular']] : []),
+    ]) + '<p>La ganancia bruta de productos excluye los planes y otros gastos del gimnasio.</p>' : '') +
     table(
       'Evolución',
       [periodNames[report.period], 'Ventas', 'Ingresos'],
@@ -116,12 +140,14 @@ export function reportPrintHtml(report: PosReport, gym: string) {
     ) +
     table(
       'Productos más vendidos',
-      ['Producto', 'Cantidad', 'Ingresos', '% de productos'],
+      ['Producto', 'Cantidad', 'Ingresos', '% de productos', 'Costo de compra', 'Ganancia bruta'],
       report.products.map((row) => [
         row.name,
         row.quantity,
         money(row.total_cents),
         pct(row.total_cents, productTotal),
+        marginMoney(row.margin, 'cost_cents'),
+        marginMoney(row.margin, 'profit_cents'),
       ]),
     ) +
     table(

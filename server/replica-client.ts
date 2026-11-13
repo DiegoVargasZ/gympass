@@ -4,7 +4,7 @@ import type { SqliteDatabase } from "./database.ts";
 import { Backups } from "./backups.ts";
 import { ApiError, hash } from "../lib/service.ts";
 import {
-  upgradeAppearanceSnapshot,
+  upgradeManagementSnapshot,
   syncChanges,
   validSyncSnapshot,
   mappedSyncPatch,
@@ -79,7 +79,7 @@ export class ReplicaClient {
       .get();
     if (!row) return null;
     const state = JSON.parse(String(row.state)) as State;
-    state.base = upgradeAppearanceSnapshot(state.base);
+    state.base = upgradeManagementSnapshot(state.base);
     return state;
   }
   private save(state: State) {
@@ -179,6 +179,7 @@ export class ReplicaClient {
         headers: {
           "Content-Type": "application/json",
           "X-Requested-With": "GymPASS",
+          "X-GymPASS-Product-Costs": "1",
           ...headers,
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -311,8 +312,8 @@ export class ReplicaClient {
     return { linked: true, user: snapshot.user };
   }
   private install(snapshot: SyncSnapshot, state: State) {
-    snapshot = upgradeAppearanceSnapshot(snapshot);
-    state = { ...state, base: upgradeAppearanceSnapshot(state.base) };
+    snapshot = upgradeManagementSnapshot(snapshot);
+    state = { ...state, base: upgradeManagementSnapshot(state.base) };
     validSyncSnapshot(snapshot, snapshot.gym_id, snapshot.user.id);
     const raw = this.db.raw;
     const triggers = raw
