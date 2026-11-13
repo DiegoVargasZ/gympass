@@ -1,10 +1,11 @@
 {
   "version": "5.2.2",
-  "published": false,
+  "published": true,
   "build_method": "local-windows",
   "source": {
     "base_commit": "59d85827eb3501ce5a9c7c0fd5e03d2fdd78e2d4",
-    "uncommitted_worktree": true
+    "uncommitted_worktree": false,
+    "commit": "5d12333afe7329b99a822505d844147ef296776f"
   },
   "android": {
     "package": "local.gympass.controlacceso.mobile",
@@ -61,5 +62,7 @@
     }
   },
   "native_patch_sha256": "f2aefa1af6ae1cd1464b388b044d338201c4fa2e45e54900f561c6b0d19c2219",
-  "web_source_sha256": "5360ba5d1ba3bc7f5a31a2957502a60b44d51de531f6ac434d95ab06b197f7e2"
+  "web_source_sha256": "5360ba5d1ba3bc7f5a31a2957502a60b44d51de531f6ac434d95ab06b197f7e2",
+  "release_url": "https://github.com/DiegoVargasZ/gympass/releases/tag/v5.2.2",
+  "build_source_commit": "5d12333afe7329b99a822505d844147ef296776f"
 }
