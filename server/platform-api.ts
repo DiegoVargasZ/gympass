@@ -73,6 +73,7 @@ export function createPlatformApi(
     secureCookies?: boolean;
     trustedProxies?: string;
     announced?: (gymIds: string[]) => void;
+    memberCounts?: (gyms: Gym[]) => Promise<Record<string, number | null>>;
   },
 ) {
   const limitedLogin = createLoginLimiter(options.trustedProxies);
@@ -167,6 +168,13 @@ export function createPlatformApi(
         send(res, { ok: true });
       } else if (method === 'GET' && path === '/api/platform/gyms') {
         send(res, { gyms: store.listGyms(actor, gymScope(url.searchParams)) });
+      } else if (method === 'GET' && path === '/api/platform/gym-member-counts') {
+        if (actor.global_role !== 'superadmin') throw new ApiError(403, 'Solo el superadministrador puede consultar los totales de socios.');
+        const gyms = store.listGyms(actor, gymScope(url.searchParams));
+        const counts = options.memberCounts ? await options.memberCounts(gyms) : {};
+        const current = await store.requireWebSession(value);
+        if (current.user.global_role !== 'superadmin') throw new ApiError(403, 'Solo el superadministrador puede consultar los totales de socios.');
+        send(res, { counts });
       } else if (method === 'GET' && path === '/api/platform/billing') {
         send(res, store.billing.summary(actor, url.searchParams.get('month') ?? ''));
       } else if (method === 'POST' && path === '/api/platform/gyms') {

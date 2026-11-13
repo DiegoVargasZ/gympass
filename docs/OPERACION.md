@@ -26,6 +26,8 @@ Tras publicar, comprueba `/api/health`, `/release.json` y el login. `npm run che
 
 ## Avisos a los gimnasios
 
+En el panel del superadministrador, cada tarjeta muestra **Socios registrados**. El número incluye socios activos, inactivos y con plan vencido; excluye personal y socios eliminados. Se vuelve a consultar al pulsar **Actualizar gimnasios** y al regresar al listado. También aparece al consultar gimnasios archivados o dados de baja. **No disponible** indica que no pudo leerse una base, y se distingue de un gimnasio con cero socios. Las cuentas de gimnasio no reciben estos totales centrales.
+
 El superadministrador envía un aviso desde el panel de gimnasios, en **Avisos**: un título, el mensaje, su importancia, los días que permanece visible y los gimnasios que lo reciben (todos o una selección). Llega a la campana de alertas de cada gimnasio junto a sus propias alertas y se distingue con el icono de megáfono.
 
 El aviso desaparece solo al cumplirse el plazo; **Retirar** lo quita antes y conserva el registro. Marcarlo como leído solo apaga el distintivo de quien lo leyó. Los avisos se consultan contra el servidor: las copias locales sin conexión de Windows y Android no los muestran hasta volver a conectarse.

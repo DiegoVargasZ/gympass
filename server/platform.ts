@@ -20,6 +20,7 @@ import { applicationVersion } from './backups.ts';
 import { withBackupUpload } from './backup-transfer.ts';
 import { serveCredentialShare } from './credential-shares.ts';
 import { sendStream } from './stream-transfer.ts';
+import { createGymMemberCounter } from './gym-member-counts.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 type Options = {
@@ -43,6 +44,7 @@ export async function startPlatform(options: Options) {
   const unlock = acquirePlatformLock(tenants.root);
   const store = new PlatformStore(options.dataDirectory);
   const platformApi = createPlatformApi(store, {
+    memberCounts: createGymMemberCounter(tenants.root),
     provisionGym: async (gym) => {
       tenants.provision(gym);
     },

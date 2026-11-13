@@ -1,5 +1,13 @@
 # Cambios
 
+## 5.3.2
+
+- El panel del superadministrador muestra **Socios registrados** en cada tarjeta de gimnasio, también en las vistas de archivados y dados de baja. El total se consulta al abrir o actualizar la lista.
+- Cuenta socios activos, inactivos y con plan vencido; excluye personal y socios eliminados. Distingue un gimnasio sin socios (0) de una base no disponible.
+- Consulta agregada de solo lectura en un trabajador separado, sin cargar fichas ni abrir contextos de operación de todos los gimnasios. Los refrescos simultáneos comparten la consulta y solo se ejecuta un trabajador de conteo por proceso.
+- El servidor exige superadministrador antes y después de la consulta; las cuentas normales no consultan ni muestran estos totales. Se comprueba la identidad de la base de cada gimnasio.
+- Actualización de web y servidor compatible con los instaladores Android/Windows 5.3.0. Se conserva la web 5.3.1 para las pestañas abiertas.
+
 ## 5.3.1
 
 - El servidor comprueba una revisión persistente antes de cargar tablas o imágenes: los sondeos sin cambios renuevan la autorización sin reconstruir la copia completa.

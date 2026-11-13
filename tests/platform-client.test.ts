@@ -191,7 +191,7 @@ test('Plataforma: no envía el secreto de soporte a una URL externa', async (t) 
   assert.equal(support, null);
 });
 
-function platformFixture(t: test.TestContext, initial: any) {
+function platformFixture(t: test.TestContext, initial: any, memberCounts: Record<string, number | null> = {}) {
   const calls: { path: string; method?: string; body?: any }[] = [];
   let current = initial;
   const contexts: unknown[] = [];
@@ -221,6 +221,7 @@ function platformFixture(t: test.TestContext, initial: any) {
       HttpError: class extends Error {},
       api: async (path: string, method?: string, body?: any) => {
         calls.push({ path, method, body });
+        if (path.startsWith('platform/gym-member-counts')) return { counts: memberCounts };
         if (path === 'platform/status') {
           if (current instanceof Error) throw current;
           return current;
@@ -254,6 +255,25 @@ function platformFixture(t: test.TestContext, initial: any) {
 const account = { id: 'user-1', email: 'admin@example.test', name: 'Ana', global_role: 'user' };
 const gymA = { id: 'gym-a', name: 'Gimnasio A', slug: 'gimnasio-a', status: 'active', role: 'admin' };
 const gymB = { id: 'gym-b', name: 'Gimnasio B', slug: 'gimnasio-b', status: 'active', role: 'operator' };
+
+test('Plataforma: el superadministrador ve socios registrados por gimnasio y distingue cero de no disponible', async t => {
+  const f = platformFixture(t, {
+    mode: 'platform', protocol: 1, user: { ...account, global_role: 'superadmin' },
+    gyms: [gymA, gymB, { ...gymB, id: 'gym-c', name: 'Gimnasio C' }],
+  }, { 'gym-a': 27, 'gym-b': 0, 'gym-c': null });
+  const tree = await f.h.settle();
+  const card = (name: string) => findElement(tree, el => el.type === 'section' && el.props.className === 'panel platform-gym' && elementText(el).includes(name));
+  assert.match(elementText(card('Gimnasio A')), /Socios registrados: 27/);
+  assert.match(elementText(card('Gimnasio B')), /Socios registrados: 0/);
+  assert.match(elementText(card('Gimnasio C')), /Socios registrados: No disponible/);
+  assert.ok(f.calls.some(call => call.path === 'platform/gym-member-counts'));
+});
+
+test('Plataforma: las cuentas normales no consultan ni muestran los totales centrales de socios', async t => {
+  const f = platformFixture(t, { mode: 'platform', protocol: 1, user: account, gyms: [gymA, gymB] });
+  assert.doesNotMatch(elementText(await f.h.settle()), /Socios registrados/);
+  assert.ok(!f.calls.some(call => call.path.startsWith('platform/gym-member-counts')));
+});
 
 test('Plataforma: abre directamente el único gimnasio autorizado', async (t) => {
   const f = platformFixture(t, { mode: 'platform', protocol: 1, user: account, gyms: [gymA] });

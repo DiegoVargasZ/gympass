@@ -66,6 +66,12 @@
   overflow-wrap: anywhere;
   font-size: 18px;
 }
+.platform-gym .platform-member-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
 .platform-state {
   padding: 5px 8px;
   font-size: 12px;

@@ -8,7 +8,7 @@ GitHub Actions publica el mismo `dist/` generado y verificado en su trabajo de c
 
 ## Retención de recursos
 
-Se distribuyen dos conjuntos: el actual y el descrito en `web-releases/previous.json`. Para 5.3.1 se conserva el grafo completo publicado de 5.3.0. Esto permite que sus pestañas abiertas soliciten sus pantallas diferidas tras actualizar. Las sesiones de versiones anteriores deben recargarse.
+Se distribuyen dos conjuntos: el actual y el descrito en `web-releases/previous.json`. Para 5.3.2 se conserva el grafo completo publicado de 5.3.1. Esto permite que sus pestañas abiertas soliciten sus pantallas diferidas tras actualizar. Las sesiones de versiones anteriores deben recargarse.
 
 Los lectores QR referenciados por clientes existentes se conservan además en `web-releases/compatibility.json`. La compilación entrega **todos** los recursos emitidos por Vite y valida las importaciones de JavaScript mediante su árbol de sintaxis, incluidas las cadenas entre comillas invertidas. No se eliminan archivos de la compilación actual basándose en una búsqueda textual.
 
@@ -25,7 +25,7 @@ La compilación comprueba las huellas de los recursos retenidos, genera y compri
 
 ## Android y Windows
 
-La entrega 5.3.1 cambia web y servidor y conserva el protocolo de las aplicaciones 5.3.0. No requiere recompilar instaladores ni cambiar los enlaces de esa entrega. Las comprobaciones de sincronización incluyen el esquema de clientes anteriores.
+Las entregas 5.3.1 y 5.3.2 cambian web y servidor y conservan el protocolo de las aplicaciones 5.3.0. No requieren recompilar instaladores ni cambiar los enlaces de esa entrega. Las comprobaciones de sincronización incluyen el esquema de clientes anteriores.
 
 Los proyectos locales de clientes se conservan en `GymPASS/acceso/mobile` y `GymPASS/acceso/desktop`. La copia local de `src/`, `lib/` y el servidor compartido debe coincidir con este repositorio antes de preparar el runtime de Windows. Las claves de licencia y firma permanecen fuera de Git.
 

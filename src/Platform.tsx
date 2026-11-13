@@ -43,6 +43,7 @@ type Gym = {
   contact_name: string;
   contact_email: string;
   contact_phone: string;
+  member_count?: number | null;
 };
 type Status = {
   mode: 'platform' | 'local';
@@ -136,6 +137,17 @@ export default function Platform() {
         setStatus(next);
         setMode('platform');
         setError('');
+        if (next.user?.global_role === 'superadmin') {
+          const updateCounts = (counts: Record<string, number | null>) => {
+            if (sequence !== requestSequence.current) return;
+            setStatus(current => current?.user?.global_role === 'superadmin' && current.user.id === next.user?.id
+              ? { ...current, gyms: current.gyms.map(gym => ({ ...gym, member_count: counts[gym.id] ?? null })) }
+              : current);
+          };
+          void api<{ counts: Record<string, number | null> }>('platform/gym-member-counts' + (scope === 'active' ? '' : '?scope=' + scope))
+            .then(result => updateCounts(result.counts || {}))
+            .catch(() => updateCounts({}));
+        }
         if (autoOpen && next.user?.global_role === 'user' && !tokenFromHash()) {
           const allowed = next.gyms.filter((gym) => gym.status === 'active');
           const requested = new URLSearchParams(location.search).get('gym');
@@ -641,6 +653,14 @@ export default function Platform() {
                               ? 'Cajero'
                               : 'Consulta'}
                       </p>
+                      {superadmin && (
+                        <p className="platform-member-count">
+                          <Users size={15} aria-hidden="true" />
+                          <span>Socios registrados: <strong>{gym.member_count === undefined
+                            ? 'Consultando…'
+                            : gym.member_count === null ? 'No disponible' : gym.member_count.toLocaleString('es-BO')}</strong></span>
+                        </p>
+                      )}
                     </div>
                     <span className={'platform-state platform-state-' + gym.status}>
                       {gym.deleted ? 'Dado de baja' : gym.archived ? 'Archivado' : statuses[gym.status]}
