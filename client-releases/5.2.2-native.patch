@@ -1,0 +1,946 @@
+--- a/desktop/builder.cjs
++++ b/desktop/builder.cjs
+@@ -13,6 +13,7 @@
+     'main.cjs',
+     'preload.cjs',
+     'credential-clipboard.cjs',
++    'external-links.cjs',
+     'remote.cjs',
+     'remote.html',
+     'lifecycle.cjs',
+--- /dev/null
++++ b/desktop/external-links.cjs
+@@ -0,0 +1,26 @@
++/** Click to Chat addresses a phone number directly, including unsaved contacts. */
++async function openExternalLink(value, open) {
++  let url;
++  try { url = new URL(value); } catch { return; }
++  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return;
++  let phone;
++  if (url.protocol === 'https:') {
++    if (url.hostname === 'wa.me') phone = /^\/([1-9]\d{7,14})\/?$/.exec(url.pathname)?.[1];
++    else if (['api.whatsapp.com', 'web.whatsapp.com'].includes(url.hostname) && url.pathname === '/send')
++      phone = url.searchParams.get('phone');
++  }
++  if (phone && /^[1-9]\d{7,14}$/.test(phone)) {
++    const native = new URL('whatsapp://send');
++    native.searchParams.set('phone', phone);
++    native.searchParams.set('text', url.searchParams.get('text') || '');
++    try {
++      await open(native.href);
++      return;
++    } catch {
++      // Computers without WhatsApp can still open the same number in the browser.
++    }
++  }
++  await open(url.href);
++}
++
++module.exports = { openExternalLink };
+--- a/desktop/main.cjs
++++ b/desktop/main.cjs
+@@ -191,11 +191,8 @@
+ }
+ 
+ function openExternal(url) {
+-  try {
+-    if (new URL(url).protocol === 'https:' || new URL(url).protocol === 'http:') void shell.openExternal(url);
+-  } catch {
+-    /* Ignore unsupported external URLs. */
+-  }
++  void require(join(__dirname, 'external-links.cjs')).openExternalLink(url, (target) => shell.openExternal(target))
++    .catch((error) => appendLog('No se pudo abrir el enlace externo: ' + error.message));
+ }
+ 
+ async function start() {
+--- a/desktop/package.json
++++ b/desktop/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "gympass-desktop",
+   "productName": "GymPASS",
+-  "version": "5.2.1",
++  "version": "5.2.2",
+   "description": "Entradas, salidas y tiempos de permanencia para gimnasios",
+   "author": "GymPASS",
+   "license": "UNLICENSED",
+--- a/mobile/README.md
++++ b/mobile/README.md
+@@ -1,8 +1,8 @@
+-# GymPASS Android 5.2.1
++# GymPASS Android 5.2.2
+ 
+ La gestión para administradores incluye la interfaz en el APK y guarda socios, caja, productos, planes, credenciales, accesos, imágenes, configuración e informes en SQLite. La primera vinculación necesita Internet; después se puede abrir la gestión sin red y sincronizar automáticamente al reconectar o volver a la aplicación. Se conservan siete días de autorización local y los conflictos requieren revisión sin sobrescribir los pendientes.
+ 
+-Las cuentas centrales, las contraseñas, el personal y los respaldos del servidor siguen necesitando Internet. Las cuentas de recepción conservan el lector y sus consultas. Instala esta versión sobre la anterior para mantener los datos; no borres la aplicación. Versión 5.2.1 y compilación Android 5210.
++Las cuentas centrales, las contraseñas, el personal y los respaldos del servidor siguen necesitando Internet. Las cuentas de recepción conservan el lector y sus consultas. Instala esta versión sobre la anterior para mantener los datos; no borres la aplicación. Versión 5.2.2 y compilación Android 5220.
+ 
+ La compilación `scripts/build-android.ps1` prepara la interfaz con `../scripts/build-mobile-web.mjs` antes de generar y firmar el APK. Los recursos se sirven únicamente a la vista local y las operaciones se atienden en la sesión SQLite vinculada.
+ 
+--- a/mobile/app.json
++++ b/mobile/app.json
+@@ -6,12 +6,12 @@
+       "ios",
+       "android"
+     ],
+-    "version": "5.2.1",
++    "version": "5.2.2",
+     "orientation": "default",
+     "userInterfaceStyle": "automatic",
+     "ios": {
+       "bundleIdentifier": "local.gympass.controlacceso.mobile",
+-      "buildNumber": "5210",
++      "buildNumber": "5220",
+       "supportsTablet": true,
+       "infoPlist": {
+         "NSLocalNetworkUsageDescription": "GymPASS se conecta con la computadora de la misma red Wi-Fi para registrar accesos.",
+@@ -24,7 +24,7 @@
+     },
+     "android": {
+       "package": "local.gympass.controlacceso.mobile",
+-      "versionCode": 5210,
++      "versionCode": 5220,
+       "permissions": [
+         "android.permission.CAMERA"
+       ],
+--- a/mobile/package-lock.json
++++ b/mobile/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "5.2.1",
++  "version": "5.2.2",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-mobile",
+-      "version": "5.2.1",
++      "version": "5.2.2",
+       "dependencies": {
+         "@noble/ciphers": "2.4.0",
+         "expo": "~58.0.21",
+--- a/mobile/package.json
++++ b/mobile/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "5.2.1",
++  "version": "5.2.2",
+   "private": true,
+   "type": "module",
+   "main": "index.ts",
+--- a/mobile/src/GympassApp.tsx
++++ b/mobile/src/GympassApp.tsx
+@@ -363,7 +363,7 @@
+             ref={web}
+             source={{ uri: management?.url || DEFAULT_SERVER }}
+             style={{ flex: 1, backgroundColor: palette.surface }}
+-            applicationNameForUserAgent="GymPASS-Android/5.2.1"
++            applicationNameForUserAgent="GymPASS-Android/5.2.2"
+             originWhitelist={['*']}
+             onShouldStartLoadWithRequest={(request) => {
+               if ((management ? request.url.startsWith(management.url) : isGympassUrl(request.url)) || request.url === 'about:blank') return true;
+--- a/mobile/src/offline.ts
++++ b/mobile/src/offline.ts
+@@ -340,12 +340,12 @@
+       }
+       if (first === 'health') return { data: { ok: true, mode: 'mobile', offline: !this.online } };
+       if (first === 'auth' && id === 'status') return { data: { setupRequired: false, user: this.session.user } };
+-      if (first === 'system-info') return { data: { version: '5.2.1', desktop: false, mode: 'mobile' } };
++      if (first === 'system-info') return { data: { version: '5.2.2', desktop: false, mode: 'mobile' } };
+       if (first === 'bootstrap') {
+         let maintain = true; try { this.writable(); } catch { maintain = false; }
+         const data = await s.bootstrap({ compact: url.searchParams.get('compact') === '1', maintain });
+         if (maintain) { this.state.last_clock = Math.max(this.state.last_clock, Date.now()); await this.save(); }
+-        return { data: { ...data, version: '5.2.1', replica: { linked: true }, platform: { gym_id: this.session.gym_id, gym_name: data.settings!.name, support: false, superadmin: false, read_only: !maintain } } };
++        return { data: { ...data, version: '5.2.2', replica: { linked: true }, platform: { gym_id: this.session.gym_id, gym_name: data.settings!.name, support: false, superadmin: false, read_only: !maintain } } };
+       }
+       if (first === 'members' && method === 'GET') return { data: await s.all('SELECT user_id id,email,name,role,active FROM members') };
+       if (first === 'branding' && !id && method === 'GET') return { data: await s.one('SELECT name,brand_color,logo_path FROM settings WHERE id=1') };
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "5.2.1",
++  "version": "5.2.2",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-control-acceso",
+-      "version": "5.2.1",
++      "version": "5.2.2",
+       "dependencies": {
+         "lucide-react": "1.57.0",
+         "qrcode-generator": "2.0.4",
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "5.2.1",
++  "version": "5.2.2",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+--- a/src/Access.tsx
++++ b/src/Access.tsx
+@@ -14,11 +14,13 @@
+ import { claimScan, useScanCooldown } from './scan-cooldown';
+ import GymPresence from './GymPresence';
+ 
+-export default function Access({ data, reload }: { data: Bootstrap; reload: () => Promise<void> }) {
++export default function Access({ data, reload, active = true }: { data: Bootstrap; reload: () => Promise<void>; active?: boolean }) {
+   const preferences = usePreferences();
+   const queue = useAccessQueue();
+   const scanWait = useScanCooldown();
+   const initialPerson = new URLSearchParams(location.hash.split('?')[1]).get('person') || '';
++  const requestedMode = new URLSearchParams(location.hash.split('?')[1]).get('mode');
++  const requestedZone = new URLSearchParams(location.hash.split('?')[1]).get('zone');
+   const [mode, setMode] = useState<'camera' | 'reader' | 'manual'>(
+       initialPerson
+         ? 'manual'
+@@ -35,13 +37,19 @@
+     return data.zones.some((item) => item.id === requested) ? requested! : generalAccessId;
+   });
+   const zoneName = data.zones.find((item) => item.id === zone)?.name || 'Acceso general';
++  useEffect(() => {
++    if (!active) return;
++    if (initialPerson) setMode('manual');
++    else if (requestedMode === 'reader' || requestedMode === 'camera') setMode(requestedMode);
++    if (requestedZone && data.zones.some((item) => item.id === requestedZone)) setZone(requestedZone);
++  }, [active, initialPerson, requestedMode, requestedZone]);
+   const code = useRef<HTMLInputElement>(null),
+     resultButton = useRef<HTMLButtonElement>(null),
+     pending = useRef<{ payload: string; id: string } | null>(null),
+     inFlight = useRef(false),
+     alive = useRef(true);
+   useEffect(() => {
+-    if (!result) return;
++    if (!result || !active) return;
+     const previous = code.current || document.querySelector<HTMLElement>('.access-panel .tabs .selected');
+     resultButton.current?.focus({ preventScroll: true });
+     const timer = setTimeout(() => setResult(null), 5000);
+@@ -51,7 +59,7 @@
+         if (previous?.isConnected) previous.focus({ preventScroll: true });
+       });
+     };
+-  }, [result]);
++  }, [result, active]);
+   useEffect(() => {
+     if (!queued) return;
+     const timer = setTimeout(() => setQueued(null), 5000);
+@@ -95,7 +103,7 @@
+           setQueued({ direction: outcome.queued.direction, zone_name: outcome.queued.zone_name });
+           if (code.current) {
+             code.current.value = '';
+-            code.current.focus();
++            if (active) code.current.focus();
+           }
+         }
+         return;
+@@ -106,7 +114,7 @@
+         void accessFeedback(!!event.allowed, preferences.sound, preferences.vibration, event.direction, event.person_name, preferences);
+         if (code.current) {
+           code.current.value = '';
+-          code.current.focus();
++          if (active) code.current.focus();
+         }
+       }
+       void reload().catch(() => {
+@@ -206,7 +214,7 @@
+                 </button>
+               ))}
+             </div>
+-            {mode === 'camera' ? (
++            <div hidden={mode !== 'camera'}>
+               <CameraScanner
+                 autoStart={new URLSearchParams(location.hash.split('?')[1]).get('camera') === 'auto'}
+                 resetToken={zone + ':auto'}
+@@ -216,7 +224,8 @@
+                   setQueued(null);
+                 }}
+               />
+-            ) : (
++            </div>
++            {mode !== 'camera' && (
+               <div className="access-fallback">
+                 <h2>{mode === 'manual' ? 'Registrar sin código QR' : 'Escanea con el lector de códigos'}</h2>
+                 <p className="helper">
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -25,7 +25,7 @@
+ const Credentials = lazy(() => import('./Credentials'));
+ const Pos = lazy(() => import('./Pos'));
+ const People = lazy(() => import('./People'));
+-const Access = lazy(() => import('./Access'));
++const PersistentAccess = lazy(() => import('./PersistentAccess'));
+ const Reports = lazy(() => import('./Reports'));
+ const Renewals = lazy(() => import('./Renewals'));
+ const CommandPalette = lazy(() => import('./CommandPalette'));
+@@ -301,7 +301,7 @@
+           onLogout?.();
+         }}
+       >
+-        <main className="main-content" id="main-content" tabIndex={-1} key={route}>
++        <main className="main-content" id="main-content" tabIndex={-1}>
+           {data.activation?.state === 'expired' && (
+             <p className="error-message" role="alert">
+               {data.activation.licenseType === 'monthly'
+@@ -331,6 +331,12 @@
+             </p>
+           )}
+           <SectionTabs sections={sectionsFor(data.user.role)} page={active} />
++          {items.some((item) => item.id === 'access') && (
++            <Suspense fallback={active === 'access' ? <Skeleton rows={4} label="Abriendo recepción" /> : null}>
++              <PersistentAccess key={data.installation_id + ':' + data.user.id} active={active === 'access'} data={data} reload={reload} />
++            </Suspense>
++          )}
++          <div key={route}>
+           <Suspense fallback={<Skeleton rows={4} label="Abriendo pantalla" />}>
+             {active === 'dashboard' ? (
+               <Dashboard data={data} />
+@@ -338,9 +344,7 @@
+               <People data={data} reload={reload} notify={notify} />
+             ) : active === 'pos' ? (
+               <Pos data={data} reload={reload} notify={notify} />
+-            ) : active === 'access' ? (
+-              <Access key={data.installation_id + ':' + data.user.id} data={data} reload={reload} />
+-            ) : active === 'credentials' ? (
++            ) : active === 'access' ? null : active === 'credentials' ? (
+               <Credentials data={data} notify={notify} />
+             ) : active === 'renewals' ? (
+               <Renewals data={data} reload={reload} notify={notify} />
+@@ -352,6 +356,7 @@
+               <Manage page="settings" data={data} reload={reload} notify={notify} admin={admin} />
+             )}
+           </Suspense>
++          </div>
+         </main>
+       </AppShell>
+       {commands && (
+--- a/src/AppDownloads.tsx
++++ b/src/AppDownloads.tsx
+@@ -1,8 +1,8 @@
+ import { Download, Monitor, Smartphone } from 'lucide-react';
+ import './styles/app-downloads.css';
+ 
+-const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.2.1/';
+-const androidApk = release + 'GymPASS-Android-5.2.1.apk';
++const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.2.2/';
++const androidApk = release + 'GymPASS-Android-5.2.2.apk';
+ 
+ export default function AppDownloads() {
+   if (
+@@ -22,20 +22,20 @@
+           <Smartphone size={24} aria-hidden="true" />
+           <span>
+             <strong>Móvil Android</strong>
+-            <small>Descargar APK · v5.2.1</small>
++            <small>Descargar APK · v5.2.2</small>
+           </span>
+           <Download size={16} aria-hidden="true" />
+         </a>
+         <a
+           className="app-download"
+-          href={release + 'GymPASS-Setup-5.2.1.exe'}
++          href={release + 'GymPASS-Setup-5.2.2.exe'}
+           target="_blank"
+           rel="noopener noreferrer"
+         >
+           <Monitor size={24} aria-hidden="true" />
+           <span>
+             <strong>Escritorio Windows</strong>
+-            <small>Descargar instalador · v5.2.1</small>
++            <small>Descargar instalador · v5.2.2</small>
+           </span>
+           <Download size={16} aria-hidden="true" />
+         </a>
+--- a/src/CameraScanner.tsx
++++ b/src/CameraScanner.tsx
+@@ -19,7 +19,6 @@
+   onClear,
+   resetToken = '',
+   autoStart = false,
+-  pauseWhenHidden = true,
+   variant = 'default',
+ }: {
+   onScan: (code: string) => Promise<void>;
+@@ -27,7 +26,6 @@
+   /** Changing this clears the last read code without tearing down the camera stream. */
+   resetToken?: string;
+   autoStart?: boolean;
+-  pauseWhenHidden?: boolean;
+   variant?: 'default' | 'kiosk';
+ }) {
+   const cameraAvailable = window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
+@@ -38,7 +36,7 @@
+     [phase, setPhase] = useState('idle'),
+     [error, setError] = useState(''),
+     [retryCode, setRetryCode] = useState('');
+-  const [visible, setVisible] = useState(!document.hidden);
++  const [restart, setRestart] = useState(0);
+   const video = useRef<HTMLVideoElement>(null),
+     callback = useRef(onScan),
+     clear = useRef(onClear),
+@@ -52,14 +50,8 @@
+   callback.current = onScan;
+   clear.current = onClear;
+   useEffect(() => {
+-    const visibility = () => setVisible(!document.hidden);
+-    document.addEventListener('visibilitychange', visibility);
+-    window.addEventListener('pageshow', visibility);
+-    return () => {
+-      document.removeEventListener('visibilitychange', visibility);
+-      window.removeEventListener('pageshow', visibility);
+-    };
+-  }, []);
++    if (autoStart) setEnabled(true);
++  }, [autoStart]);
+   useEffect(() => {
+     mounted.current = true;
+     return () => {
+@@ -75,10 +67,24 @@
+     setPhase((current) => (current === 'idle' ? current : 'scanning'));
+   }, [resetToken]);
+   useEffect(() => {
+-    if (!enabled || (pauseWhenHidden && !visible)) return;
++    if (!enabled) return;
+     let cancelled = false,
+       stream: MediaStream | undefined,
+       timer: ReturnType<typeof setTimeout> | undefined;
++    let previewWidth = 0, previewHeight = 0;
++    const resume = () => {
++      if (cancelled || !stream || document.hidden) return;
++      if (stream.getVideoTracks().every((track) => track.readyState === 'ended')) {
++        setRestart((value) => value + 1);
++      } else if (video.current?.paused) {
++        void video.current.play().catch(() => {
++          if (!cancelled) setError('No se pudo reanudar la cámara. Apágala y vuelve a activarla.');
++        });
++      }
++    };
++    document.addEventListener('visibilitychange', resume);
++    window.addEventListener('pageshow', resume);
++    window.addEventListener('focus', resume);
+     const canvas = document.createElement('canvas'),
+       context = canvas.getContext('2d', { willReadFrequently: true })!;
+     async function submit(value: string) {
+@@ -144,21 +150,22 @@
+           })
+           .catch(() => {});
+         stream.getVideoTracks()[0].addEventListener('ended', () => {
+-          if (!cancelled && !document.hidden) {
+-            setError('La cámara se desconectó. Conéctala y vuelve a activarla.');
+-            setEnabled(false);
+-          }
++          if (!cancelled) setRestart((value) => value + 1);
+         });
+         async function tick() {
+           if (cancelled) return;
+           try {
+             if (!processing.current && !failed.current && element.readyState >= 2 && element.videoWidth) {
+               const bounds = element.getBoundingClientRect();
++              if (bounds.width > 0 && bounds.height > 0) {
++                previewWidth = bounds.width;
++                previewHeight = bounds.height;
++              }
+               const frame = cameraFrame(
+                 element.videoWidth,
+                 element.videoHeight,
+-                bounds.width,
+-                bounds.height,
++                previewWidth || element.videoWidth,
++                previewHeight || element.videoHeight,
+                 variant === 'kiosk',
+               );
+               if (!frame) return;
+@@ -209,11 +216,14 @@
+     void start();
+     return () => {
+       cancelled = true;
++      document.removeEventListener('visibilitychange', resume);
++      window.removeEventListener('pageshow', resume);
++      window.removeEventListener('focus', resume);
+       clearTimeout(timer);
+       stream?.getTracks().forEach((t) => t.stop());
+       if (video.current) video.current.srcObject = null;
+     };
+-  }, [enabled, device, pauseWhenHidden, visible, variant]);
++  }, [enabled, device, restart, variant]);
+ 
+   async function readImage(file: File) {
+     if (processing.current || scanSeconds() > 0) return;
+--- a/src/Kiosk.tsx
++++ b/src/Kiosk.tsx
+@@ -302,7 +302,7 @@
+               Lector USB
+             </button>
+           </div>
+-          {mode === 'camera' ? (
++          <div hidden={mode !== 'camera'} style={mode === 'camera' ? { display: 'contents' } : undefined}>
+             <CameraScanner
+               variant="kiosk"
+               autoStart
+@@ -314,7 +314,8 @@
+                 setError('');
+               }}
+             />
+-          ) : (
++          </div>
++          {mode !== 'camera' && (
+             <section className="kiosk-reader" aria-labelledby="kiosk-reader-title">
+               <h2 id="kiosk-reader-title">Escanea tu credencial</h2>
+               <p>Acerca el QR al lector USB. El registro se envía al leer el código.</p>
+--- /dev/null
++++ b/src/PersistentAccess.tsx
+@@ -0,0 +1,17 @@
++import { useEffect, useState } from 'react';
++import Access from './Access';
++import type { Bootstrap } from '../lib/domain';
++
++/** Keep the reader and its camera alive while navigating within this session. */
++export default function PersistentAccess({ active, data, reload }: {
++  active: boolean;
++  data: Bootstrap;
++  reload: () => Promise<void>;
++}) {
++  const [opened, setOpened] = useState(active);
++  useEffect(() => {
++    if (active) setOpened(true);
++  }, [active]);
++  if (!active && !opened) return null;
++  return <div hidden={!active}><Access data={data} reload={reload} active={active} /></div>;
++}
+--- a/src/ShareCredentialButton.tsx
++++ b/src/ShareCredentialButton.tsx
+@@ -3,6 +3,7 @@
+ import { Copy, Download, MessageCircle } from 'lucide-react';
+ import type { Settings } from '../lib/domain';
+ import { Modal, type Notify } from './ui';
++import { upload } from './api';
+ import {
+   canShareCredential,
+   credentialMessage,
+@@ -24,20 +25,39 @@
+     [prepared, setPrepared] = useState<{ file: File; name: string; preview: string } | null>(null),
+     [error, setError] = useState(''),
+     [busy, setBusy] = useState(false),
+-    [status, setStatus] = useState('');
++    [status, setStatus] = useState(''),
++    [link, setLink] = useState<string | null>(null),
++    [linkFailed, setLinkFailed] = useState(false);
++  const nativeShare = !!window.__gympassShareCredential;
+   const chat = credentialWhatsappUrl(phone, prepared?.name || name, settings.name);
++  // With a private link the chat opens at the member's number and WhatsApp previews the card.
++  const chatWithLink = link ? credentialWhatsappUrl(phone, prepared?.name || name, settings.name, link) : null;
++  // WhatsApp only turns real web addresses into links, and a phone cannot reach this computer's own address.
++  const linkReachable =
++    !!link && /^https:\/\//.test(link) && !/^https:\/\/(localhost|\d{1,3}(\.\d{1,3}){3})(:|\/)/.test(link);
++  const linkPending = !nativeShare && !!prepared && !link && !linkFailed;
+   useEffect(() => {
+     if (!open) return;
+     const controller = new AbortController();
+     let live = true,
+       preview: string | undefined;
+     setPrepared(null);
++    setLink(null);
++    setLinkFailed(false);
+     setError('');
+     void prepareCredentialPng(id, settings, controller.signal)
+       .then((result) => {
+         if (!live) return;
+         preview = URL.createObjectURL(result.file);
+         setPrepared({ ...result, preview });
++        if (window.__gympassShareCredential) return;
++        upload('credentials/' + encodeURIComponent(id) + '/share', result.file)
++          .then((created) => {
++            if (live) setLink(location.origin + created.path);
++          })
++          .catch(() => {
++            if (live) setLinkFailed(true);
++          });
+       })
+       .catch((reason) => {
+         if (live) setError((reason as Error).message);
+@@ -57,7 +77,6 @@
+       setError('No se pudo descargar el PNG. Vuelve a intentarlo.');
+     }
+   }
+-  const nativeShare = !!window.__gympassShareCredential;
+   const systemShare = !!prepared && !window.gympassDesktop && canShareCredential(prepared.file);
+   async function copy() {
+     if (!prepared) return;
+@@ -69,28 +88,59 @@
+       setError((cause as Error).message);
+     }
+   }
++  // The Android app shares the image and message straight to the member's number.
+   async function share() {
+     if (!prepared || !chat || busy) return;
+     setBusy(true);
+     setError('');
+     setStatus('');
+-    // Open during the click, before clipboard promises, to retain browser popup permission.
+-    const target = !nativeShare && !systemShare ? window.open('about:blank', '_blank') : null;
+-    if (target) target.opener = null;
+-    try {
+-      const text = credentialMessage(prepared.name, settings.name);
+-      if (window.__gympassShareCredential)
+-        await window.__gympassShareCredential(prepared.file, text, (phone || '').replace(/\D/g, ''));
+-      else if (systemShare)
+-        await navigator.share({ files: [prepared.file], text, title: 'Credencial de ' + prepared.name });
+-      else {
+-        await copyCredentialImage(prepared.file);
+-        if (target) target.location.href = chat;
+-        else window.open(chat, '_blank', 'noopener');
+-        setStatus('Imagen copiada. Pégala en el chat y confirma el envío en WhatsApp.');
+-      }
++    try {
++      await window.__gympassShareCredential?.(
++        prepared.file,
++        credentialMessage(prepared.name, settings.name),
++        (phone || '').replace(/\D/g, ''),
++      );
+     } catch (cause) {
+-      target?.close();
++      if ((cause as Error).name !== 'AbortError') setError((cause as Error).message);
++    } finally {
++      setBusy(false);
++    }
++  }
++  // In a browser the chat is a plain link to the member's number, like the renewal notice, so no
++  // popup blocker can interfere. WhatsApp links cannot carry an image: the click copies the card
++  // (while the page still has focus) so it can be pasted into the chat before sending.
++  function openChat() {
++    if (!prepared) return;
++    setError('');
++    setStatus('');
++    copyCredentialImage(prepared.file).then(
++      () =>
++        setStatus(
++          link
++            ? 'Chat abierto con el enlace de la credencial. La imagen también quedó copiada por si prefieres pegarla (Ctrl+V o ⌘V).'
++            : 'Imagen copiada. En el chat pégala con Ctrl+V (⌘V en Mac) y confirma el envío.',
++        ),
++      () =>
++        setStatus(
++          link
++            ? 'Chat abierto con el enlace de la credencial. Confirma el envío en WhatsApp.'
++            : 'No se pudo copiar la imagen. Descarga el PNG y adjúntalo en el chat antes de enviar.',
++        ),
++    );
++  }
++  // Optional route through the system share sheet; it cannot choose the member's chat.
++  async function shareWithOtherApp() {
++    if (!prepared || busy) return;
++    setBusy(true);
++    setError('');
++    setStatus('');
++    try {
++      await navigator.share({
++        files: [prepared.file],
++        text: credentialMessage(prepared.name, settings.name),
++        title: 'Credencial de ' + prepared.name,
++      });
++    } catch (cause) {
+       if ((cause as Error).name !== 'AbortError') setError((cause as Error).message);
+     } finally {
+       setBusy(false);
+@@ -124,6 +174,7 @@
+             <p>
+               Tarjeta de <strong>{name}</strong> con su QR actual.
+             </p>
++            <p className="helper">El chat se abre por su número con código de país; no necesitas guardar al socio en tus contactos.</p>
+             {error && (
+               <p className="error-message" role="alert">
+                 {error}
+@@ -136,20 +187,40 @@
+                 <p className="helper">
+                   {nativeShare
+                     ? `Se abrirá WhatsApp para ${phone} con la imagen y el mensaje preparados. Confirma el envío allí.`
+-                    : systemShare
+-                      ? 'Elige WhatsApp para compartir la imagen y el mensaje juntos. Confirma el envío allí.'
+-                      : `Se copiará la imagen y se abrirá el chat de ${phone} con el mensaje. Pega la imagen con Ctrl+V y confirma el envío.`}
++                    : link && !linkReachable
++                      ? `Atención: este enlace usa la dirección de este equipo (${new URL(link).host}). WhatsApp no lo mostrará como enlace y el socio no podrá abrirlo; solo funciona desde la dirección pública (https) del gimnasio.`
++                      : link
++                        ? `Se abrirá el chat de ${phone} con el mensaje y un enlace privado a la tarjeta, que vence en 7 días. WhatsApp mostrará la credencial como vista previa.`
++                        : linkFailed
++                          ? `No se pudo crear el enlace de la credencial. Puedes abrir el chat de ${phone} y pegar la imagen copiada con Ctrl+V (⌘V en Mac).`
++                          : 'Preparando el enlace privado de la credencial…'}{' '}
+                 </p>
+                 {status && <p role="status">{status}</p>}
+                 <div className="button-row">
+-                  {chat && (
+-                    <button className="btn primary" disabled={busy} onClick={share}>
+-                      <MessageCircle size={16} />{' '}
+-                      {nativeShare
+-                        ? 'Abrir WhatsApp con credencial'
+-                        : systemShare
+-                          ? 'Compartir imagen y mensaje'
+-                          : 'Copiar imagen y abrir WhatsApp'}
++                  {chat &&
++                    (nativeShare ? (
++                      <button className="btn primary" disabled={busy} onClick={share}>
++                        <MessageCircle size={16} /> Abrir WhatsApp con credencial
++                      </button>
++                    ) : linkPending ? (
++                      <button className="btn primary" disabled>
++                        <MessageCircle size={16} /> Preparando enlace…
++                      </button>
++                    ) : (
++                      <a
++                        className="btn primary"
++                        href={chatWithLink || chat}
++                        target="_blank"
++                        rel="noreferrer"
++                        onClick={openChat}
++                      >
++                        <MessageCircle size={16} />{' '}
++                        {link ? 'Abrir chat del socio con la credencial' : 'Abrir chat del socio y copiar imagen'}
++                      </a>
++                    ))}
++                  {systemShare && !nativeShare && (
++                    <button className="btn secondary" disabled={busy} onClick={shareWithOtherApp}>
++                      Compartir con otra app
+                     </button>
+                   )}
+                   <button className="btn secondary" disabled={busy} onClick={copy}>
+--- a/src/credential-sharing.ts
++++ b/src/credential-sharing.ts
+@@ -23,13 +23,16 @@
+   }
+ }
+ 
+-export function credentialMessage(name: string, organization: string) {
++/** Con `link` el mensaje lleva la dirección privada de la tarjeta; sin él, la tarjeta va adjunta. */
++export function credentialMessage(name: string, organization: string, link?: string) {
++  if (link)
++    return `Hola ${name}, esta es tu credencial de ${organization}: ${link}\nEs personal: preséntala en recepción. El enlace vence en 7 días.`;
+   return `Hola ${name}, te comparto tu credencial de ${organization}. La tarjeta QR va adjunta en este chat.`;
+ }
+ 
+-export function credentialWhatsappUrl(phone: string | undefined, name: string, organization: string) {
++export function credentialWhatsappUrl(phone: string | undefined, name: string, organization: string, link?: string) {
+   const digits = (phone || '').replace(/\D/g, '');
+   if (!/^[1-9]\d{7,14}$/.test(digits)) return null;
+-  const message = credentialMessage(name, organization);
++  const message = credentialMessage(name, organization, link);
+   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+ }
+--- a/tests/access-zone-ui.test.ts
++++ b/tests/access-zone-ui.test.ts
+@@ -74,7 +74,8 @@
+ 
+ test('el enlace de Ajustes abre Recepción directamente en modo lector USB', async (t) => {
+   const view = reception(t, zones, '#access?mode=reader');
+-  assert.throws(() => findElement(view.tree, (node) => node.type === 'CameraScanner'));
++  const camera = findElement(view.tree, (node) => node.type === 'div' && node.props.hidden === true);
++  assert.equal(findElement(camera, (node) => node.type === 'CameraScanner').props.autoStart, false);
+   assert.match(elementText(view.tree), /Escanea con el lector de códigos/);
+   assert.equal(
+     findElement(view.tree, (node) => node.type === 'input' && node.props.name === 'code').props.autoFocus,
+--- /dev/null
++++ b/tests/camera-persistence.test.ts
+@@ -0,0 +1,72 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { componentHarness, componentStubs, findElement } from './component-harness.ts';
++
++test('el lector conserva la cámara al ocultar la pestaña y la libera al apagar o cerrar sesión', async (t) => {
++  const listeners = new Map<string, () => void>();
++  let requests = 0, stops = 0, plays = 0;
++  const track = { readyState: 'live', stop() { stops++; }, addEventListener() {} };
++  const stream = { getTracks: () => [track], getVideoTracks: () => [track] };
++  const document = {
++    hidden: false,
++    addEventListener(name: string, callback: () => void) { listeners.set(name, callback); },
++    removeEventListener(name: string) { listeners.delete(name); },
++    createElement: () => ({ getContext: () => ({}) }),
++  };
++  const h = componentHarness({ document,
++    window: { isSecureContext: true, addEventListener() {}, removeEventListener() {} },
++    navigator: { mediaDevices: { getUserMedia: async () => { requests++; return stream; }, enumerateDevices: async () => [] } },
++    setTimeout: () => 1, clearTimeout() {},
++  });
++  t.after(() => h.cleanup());
++  const { default: Scanner } = h.load('../src/CameraScanner.tsx', {
++    'lucide-react': componentStubs,
++    './scan-cooldown': { scanSeconds: () => 0, useScanCooldown: () => 0 },
++    '../lib/camera-frame': { cameraFrame() {} },
++    '../vendor/jsqr/jsQR.js': { default: () => null },
++  });
++  let tree = h.render(() => Scanner({ onScan: async () => {}, onClear() {} }));
++  const video = { srcObject: null, paused: false, readyState: 0, play: async () => { plays++; } };
++  findElement(tree, (el) => el.type === 'video').props.ref.current = video;
++  findElement(tree, (el) => el.type === 'button').props.onClick();
++  tree = await h.settle();
++  assert.equal(requests, 1);
++  assert.equal(video.srcObject, stream);
++  document.hidden = true;
++  listeners.get('visibilitychange')!();
++  tree = await h.settle();
++  assert.equal(stops, 0);
++  assert.equal(requests, 1);
++  document.hidden = false;
++  video.paused = true;
++  listeners.get('visibilitychange')!();
++  await h.settle();
++  assert.equal(plays, 2);
++  assert.equal(requests, 1);
++  findElement(tree, (el) => el.type === 'button').props.onClick();
++  await h.settle();
++  assert.equal(stops, 1);
++  assert.equal(video.srcObject, null);
++  tree = h.render(() => Scanner({ onScan: async () => {}, onClear() {} }));
++  findElement(tree, (el) => el.type === 'button').props.onClick();
++  await h.settle();
++  h.cleanup();
++  assert.equal(stops, 2);
++});
++
++test('recepción permanece montada al navegar y no inicia el lector antes de abrirla', async (t) => {
++  const h = componentHarness();
++  t.after(() => h.cleanup());
++  const { default: PersistentAccess } = h.load('../src/PersistentAccess.tsx', { './Access': { default: 'Access' } });
++  let active = false;
++  const props = { data: {}, reload: async () => {} };
++  assert.equal(h.render(() => PersistentAccess({ ...props, active })), null);
++  active = true;
++  const shown = h.render(() => PersistentAccess({ ...props, active }));
++  await h.settle();
++  active = false;
++  const hidden = h.render(() => PersistentAccess({ ...props, active }));
++  assert.equal(findElement(hidden, (el) => el.type === 'div').props.hidden, true);
++  assert.equal(findElement(shown, (el) => el.type === 'Access').type, findElement(hidden, (el) => el.type === 'Access').type);
++  assert.equal(findElement(hidden, (el) => el.type === 'Access').props.active, false);
++});
+--- /dev/null
++++ b/tests/credential-chat.test.ts
+@@ -0,0 +1,41 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { componentHarness, componentStubs, findElement } from './component-harness.ts';
++
++test('el chat web se dirige al número internacional sin consultar la agenda', () => {
++  const h = componentHarness();
++  const { credentialWhatsappUrl } = h.load('../src/credential-sharing.ts', {});
++  const link = 'https://gympass.site/c/private';
++  const url = new URL(credentialWhatsappUrl('+591 7123-4567', 'José Pérez', 'Gym', link));
++  assert.equal(url.origin, 'https://wa.me');
++  assert.equal(url.pathname, '/59171234567');
++  assert.ok(url.searchParams.get('text')!.includes(link));
++  assert.match(url.searchParams.get('text')!, /José Pérez/);
++  for (const value of ['', 'abc', '00000000', undefined]) assert.equal(credentialWhatsappUrl(value, 'Socio', 'Gym'), null);
++});
++
++for (const clipboardFails of [false, true]) test(`la apertura del chat no depende del portapapeles (fallo=${clipboardFails})`, async (t) => {
++  const file = new File(['PNG'], 'credencial.png', { type: 'image/png' });
++  const h = componentHarness({ location: { origin: 'https://gympass.site' },
++    URL: { createObjectURL: () => 'blob:preview', revokeObjectURL() {} },
++  });
++  t.after(() => h.cleanup());
++  const sharing = h.load('../src/credential-sharing.ts', {});
++  const { default: Button } = h.load('../src/ShareCredentialButton.tsx', {
++    'react-dom': { createPortal: (tree: unknown) => tree }, 'lucide-react': componentStubs, './ui': { Modal: 'Modal' },
++    './api': { upload: async () => ({ path: '/c/private' }) },
++    './credential-sharing': { ...sharing, prepareCredentialPng: async () => ({ file, name: 'José Pérez' }) },
++    './native-files': { copyCredentialImage: async () => { if (clipboardFails) throw Error('Clipboard denied'); } },
++  });
++  let tree = h.render(() => Button({ id: 'credential', name: 'José Pérez', phone: '+591 7123-4567', settings: { name: 'Gym' }, notify() {} }));
++  findElement(tree, (el) => el.type === 'button').props.onClick();
++  tree = await h.settle();
++  const chat = findElement(tree, (el) => el.type === 'a' && el.props.className === 'btn primary');
++  assert.equal(chat.props.target, '_blank');
++  const url = new URL(chat.props.href);
++  assert.equal(url.pathname, '/59171234567');
++  assert.ok(url.searchParams.get('text')!.includes('https://gympass.site/c/private'));
++  // A normal anchor opens during the click even if asynchronous clipboard work fails.
++  chat.props.onClick();
++  await h.settle();
++});
+--- a/tests/credential-sharing.test.ts
++++ b/tests/credential-sharing.test.ts
+@@ -57,6 +57,7 @@
+   t.after(() => h.cleanup());
+   const { default: Button } = h.load('../src/ShareCredentialButton.tsx', {
+     'react-dom': { createPortal: (x: unknown) => x }, 'lucide-react': componentStubs, './ui': { Modal: 'Modal' },
++    './api': { upload: async () => { throw Error('Offline'); } },
+     './credential-sharing': {
+       prepareCredentialPng: async () => ({ file, name: card.name }), canShareCredential: () => false,
+       credentialMessage: () => 'Caption with credential',
+@@ -71,5 +72,10 @@
+   tree = await h.settle();
+   assert.equal(saved.length, 0);
+   if (native) { assert.equal(shared[0][0], file); assert.equal(shared[0][1], 'Caption with credential'); assert.equal(shared[0][2], '59171234567'); }
+-  else { assert.equal(copied[0], file); assert.equal(target.location.href, 'https://wa.me/59171234567'); assert.equal(target.opener, null); }
++  else {
++    assert.equal(copied[0], file);
++    const chat = findElement(tree, e => e.type === 'a' && e.props.className === 'btn primary');
++    assert.equal(chat.props.href, 'https://wa.me/59171234567');
++    assert.equal(chat.props.target, '_blank');
++  }
+ });
+--- /dev/null
++++ b/tests/external-links.test.ts
+@@ -0,0 +1,34 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { createRequire } from 'node:module';
++const { openExternalLink } = createRequire(import.meta.url)('../desktop/external-links.cjs');
++
++test('WhatsApp de escritorio abre el número sin consultar contactos y conserva el mensaje', async () => {
++  const opened: string[] = [];
++  const text = 'Hola José, tu credencial: https://gympass.site/c/privado?x=1&y=2';
++  await openExternalLink('https://wa.me/59171234567?text=' + encodeURIComponent(text), async (url: string) => { opened.push(url); });
++  const url = new URL(opened[0]);
++  assert.equal(opened.length, 1);
++  assert.equal(url.protocol, 'whatsapp:');
++  assert.equal(url.searchParams.get('phone'), '59171234567');
++  assert.equal(url.searchParams.get('text'), text);
++});
++
++test('sin WhatsApp instalado abre el mismo chat en el navegador', async () => {
++  const opened: string[] = [];
++  const web = 'https://wa.me/59171234567?text=Hola';
++  await openExternalLink(web, async (url: string) => { opened.push(url); if (url.startsWith('whatsapp:')) throw Error('No protocol handler'); });
++  assert.equal(opened.length, 2);
++  assert.equal(opened[1], web);
++});
++
++test('solo convierte enlaces de chat válidos y rechaza protocolos no admitidos', async () => {
++  const opened: string[] = [];
++  const open = async (url: string) => { opened.push(url); };
++  for (const value of ['file:///C:/Windows', 'javascript:alert(1)', 'whatsapp://other', 'https://user:password@wa.me/59171234567'])
++    await openExternalLink(value, open);
++  assert.equal(opened.length, 0);
++  for (const value of ['https://wa.me.example.org/59171234567', 'https://wa.me/0000', 'https://example.org/'])
++    await openExternalLink(value, open);
++  assert.ok(opened.every((url) => url.startsWith('https:')));
++});
+--- a/tests/release-version.test.ts
++++ b/tests/release-version.test.ts
+@@ -2,14 +2,14 @@
+ import { test } from 'node:test';
+ import { readFile } from 'node:fs/promises';
+ 
+-test('web, Android y Windows usan 5.2.1', async () => {
++test('web, Android y Windows usan 5.2.2', async () => {
+   for (const path of ['package.json', 'desktop/package.json', 'desktop-runtime/package.json']) {
+     const manifest = JSON.parse(await readFile(new URL('../' + path, import.meta.url), 'utf8'));
+-    assert.equal(manifest.version, '5.2.1', path);
++    assert.equal(manifest.version, '5.2.2', path);
+   }
+   const app = JSON.parse(await readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'));
+-  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '5.2.1');
+-  assert.equal(app.expo.version, '5.2.1');
+-  assert.equal(app.expo.android.versionCode, 5210);
+-  assert.equal(app.expo.ios.buildNumber, '5210');
++  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '5.2.2');
++  assert.equal(app.expo.version, '5.2.2');
++  assert.equal(app.expo.android.versionCode, 5220);
++  assert.equal(app.expo.ios.buildNumber, '5220');
+ });

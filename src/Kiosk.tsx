@@ -302,7 +302,7 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
               Lector USB
             </button>
           </div>
-          {mode === 'camera' ? (
+          <div hidden={mode !== 'camera'} style={mode === 'camera' ? { display: 'contents' } : undefined}>
             <CameraScanner
               variant="kiosk"
               autoStart
@@ -314,7 +314,8 @@ export default function Kiosk({ data, reload, restricted = false }: { data: Boot
                 setError('');
               }}
             />
-          ) : (
+          </div>
+          {mode !== 'camera' && (
             <section className="kiosk-reader" aria-labelledby="kiosk-reader-title">
               <h2 id="kiosk-reader-title">Escanea tu credencial</h2>
               <p>Acerca el QR al lector USB. El registro se envía al leer el código.</p>

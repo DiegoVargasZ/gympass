@@ -1,5 +1,12 @@
 # Cambios
 
+## 5.2.2
+
+- La cámara de recepción permanece habilitada al cambiar de pestaña del navegador, pantalla de gestión o método de registro. Se apaga con su botón o al terminar la sesión.
+- El lector reanuda el vídeo al volver a la ventana y solicita otra captura si el sistema termina el flujo. El navegador o el sistema pueden suspender la captura en segundo plano.
+- Windows abre los enlaces de WhatsApp en la aplicación instalada y recurre al navegador si no está disponible. El número del socio con código de país permite abrir el chat sin guardarlo en contactos; el envío se confirma en WhatsApp.
+- Web, Windows y Android en 5.2.2; Android conserva paquete y firma y usa el código 5220. Se retiene la web 5.2.1 para sesiones abiertas.
+
 ## 5.2.1
 
 - Respaldos exclusivos del superadministrador; los administradores de gimnasio no ven el apartado ni pueden usar sus API en la web, Android o Windows.

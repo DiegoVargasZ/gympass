@@ -25,7 +25,7 @@ const Manage = lazy(() => import('./Manage'));
 const Credentials = lazy(() => import('./Credentials'));
 const Pos = lazy(() => import('./Pos'));
 const People = lazy(() => import('./People'));
-const Access = lazy(() => import('./Access'));
+const PersistentAccess = lazy(() => import('./PersistentAccess'));
 const Reports = lazy(() => import('./Reports'));
 const Renewals = lazy(() => import('./Renewals'));
 const CommandPalette = lazy(() => import('./CommandPalette'));
@@ -301,7 +301,7 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
           onLogout?.();
         }}
       >
-        <main className="main-content" id="main-content" tabIndex={-1} key={route}>
+        <main className="main-content" id="main-content" tabIndex={-1}>
           {data.activation?.state === 'expired' && (
             <p className="error-message" role="alert">
               {data.activation.licenseType === 'monthly'
@@ -331,6 +331,12 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
             </p>
           )}
           <SectionTabs sections={sectionsFor(data.user.role)} page={active} />
+          {items.some((item) => item.id === 'access') && (
+            <Suspense fallback={active === 'access' ? <Skeleton rows={4} label="Abriendo recepción" /> : null}>
+              <PersistentAccess key={data.installation_id + ':' + data.user.id} active={active === 'access'} data={data} reload={reload} />
+            </Suspense>
+          )}
+          <div key={route}>
           <Suspense fallback={<Skeleton rows={4} label="Abriendo pantalla" />}>
             {active === 'dashboard' ? (
               <Dashboard data={data} />
@@ -338,9 +344,7 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
               <People data={data} reload={reload} notify={notify} />
             ) : active === 'pos' ? (
               <Pos data={data} reload={reload} notify={notify} />
-            ) : active === 'access' ? (
-              <Access key={data.installation_id + ':' + data.user.id} data={data} reload={reload} />
-            ) : active === 'credentials' ? (
+            ) : active === 'access' ? null : active === 'credentials' ? (
               <Credentials data={data} notify={notify} />
             ) : active === 'renewals' ? (
               <Renewals data={data} reload={reload} notify={notify} />
@@ -352,6 +356,7 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
               <Manage page="settings" data={data} reload={reload} notify={notify} admin={admin} />
             )}
           </Suspense>
+          </div>
         </main>
       </AppShell>
       {commands && (

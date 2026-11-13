@@ -1,0 +1,65 @@
+{
+  "version": "5.2.2",
+  "published": false,
+  "build_method": "local-windows",
+  "source": {
+    "base_commit": "59d85827eb3501ce5a9c7c0fd5e03d2fdd78e2d4",
+    "uncommitted_worktree": true
+  },
+  "android": {
+    "package": "local.gympass.controlacceso.mobile",
+    "version_code": 5220,
+    "certificate_sha256": "a6735a9d424cb835fac4e5ca05f08df8cd9bd9007bdb8cf32f4fa42492187ded",
+    "smoke_passed": true,
+    "cold_starts": 2,
+    "management_startup_passed": true,
+    "android_tested": "17",
+    "page_size": 16384,
+    "bundled_management_version_verified": true
+  },
+  "windows": {
+    "package_smoke_passed": true,
+    "portable_smoke_passed": true,
+    "setup_version_verified": true,
+    "code_signed": false,
+    "electron_version": "45.0.0",
+    "architecture": "x64",
+    "minimum_os": "Windows 10",
+    "packaged_whatsapp_helper_verified": true,
+    "bundled_management_matches_final_build": true
+  },
+  "verification": {
+    "passed_tests_and_checks": {
+      "web": 165,
+      "mobile": 76,
+      "desktop": 601
+    },
+    "camera_simulated_browser_test": true,
+    "camera_hidden_page_lifecycle_test": true,
+    "camera_navigation_persistence_test": true,
+    "camera_stream_recovery_test": true,
+    "camera_logout_release_test": true,
+    "whatsapp_unsaved_phone_url_test": true,
+    "whatsapp_desktop_protocol_and_web_fallback_test": true,
+    "physical_camera_tested": false,
+    "real_whatsapp_account_tested": false,
+    "phone_physically_tested": false,
+    "android_ui_files_match_final_build": true
+  },
+  "files": {
+    "GymPASS-Android-5.2.2.apk": {
+      "sha256": "1ea8a2892f19d7765cf1e1d1e36f8d302e6ec451ca6db496ad32eb4a7babce32",
+      "bytes": 70553289
+    },
+    "GymPASS-Portable-5.2.2.exe": {
+      "sha256": "870a0336fc429163262e6fee32febdaab5cd435a8c4bb34142abf6bec617f192",
+      "bytes": 138079987
+    },
+    "GymPASS-Setup-5.2.2.exe": {
+      "sha256": "2f261a197e040e370bd2e552d864150774725a600a356021788fac7be2834df4",
+      "bytes": 138333791
+    }
+  },
+  "native_patch_sha256": "f2aefa1af6ae1cd1464b388b044d338201c4fa2e45e54900f561c6b0d19c2219",
+  "web_source_sha256": "5360ba5d1ba3bc7f5a31a2957502a60b44d51de531f6ac434d95ab06b197f7e2"
+}

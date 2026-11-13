@@ -174,6 +174,7 @@ export default function ShareCredentialButton({ id, name, phone, settings, disab
             <p>
               Tarjeta de <strong>{name}</strong> con su QR actual.
             </p>
+            <p className="helper">El chat se abre por su número con código de país; no necesitas guardar al socio en tus contactos.</p>
             {error && (
               <p className="error-message" role="alert">
                 {error}

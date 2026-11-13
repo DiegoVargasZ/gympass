@@ -14,11 +14,13 @@ import { newRequestId } from './browser';
 import { claimScan, useScanCooldown } from './scan-cooldown';
 import GymPresence from './GymPresence';
 
-export default function Access({ data, reload }: { data: Bootstrap; reload: () => Promise<void> }) {
+export default function Access({ data, reload, active = true }: { data: Bootstrap; reload: () => Promise<void>; active?: boolean }) {
   const preferences = usePreferences();
   const queue = useAccessQueue();
   const scanWait = useScanCooldown();
   const initialPerson = new URLSearchParams(location.hash.split('?')[1]).get('person') || '';
+  const requestedMode = new URLSearchParams(location.hash.split('?')[1]).get('mode');
+  const requestedZone = new URLSearchParams(location.hash.split('?')[1]).get('zone');
   const [mode, setMode] = useState<'camera' | 'reader' | 'manual'>(
       initialPerson
         ? 'manual'
@@ -35,13 +37,19 @@ export default function Access({ data, reload }: { data: Bootstrap; reload: () =
     return data.zones.some((item) => item.id === requested) ? requested! : generalAccessId;
   });
   const zoneName = data.zones.find((item) => item.id === zone)?.name || 'Acceso general';
+  useEffect(() => {
+    if (!active) return;
+    if (initialPerson) setMode('manual');
+    else if (requestedMode === 'reader' || requestedMode === 'camera') setMode(requestedMode);
+    if (requestedZone && data.zones.some((item) => item.id === requestedZone)) setZone(requestedZone);
+  }, [active, initialPerson, requestedMode, requestedZone]);
   const code = useRef<HTMLInputElement>(null),
     resultButton = useRef<HTMLButtonElement>(null),
     pending = useRef<{ payload: string; id: string } | null>(null),
     inFlight = useRef(false),
     alive = useRef(true);
   useEffect(() => {
-    if (!result) return;
+    if (!result || !active) return;
     const previous = code.current || document.querySelector<HTMLElement>('.access-panel .tabs .selected');
     resultButton.current?.focus({ preventScroll: true });
     const timer = setTimeout(() => setResult(null), 5000);
@@ -51,7 +59,7 @@ export default function Access({ data, reload }: { data: Bootstrap; reload: () =
         if (previous?.isConnected) previous.focus({ preventScroll: true });
       });
     };
-  }, [result]);
+  }, [result, active]);
   useEffect(() => {
     if (!queued) return;
     const timer = setTimeout(() => setQueued(null), 5000);
@@ -95,7 +103,7 @@ export default function Access({ data, reload }: { data: Bootstrap; reload: () =
           setQueued({ direction: outcome.queued.direction, zone_name: outcome.queued.zone_name });
           if (code.current) {
             code.current.value = '';
-            code.current.focus();
+            if (active) code.current.focus();
           }
         }
         return;
@@ -106,7 +114,7 @@ export default function Access({ data, reload }: { data: Bootstrap; reload: () =
         void accessFeedback(!!event.allowed, preferences.sound, preferences.vibration, event.direction, event.person_name, preferences);
         if (code.current) {
           code.current.value = '';
-          code.current.focus();
+          if (active) code.current.focus();
         }
       }
       void reload().catch(() => {
@@ -206,7 +214,7 @@ export default function Access({ data, reload }: { data: Bootstrap; reload: () =
                 </button>
               ))}
             </div>
-            {mode === 'camera' ? (
+            <div hidden={mode !== 'camera'}>
               <CameraScanner
                 autoStart={new URLSearchParams(location.hash.split('?')[1]).get('camera') === 'auto'}
                 resetToken={zone + ':auto'}
@@ -216,7 +224,8 @@ export default function Access({ data, reload }: { data: Bootstrap; reload: () =
                   setQueued(null);
                 }}
               />
-            ) : (
+            </div>
+            {mode !== 'camera' && (
               <div className="access-fallback">
                 <h2>{mode === 'manual' ? 'Registrar sin código QR' : 'Escanea con el lector de códigos'}</h2>
                 <p className="helper">

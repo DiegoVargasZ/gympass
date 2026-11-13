@@ -40,17 +40,21 @@ Para restaurar la plataforma, extrae el `.tar.gz` en un directorio nuevo y utili
 
 ## Aplicaciones y trabajo sin conexión
 
-Instala Android y Windows 5.2.1 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
+Instala Android y Windows 5.2.2 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
 
 En Windows, Configuración → Conexión permite utilizar servidor o copia local sincronizada. En Android, Gestión incluye una copia local para administradores y sincroniza automáticamente al reconectar; el lector conserva su copia autorizada para recepción. Consulta la [guía móvil sin conexión](MOVIL-SIN-CONEXION.md). Los conflictos se revisan antes de reemplazar datos locales. Windows sigue la política existente de distribución sin firma de código.
 
-El instalador Windows 5.2.1 conserva Electron 45 y requiere Windows 10 o posterior, en equipos x64. La compatibilidad web con Chrome/Edge 109 no amplía los sistemas admitidos por ese instalador. [Electron retiró Windows 7, 8 y 8.1 desde su versión 23](https://www.electronjs.org/blog/windows-7-to-8-1-deprecation-notice).
+El instalador Windows 5.2.2 conserva Electron 45 y requiere Windows 10 o posterior, en equipos x64. La compatibilidad web con Chrome/Edge 109 no amplía los sistemas admitidos por ese instalador. [Electron retiró Windows 7, 8 y 8.1 desde su versión 23](https://www.electronjs.org/blog/windows-7-to-8-1-deprecation-notice).
 
 ## Recepción y caja
 
 En **Configuración → Avisos y sonidos** activa **Reproducir avisos de entrada y salida** y selecciona **Audios de acceso permitido y denegado** para usar las grabaciones proporcionadas. Un escaneo válido anuncia «Acceso permitido», tanto de entrada como de salida, y un código ajeno o vencido anuncia «Acceso denegado»; Android los incluye para Recepción sin Internet. Puedes probar ambos antes de pulsar **Guardar cambios**. También siguen disponibles las diez voces de GymPASS y las voces del dispositivo, con velocidad entre 50 % y 300 % y lectura del nombre. Las grabaciones mantienen su velocidad original. Si un audio no se puede cargar, se usa el tono de confirmación.
 
 Registra al socio con su WhatsApp, crea un plan y confirma el cobro. El primer pago crea su QR permanente de forma atómica; los reintentos no duplican el cobro. La fecha inicial del plan determina cuándo puede entrar. Comparte la credencial existente desde la ficha o comprobante. **Enviar por WhatsApp** abre el chat del socio con un enlace privado a su tarjeta (WhatsApp la muestra como vista previa). El enlace vence a los 7 días, se reemplaza al crear otro y deja de funcionar si se anula la credencial; las imágenes se guardan en la carpeta `shares` del gimnasio, que no entra en los respaldos.
+
+No hace falta guardar al socio en la agenda: el chat se abre con su número internacional. Windows intenta abrir WhatsApp instalado y utiliza el navegador si el sistema no puede abrir la aplicación. Confirma el envío dentro de WhatsApp.
+
+Después de activarla, la cámara de recepción sigue habilitada al navegar por las pantallas de gestión, elegir otro método de registro o cambiar de pestaña. Para detenerla, pulsa **Apagar cámara** o cierra la sesión. Si el sistema termina la captura, el lector intenta recuperarla al regresar. El navegador y el sistema operativo pueden suspender la captura o limitar las lecturas en segundo plano.
 
 Un lector USB debe funcionar como teclado y terminar cada lectura con Enter. Un lector de red utiliza la clave de dispositivo y las rutas mostradas en Configuración → Lectores. Una respuesta HTTP 200 no basta para abrir: el conector debe exigir `allowed: true`.
 

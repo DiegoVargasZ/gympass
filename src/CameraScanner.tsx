@@ -19,7 +19,6 @@ export default function CameraScanner({
   onClear,
   resetToken = '',
   autoStart = false,
-  pauseWhenHidden = true,
   variant = 'default',
 }: {
   onScan: (code: string) => Promise<void>;
@@ -27,7 +26,6 @@ export default function CameraScanner({
   /** Changing this clears the last read code without tearing down the camera stream. */
   resetToken?: string;
   autoStart?: boolean;
-  pauseWhenHidden?: boolean;
   variant?: 'default' | 'kiosk';
 }) {
   const cameraAvailable = window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
@@ -38,7 +36,7 @@ export default function CameraScanner({
     [phase, setPhase] = useState('idle'),
     [error, setError] = useState(''),
     [retryCode, setRetryCode] = useState('');
-  const [visible, setVisible] = useState(!document.hidden);
+  const [restart, setRestart] = useState(0);
   const video = useRef<HTMLVideoElement>(null),
     callback = useRef(onScan),
     clear = useRef(onClear),
@@ -52,14 +50,8 @@ export default function CameraScanner({
   callback.current = onScan;
   clear.current = onClear;
   useEffect(() => {
-    const visibility = () => setVisible(!document.hidden);
-    document.addEventListener('visibilitychange', visibility);
-    window.addEventListener('pageshow', visibility);
-    return () => {
-      document.removeEventListener('visibilitychange', visibility);
-      window.removeEventListener('pageshow', visibility);
-    };
-  }, []);
+    if (autoStart) setEnabled(true);
+  }, [autoStart]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -75,10 +67,24 @@ export default function CameraScanner({
     setPhase((current) => (current === 'idle' ? current : 'scanning'));
   }, [resetToken]);
   useEffect(() => {
-    if (!enabled || (pauseWhenHidden && !visible)) return;
+    if (!enabled) return;
     let cancelled = false,
       stream: MediaStream | undefined,
       timer: ReturnType<typeof setTimeout> | undefined;
+    let previewWidth = 0, previewHeight = 0;
+    const resume = () => {
+      if (cancelled || !stream || document.hidden) return;
+      if (stream.getVideoTracks().every((track) => track.readyState === 'ended')) {
+        setRestart((value) => value + 1);
+      } else if (video.current?.paused) {
+        void video.current.play().catch(() => {
+          if (!cancelled) setError('No se pudo reanudar la cámara. Apágala y vuelve a activarla.');
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', resume);
+    window.addEventListener('pageshow', resume);
+    window.addEventListener('focus', resume);
     const canvas = document.createElement('canvas'),
       context = canvas.getContext('2d', { willReadFrequently: true })!;
     async function submit(value: string) {
@@ -144,21 +150,22 @@ export default function CameraScanner({
           })
           .catch(() => {});
         stream.getVideoTracks()[0].addEventListener('ended', () => {
-          if (!cancelled && !document.hidden) {
-            setError('La cámara se desconectó. Conéctala y vuelve a activarla.');
-            setEnabled(false);
-          }
+          if (!cancelled) setRestart((value) => value + 1);
         });
         async function tick() {
           if (cancelled) return;
           try {
             if (!processing.current && !failed.current && element.readyState >= 2 && element.videoWidth) {
               const bounds = element.getBoundingClientRect();
+              if (bounds.width > 0 && bounds.height > 0) {
+                previewWidth = bounds.width;
+                previewHeight = bounds.height;
+              }
               const frame = cameraFrame(
                 element.videoWidth,
                 element.videoHeight,
-                bounds.width,
-                bounds.height,
+                previewWidth || element.videoWidth,
+                previewHeight || element.videoHeight,
                 variant === 'kiosk',
               );
               if (!frame) return;
@@ -209,11 +216,14 @@ export default function CameraScanner({
     void start();
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', resume);
+      window.removeEventListener('pageshow', resume);
+      window.removeEventListener('focus', resume);
       clearTimeout(timer);
       stream?.getTracks().forEach((t) => t.stop());
       if (video.current) video.current.srcObject = null;
     };
-  }, [enabled, device, pauseWhenHidden, visible, variant]);
+  }, [enabled, device, restart, variant]);
 
   async function readImage(file: File) {
     if (processing.current || scanSeconds() > 0) return;
