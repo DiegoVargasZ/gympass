@@ -1,6 +1,6 @@
 # Gestión móvil sin conexión
 
-Android 5.2.0 incluye la interfaz de gestión y una base SQLite privada del gimnasio. Una cuenta administradora puede registrar socios, gestionar productos, existencias y planes, cobrar, consultar o compartir credenciales, registrar accesos, guardar fotos y logotipos, cambiar la configuración del gimnasio y consultar o exportar informes sin Internet. Las correcciones de horas también quedan guardadas localmente.
+Android 5.2.1 incluye la interfaz de gestión y una base SQLite privada del gimnasio. Una cuenta administradora puede registrar socios, gestionar productos, existencias y planes, cobrar, consultar o compartir credenciales, registrar accesos, guardar fotos y logotipos, cambiar la configuración del gimnasio y consultar o exportar informes sin Internet. Las correcciones de horas también quedan guardadas localmente.
 
 ## Preparación
 
@@ -26,3 +26,5 @@ La primera vinculación, la autenticación de una cuenta nueva, la recuperación
 Se conserva la autorización local de siete días desde la última sincronización correcta. Al vencer, las consultas y los pendientes permanecen guardados, pero es necesario reconectar para autorizar nuevas escrituras. Revocar la cuenta, cambiar su contraseña o revocar el dispositivo invalida su autorización cuando el servidor vuelve a ser accesible.
 
 La clave de las credenciales se guarda en SecureStore. No se copia a la interfaz web ni se incorpora al APK. La interfaz local solo entrega archivos del programa; los datos y las operaciones del gimnasio pasan por el puente de la sesión vinculada.
+
+Los respaldos se administran exclusivamente con una cuenta de superadministrador, desde el panel central y el botón Respaldos de cada gimnasio. No se ofrecen a las cuentas administradoras del gimnasio.

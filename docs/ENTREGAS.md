@@ -8,7 +8,7 @@ GitHub Actions publica el mismo `dist/` generado y verificado en su trabajo de c
 
 ## Retención de recursos
 
-Se distribuyen dos conjuntos: el actual y el descrito en `web-releases/previous.json`. Para 5.2.0 se conserva el grafo completo publicado de 5.1.1. Esto permite que sus pestañas abiertas soliciten sus pantallas diferidas tras actualizar. Las sesiones de versiones anteriores deben recargarse.
+Se distribuyen dos conjuntos: el actual y el descrito en `web-releases/previous.json`. Para 5.2.1 se conserva el grafo completo publicado de 5.2.0. Esto permite que sus pestañas abiertas soliciten sus pantallas diferidas tras actualizar. Las sesiones de versiones anteriores deben recargarse.
 
 Los lectores QR referenciados por clientes existentes se conservan además en `web-releases/compatibility.json`. La compilación entrega **todos** los recursos emitidos por Vite y valida las importaciones de JavaScript mediante su árbol de sintaxis, incluidas las cadenas entre comillas invertidas. No se eliminan archivos de la compilación actual basándose en una búsqueda textual.
 
@@ -38,3 +38,5 @@ Los cambios de 5.1.1 a 5.2.0 están en `client-releases/5.2.0-native.patch`. Inc
 Android se compila con `mobile/scripts/build-android.ps1`, reutilizando la firma existente. Antes de publicar, ejecuta `node scripts/check-android-start.mjs RUTA_AL_APK emulator-5554`: instala únicamente en emulador y comprueba dos arranques en frío. Verifica que el certificado coincida con la versión anterior.
 
 Windows se prepara con `npm run dist:desktop` desde el proyecto local. Comprueba el arranque del ejecutable generado y conserva la política de firma existente. Publica APK, instalador, portable y un archivo SHA-256 en la misma entrega. No sustituyas silenciosamente un archivo ya publicado por otro con el mismo nombre.
+
+Los cambios nativos de 5.2.0 a 5.2.1 están en `client-releases/5.2.1-native.patch`, incluidas las restricciones de respaldos y sus pruebas. Se aplica después de los parches anteriores.

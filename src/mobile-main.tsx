@@ -27,7 +27,7 @@ function MobileStatus() {
   }, []);
   return <div id="mobile-sync-status" role="status" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 25, padding: '8px 12px', background: 'var(--surface)', borderTop: '1px solid var(--border-strong)', color: 'var(--ink)', fontSize: 12 }}>
     {status ? status.revoked ? 'Acceso revocado. Los pendientes se conservan.' : status.conflict ? 'Cambios guardados. Hay un conflicto para revisar.' : `${status.online ? 'Conectado' : 'Sin Internet'} · ${status.pending ? status.pending + ' cambios guardados en este teléfono' : 'Sin cambios pendientes'} · Sincronización automática` : 'Abriendo la copia del teléfono…'}
-    {status?.server && <a href={status.server} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 4 }}>Cuenta y respaldos del servidor</a>}
+    {status?.server && <a href={status.server} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 4 }}>Cuenta del servidor</a>}
   </div>;
 }
 

@@ -65,7 +65,7 @@ type Audit = {
 };
 type Editor =
   | { kind: 'create' | 'backup' | 'announcements' }
-  | { kind: 'edit' | 'members' | 'support'; gym: Gym }
+  | { kind: 'edit' | 'members' | 'support' | 'gym-backups'; gym: Gym }
   | { kind: 'billing'; gym: { id: string; name: string } };
 const statuses = { active: 'Activo', suspended: 'Suspendido', provisioning: 'En preparación' };
 
@@ -647,6 +647,7 @@ export default function Platform() {
                     </span>
                   </div>
                   <div className="platform-actions">
+                    {superadmin && <button className="btn secondary" disabled={gym.status === 'provisioning'} onClick={() => setEditor({ kind: 'gym-backups', gym })}>Respaldos</button>}
                     {superadmin && gym.deleted ? (
                       <>
                         <button className="btn secondary" onClick={() => setEditor({ kind: 'billing', gym })}>
@@ -853,6 +854,11 @@ export default function Platform() {
       {editor?.kind === 'members' && (
         <Modal title={'Usuarios de ' + editor.gym.name} wide onClose={() => setEditor(null)}>
           <PlatformMembers gymId={editor.gym.id} superadmin currentUserId={status.user.id} />
+        </Modal>
+      )}
+      {editor?.kind === 'gym-backups' && (
+        <Modal title={'Respaldos de ' + editor.gym.name} wide onClose={() => setEditor(null)}>
+          <PlatformBackups gymId={editor.gym.id} gymName={editor.gym.name} canRestore suspended={editor.gym.status !== 'active' || editor.gym.archived || editor.gym.deleted} />
         </Modal>
       )}
       {editor?.kind === 'support' && (

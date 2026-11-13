@@ -478,13 +478,20 @@ test("los cambios distintos se combinan y el mismo campo exige revisión sin ree
   }
 });
 
-test("administradores descargan sus respaldos; cajeros y otros gimnasios no reciben copias", async (t) => {
+test("solo el superadministrador crea y descarga respaldos de cada gimnasio", async (t) => {
   const f = await fixture(t);
   try {
-    const copy = await f.request(`gyms/${f.gym.id}/backups`, "POST", {});
+    const ownerSession = await f.app.store.login({ email: "owner@example.test", password: "123456" });
+    const copy = await f.request(`platform/gyms/${f.gym.id}/backups`, "POST", {}, ownerSession.token);
     assert.equal(copy.response.status, 201);
+    for (const path of [`gyms/${f.gym.id}/backups`, `platform/gyms/${f.gym.id}/backups`]) {
+      assert.equal((await f.request(path)).response.status, 403);
+      assert.equal((await f.request(path, "POST", {})).response.status, 403);
+      for (const suffix of [`/${copy.data.id}/inspect`, `/${copy.data.id}/export`]) assert.equal((await f.request(path + suffix)).response.status, 403);
+      assert.equal((await f.request(path + "/import", "POST", {})).response.status, 403);
+    }
     const exported = await f.request(
-      `gyms/${f.gym.id}/backups/${copy.data.id}/export`,
+      `platform/gyms/${f.gym.id}/backups/${copy.data.id}/export`, "GET", undefined, ownerSession.token,
     );
     assert.equal(exported.response.status, 200);
     assert.match(
@@ -549,12 +556,14 @@ test("administradores descargan sus respaldos; cajeros y otros gimnasios no reci
 test("un respaldo descargado se verifica, se importa y se restaura con una copia previa", async (t) => {
   const f = await fixture(t);
   try {
-    const endpoint = `gyms/${f.gym.id}/backups`;
+    const owner = await f.app.store.login({ email: "owner@example.test", password: "123456" });
+    const privileged = (path, method = "GET", body) => f.request(path, method, body, owner.token);
+    const endpoint = `platform/gyms/${f.gym.id}/backups`;
     await f.cloud((s) => s.savePerson(person("ANTES")));
-    const created = await f.request(endpoint, "POST", {});
+    const created = await privileged(endpoint, "POST", {});
     assert.equal(created.response.status, 201);
     const id = created.data.id;
-    const exported = await f.request(`${endpoint}/${id}/export`);
+    const exported = await privileged(`${endpoint}/${id}/export`);
     assert.equal(exported.response.status, 200);
     const archive = Buffer.from(await exported.response.arrayBuffer());
     await f.cloud(async (s, ctx) => {
@@ -562,7 +571,7 @@ test("un respaldo descargado se verifica, se importa y se restaura con una copia
       const original = join(ctx.backups.directory, id);
       renameSync(original, original + "-fuera-de-lista");
     });
-    const upload = (body, token = f.admin.token) => fetch(f.app.url + "/api/" + endpoint + "/import", {
+    const upload = (body, token = owner.token) => fetch(f.app.url + "/api/" + endpoint + "/import", {
       method: "POST", body,
       headers: {
         Origin: f.app.url, "Content-Type": "application/octet-stream", "X-Requested-With": "GymPASS",
@@ -579,7 +588,7 @@ test("un respaldo descargado se verifica, se importa y se restaura con una copia
     assert.equal(rejected.status, 409);
     assert.match((await rejected.json()).error, /otro gimnasio/);
     assert.equal((await upload(archive.subarray(0, archive.length - 1))).status, 400);
-    assert.equal((await f.request(endpoint)).data.copies.length, 0);
+    assert.equal((await privileged(endpoint)).data.copies.length, 0);
     assert.ok(readdirSync(f.app.tenants.root).every((name) => !name.startsWith(".backup-upload-")));
     const imported = await upload(archive);
     assert.equal(imported.status, 201);
@@ -587,9 +596,8 @@ test("un respaldo descargado se verifica, se importa y se restaura con una copia
     assert.equal(preview.id, id);
     assert.equal(preview.people, 1);
     assert.equal((await upload(archive)).status, 201);
-    assert.equal((await f.request(endpoint)).data.copies.length, 1);
+    assert.equal((await privileged(endpoint)).data.copies.length, 1);
     assert.equal(await f.cloud(async (_s, ctx) => ctx.db.raw.prepare("SELECT COUNT(*) n FROM people").get().n), 2);
-    const owner = await f.app.store.login({ email: "owner@example.test", password: "123456" });
     const support = await f.app.store.createSupport(owner.token, f.gym.id, "Recuperación de prueba");
     const restore = (password) => fetch(f.app.url + "/api/" + endpoint + "/" + id + "/restore", {
       method: "POST", body: JSON.stringify({ confirm: "RESTAURAR", password }),
@@ -604,7 +612,7 @@ test("un respaldo descargado se verifica, se importa y se restaura con una copia
     const { safety } = await restored.json();
     assert.ok(safety);
     assert.equal(await f.cloud(async (_s, ctx) => ctx.db.raw.prepare("SELECT COUNT(*) n FROM people").get().n), 1);
-    assert.equal((await f.request(`${endpoint}/${safety}/inspect`)).data.people, 2);
+    assert.equal((await privileged(`${endpoint}/${safety}/inspect`)).data.people, 2);
   } finally {
     await f.app.close();
   }

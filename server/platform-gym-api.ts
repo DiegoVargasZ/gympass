@@ -13,6 +13,58 @@ import { json, readJson } from './platform-http.ts';
 import { authorizedDatabase } from './authorized-database.ts';
 import { posRequest } from './pos-api.ts';
 
+export async function gymBackupApi(req: IncomingMessage, res: ServerResponse, path: string[], ctx: TenantContext, user: import('./platform-store.ts').PlatformUser, store: PlatformStore, manager: TenantManager, reauthorize: () => void, body: Record<string, any> = {}) {
+  if (user.global_role !== 'superadmin') throw new ApiError(403, 'Los respaldos los administra exclusivamente el superadministrador.');
+  reauthorize();
+  const method = req.method || 'GET', id = path[1], action = path[2];
+  const send = (data: unknown, status = 200) => { reauthorize(); return json(res, data, status); };
+    if (method === 'GET') {
+      if (!id) {
+        const status = ctx.backups.status();
+        return send({ ...status, directory: undefined, settings: { ...status.settings, directory: undefined } });
+      }
+      manager.verifyBackup(ctx, id);
+      if (action === 'inspect') return send(ctx.backups.inspect(id));
+      if (action === 'export') {
+        const copy = ctx.backups.exportCopy(id);
+        store.audit(user.id, 'backup.downloaded', ctx.id, id);
+        reauthorize();
+        res.writeHead(200, {
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${copy.filename}"`,
+          'Cache-Control': 'no-store',
+        });
+        return res.end(copy.bytes);
+      }
+    }
+    if (method === 'POST' && !id) {
+      const copy = ctx.backups.create();
+      store.audit(user.id, 'backup.created', ctx.id, copy.id);
+      return send(copy, 201);
+    }
+    if (method === 'POST' && action === 'restore') {
+      if (user.global_role !== 'superadmin')
+        throw new ApiError(403, 'La restauración la realiza el superadministrador.');
+      if (body.confirm !== 'RESTAURAR') throw new ApiError(400, 'Escribe RESTAURAR para continuar.');
+      const owner = store.raw
+        .prepare('SELECT password_hash FROM platform_users WHERE id=? AND active=1')
+        .get(user.id);
+      if (
+        !owner ||
+        typeof body.password !== 'string' ||
+        !(await verifyPassword(body.password, String(owner.password_hash)))
+      )
+        throw new ApiError(403, 'Confirma tu contraseña de superadministrador.');
+      reauthorize();
+      manager.verifyBackup(ctx, id);
+      const result = ctx.backups.restore(id);
+      ctx.reload = true;
+      store.audit(user.id, 'backup.restored', ctx.id, id);
+      return send({ ...result, restart: false });
+    }
+    throw new ApiError(400, 'Operación de respaldo no disponible en plataforma.');
+}
+
 export async function gymApi(
   req: IncomingMessage,
   res: ServerResponse,
@@ -96,53 +148,7 @@ export async function gymApi(
     reauthorize();
     return res.end(bytes);
   }
-  if (first === 'backups') {
-    s.require('admin');
-    if (method === 'GET') {
-      if (!id) {
-        const status = ctx.backups.status();
-        return send({ ...status, directory: undefined, settings: { ...status.settings, directory: undefined } });
-      }
-      manager.verifyBackup(ctx, id);
-      if (action === 'inspect') return send(ctx.backups.inspect(id));
-      if (action === 'export') {
-        const copy = ctx.backups.exportCopy(id);
-        store.audit(auth.user.id, 'backup.downloaded', ctx.id, id);
-        res.writeHead(200, {
-          'Content-Type': 'application/octet-stream',
-          'Content-Disposition': `attachment; filename="${copy.filename}"`,
-          'Cache-Control': 'no-store',
-        });
-        return res.end(copy.bytes);
-      }
-    }
-    if (method === 'POST' && !id) {
-      const copy = ctx.backups.create();
-      store.audit(auth.user.id, 'backup.created', ctx.id, copy.id);
-      return send(copy, 201);
-    }
-    if (method === 'POST' && action === 'restore') {
-      if (auth.user.global_role !== 'superadmin' || !auth.support)
-        throw new ApiError(403, 'La restauración la realiza el superadministrador.');
-      if (body.confirm !== 'RESTAURAR') throw new ApiError(400, 'Escribe RESTAURAR para continuar.');
-      const owner = store.raw
-        .prepare('SELECT password_hash FROM platform_users WHERE id=? AND active=1')
-        .get(auth.user.id);
-      if (
-        !owner ||
-        typeof body.password !== 'string' ||
-        !(await verifyPassword(body.password, String(owner.password_hash)))
-      )
-        throw new ApiError(403, 'Confirma tu contraseña de superadministrador.');
-      reauthorize();
-      manager.verifyBackup(ctx, id);
-      const result = ctx.backups.restore(id);
-      ctx.reload = true;
-      store.audit(auth.user.id, 'backup.restored', ctx.id, id);
-      return send({ ...result, restart: false });
-    }
-    throw new ApiError(400, 'Operación de respaldo no disponible en plataforma.');
-  }
+  if (first === 'backups') return gymBackupApi(req, res, path, ctx, auth.user, store, manager, reauthorize, body);
   if (['activation', 'network', 'system'].includes(first) || first === 'auth')
     throw new ApiError(404, 'Esta operación pertenece al modo local.');
   if (method === 'GET') {

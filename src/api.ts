@@ -90,10 +90,10 @@ export async function download(path: string, name: string) {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-export async function uploadBackup<T>(file: File): Promise<T> {
+export async function uploadBackup<T>(file: File, path = 'backups/import'): Promise<T> {
   const revision = sessionRevision;
   const generation = getPlatformGeneration();
-  const response = await platformFetch('backups/import', {
+  const response = await platformFetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream', 'X-Requested-With': 'GymPASS' },
     body: file,

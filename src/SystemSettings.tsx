@@ -17,11 +17,13 @@ export default function SystemSettings({
   notify,
   timezone,
   owner,
+  manageBackups = false,
 }: {
   notify: Notify;
   timezone: string;
   /** Solo el administrador principal administra la activación. */
   owner: boolean;
+  manageBackups?: boolean;
 }) {
   const [status, setStatus] = useState<Status | null>(null),
     [info, setInfo] = useState<{ version: string; desktop: boolean } | null>(null),
@@ -35,6 +37,7 @@ export default function SystemSettings({
   const importInput = useRef<HTMLInputElement>(null);
   const actionPending = useRef(false);
   async function load() {
+    if (!manageBackups) return;
     try {
       setStatus(await api<Status>('backups'));
       setError('');
@@ -91,12 +94,12 @@ export default function SystemSettings({
         <div className="system-actions">
           <button
             className="btn secondary"
-            disabled={busy || !info?.desktop || !status || !!restored}
+            disabled={busy || !info?.desktop || (manageBackups && !status) || !!restored}
             onClick={() =>
               void run(async () => {
                 await api('system/update', 'POST', {});
                 await load();
-                notify('Respaldo creado. Elige el instalador en la ventana de Windows.');
+                notify('Elige el instalador en la ventana de Windows.');
               })
             }
           >
@@ -138,13 +141,13 @@ export default function SystemSettings({
               </div>
               <p className="helper">
                 Si la licencia está por vencer, pídele a quien instaló GymPASS que canjee la clave desde esta
-                computadora. Los respaldos y las actualizaciones sí los puedes administrar desde aquí.
+                computadora. Las actualizaciones se administran desde aquí.
               </p>
             </section>
           )}
         </div>
       )}
-      {error ? (
+      {manageBackups && (error ? (
         <div role="alert" className="error-message system-load-error">
           <p>{error}</p>
           <button className="btn secondary" onClick={() => void load()}>
@@ -419,13 +422,13 @@ export default function SystemSettings({
             )}
           </section>
         </>
-      )}
+      ))}
       {!restored && (
         <div className="settings-system-tools settings-reset-tools">
           <SystemTools notify={notify} section="reset" />
         </div>
       )}
-      {preview && (
+      {manageBackups && preview && (
         <RestoreWizard
           preview={preview}
           timezone={timezone}

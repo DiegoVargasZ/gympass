@@ -25,7 +25,6 @@ import Network from './Network';
 import SystemSettings from './SystemSettings';
 import RecoveryKey from './RecoveryKey';
 import PlatformMembers from './PlatformMembers';
-import PlatformBackups from './PlatformBackups';
 import CloudSync from './CloudSync';
 import ConnectionSettings from './ConnectionSettings';
 import './styles/app-downloads.css';
@@ -56,7 +55,7 @@ const timezones = [
 const groups: { id: TaskGroup; label: string }[] = [
   { id: 'organization', label: 'Mi gimnasio' },
   { id: 'account', label: 'Tu cuenta' },
-  { id: 'equipment', label: 'Equipos y copias de seguridad' },
+  { id: 'equipment', label: 'Equipos y sistema' },
 ];
 
 export default function Settings({ data, admin, saved, notify, members, devices, audit }: Props) {
@@ -137,16 +136,16 @@ export default function Settings({ data, admin, saved, notify, members, devices,
     },
     {
       id: 'system',
-      label: platform ? 'Respaldos' : 'Sistema y respaldos',
+      label: 'Sistema',
       description: platform
         ? 'Copias y restauraciones administradas desde la plataforma.'
-        : 'Licencia, copias de seguridad, actualizaciones y borrado de datos.',
+        : 'Licencia, actualizaciones y mantenimiento.',
       group: 'equipment',
       icon: HardDrive,
       adminOnly: true,
     },
   ];
-  const tasks = allTasks.filter((task) => !task.adminOnly || admin);
+  const tasks = allTasks.filter((task) => (!task.adminOnly || admin) && (task.id !== 'system' || !platform));
   const requested = new URLSearchParams(location.hash.split('?')[1]).get('tab');
   const active = tasks.find((task) => task.id === (requested === 'general' ? 'organization' : requested)) || tasks[0];
   useEffect(() => {
@@ -452,18 +451,9 @@ export default function Settings({ data, admin, saved, notify, members, devices,
               ) : (
                 <Network notify={notify} admin={admin} />
               ))}
-            {admin &&
-              active.id === 'system' &&
-              (platform ? (
-                <PlatformBackups
-                  gymName={platform.gym_name}
-                  suspended={platform.read_only}
-                  onRestored={saved}
-                  canRestore={platform.superadmin && platform.support}
-                />
-              ) : (
-                <SystemSettings notify={notify} timezone={data.settings.timezone} owner={data.owner} />
-              ))}
+            {admin && !platform && active.id === 'system' && (
+              <SystemSettings notify={notify} timezone={data.settings.timezone} owner={data.owner} />
+            )}
             {admin &&
               active.id === 'members' &&
               (platform ? (

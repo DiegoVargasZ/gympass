@@ -32,19 +32,19 @@ El aviso desaparece solo al cumplirse el plazo; **Retirar** lo quita antes y con
 
 ## Respaldos y actualización
 
-El administrador descarga la copia de su gimnasio desde **Configuración → Respaldos**. El superadministrador crea y descarga una copia completa desde **Copia de plataforma**. Guarda además una copia fuera del hosting.
+Solo el superadministrador administra respaldos. Desde su panel, pulsa **Respaldos** en la tarjeta de cada gimnasio para crear, consultar y descargar sus copias. **Copia de plataforma** conserva la copia completa del registro central y los gimnasios. Guarda además una copia fuera del hosting.
 
-Para recuperar una copia descargada de un gimnasio, abre **Configuración → Respaldos → Usar respaldo descargado** y selecciona el archivo `.gympassbackup` del mismo gimnasio. Importar verifica el archivo y lo agrega a la lista sin cambiar los datos actuales. Para aplicarlo, el superadministrador debe entrar en modo soporte, confirmar la restauración con su contraseña y conservar la copia previa que crea GymPASS.
+Para recuperar una copia descargada, el superadministrador abre **Respaldos → Usar respaldo descargado** en la tarjeta del gimnasio y selecciona su archivo `.gympassbackup`. Importar verifica el archivo sin cambiar los datos actuales; restaurar exige escribir RESTAURAR y confirmar la contraseña del superadministrador. GymPASS crea una copia previa. Las cuentas de gimnasio y las aplicaciones locales no administran respaldos.
 
 Para restaurar la plataforma, extrae el `.tar.gz` en un directorio nuevo y utiliza `scripts/platform-restore.ts`. Conserva las claves y fotos junto a las bases. No modifiques ni elimines migraciones publicadas ni reduzcas `schema_version`.
 
 ## Aplicaciones y trabajo sin conexión
 
-Instala Android y Windows 5.2.0 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
+Instala Android y Windows 5.2.1 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
 
 En Windows, Configuración → Conexión permite utilizar servidor o copia local sincronizada. En Android, Gestión incluye una copia local para administradores y sincroniza automáticamente al reconectar; el lector conserva su copia autorizada para recepción. Consulta la [guía móvil sin conexión](MOVIL-SIN-CONEXION.md). Los conflictos se revisan antes de reemplazar datos locales. Windows sigue la política existente de distribución sin firma de código.
 
-El instalador Windows 5.2.0 conserva Electron 45 y requiere Windows 10 o posterior, en equipos x64. La compatibilidad web con Chrome/Edge 109 no amplía los sistemas admitidos por ese instalador. [Electron retiró Windows 7, 8 y 8.1 desde su versión 23](https://www.electronjs.org/blog/windows-7-to-8-1-deprecation-notice).
+El instalador Windows 5.2.1 conserva Electron 45 y requiere Windows 10 o posterior, en equipos x64. La compatibilidad web con Chrome/Edge 109 no amplía los sistemas admitidos por ese instalador. [Electron retiró Windows 7, 8 y 8.1 desde su versión 23](https://www.electronjs.org/blog/windows-7-to-8-1-deprecation-notice).
 
 ## Recepción y caja
 
@@ -59,3 +59,5 @@ El cierre automático se configura con la zona horaria del gimnasio. Las salidas
 ## Apariencia compartida
 
 Tema, color de acento y densidad se configuran por gimnasio desde Apariencia. Los cambios de un administrador llegan a los otros dispositivos al sincronizar. Android y Windows reintentan la conexión cada diez segundos mientras se ejecutan. Consulta [Apariencia por gimnasio](APARIENCIA-POR-GIMNASIO.md).
+
+Los respaldos se administran exclusivamente con una cuenta de superadministrador, desde el panel central y el botón Respaldos de cada gimnasio. No se ofrecen a las cuentas administradoras del gimnasio.

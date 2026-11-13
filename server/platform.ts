@@ -6,7 +6,7 @@ import { ZodError } from 'zod';
 import { PlatformStore } from './platform-store.ts';
 import { createPlatformApi } from './platform-api.ts';
 import { TenantManager } from './tenant-manager.ts';
-import { gymApi } from './platform-gym-api.ts';
+import { gymApi, gymBackupApi } from './platform-gym-api.ts';
 import { ApiError, Service, hash } from '../lib/service.ts';
 import { reasons } from '../lib/domain.ts';
 import { json, cookieValue, requestToken, readJson } from './platform-http.ts';
@@ -154,6 +154,41 @@ export async function startPlatform(options: Options) {
           store.audit(session.user.id, 'platform.backup', undefined, copy.id);
           return json(res, copy, 201);
         }
+        const gymBackup = /^\/api\/platform\/gyms\/([a-f\d-]{36})\/backups(?:\/([^/]+)(?:\/(inspect|export|restore))?)?$/.exec(url.pathname);
+        if (gymBackup) {
+          const token = requestToken(req);
+          await store.requireWebSession(token);
+          const importing = method === 'POST' && gymBackup[2] === 'import';
+          const operational = method !== 'GET' && !(method === 'POST' && !gymBackup[2]);
+          const authorize = () => {
+            const current = store.authenticateSync(token);
+            if (!current || current.mobileGymId || current.kioskGymId) throw new ApiError(401, 'Inicia sesión de nuevo.');
+            if (current.user.global_role !== 'superadmin') throw new ApiError(403, 'Los respaldos los administra exclusivamente el superadministrador.');
+            const gym = store.getGym(gymBackup[1]);
+            if (!gym) throw new ApiError(404, 'Gimnasio no encontrado.');
+            if (gym.status === 'provisioning') throw new ApiError(409, 'El gimnasio todavía se está preparando.');
+            if (operational && (gym.status !== 'active' || gym.archived || gym.deleted)) throw new ApiError(409, 'Reactiva el gimnasio antes de importar o restaurar un respaldo.');
+            return { gym, user: current.user };
+          };
+          const selected = authorize();
+          if (importing) {
+            if (backupUploadInProgress) throw new ApiError(429, 'Ya se está subiendo un respaldo.');
+            backupUploadInProgress = true;
+            try {
+              const copy = await withBackupUpload(req, tenants.root, async file => await tenants.withTenant(selected.gym, async ctx => {
+                const current = authorize(); if (res.destroyed) return;
+                const copy = ctx.backups.importFile(file, ctx.id);
+                store.audit(current.user.id, 'backup.imported', ctx.id, copy.id); return copy;
+              }));
+              if (copy) return json(res, copy, 201); return;
+            } finally { backupUploadInProgress = false; }
+          }
+          const body = method === 'GET' ? {} : await readJson(req);
+          return await tenants.withTenant(selected.gym, async ctx => {
+            const current = authorize();
+            return gymBackupApi(req, res, ['backups', gymBackup[2] || '', gymBackup[3] || ''], ctx, current.user, store, tenants, () => { authorize(); }, body);
+          });
+        }
         if (await platformApi(req, res, url)) return;
         const match = url.pathname.match(/^\/api\/gyms\/([a-f\d-]{36})\/(.+)$/i);
         if (!match) throw new ApiError(404, 'Ruta no encontrada.');
@@ -239,7 +274,7 @@ export async function startPlatform(options: Options) {
         );
         const auth = await store.authorize(token, gymId, support, operationalWrite, kioskRoute);
         if (method === 'POST' && path.join('/') === 'backups/import') {
-          if (auth.actor.role !== 'admin') throw new ApiError(403, 'Solo un administrador puede importar un respaldo.');
+          if (auth.user.global_role !== 'superadmin') throw new ApiError(403, 'Solo el superadministrador puede importar un respaldo.');
           if (backupUploadInProgress) throw new ApiError(429, 'Ya se está subiendo un respaldo. Inténtalo en unos instantes.');
           backupUploadInProgress = true;
           let copy;
@@ -247,7 +282,7 @@ export async function startPlatform(options: Options) {
             copy = await withBackupUpload(req, tenants.root, async (file) =>
               await tenants.withTenant(auth.gym, async (ctx) => {
                 const current = store.authorizeSync(token, gymId, support, true);
-                if (current.actor.role !== 'admin') throw new ApiError(403, 'Solo un administrador puede importar un respaldo.');
+                if (current.user.global_role !== 'superadmin') throw new ApiError(403, 'Solo el superadministrador puede importar un respaldo.');
                 if (res.destroyed) return;
                 const copy = ctx.backups.importFile(file, ctx.id);
                 store.audit(current.user.id, 'backup.imported', gymId, copy.id);

@@ -424,6 +424,7 @@ for (const section of ['members', 'network', 'system', 'password']) {
       Settings({
         data: {
           user: { id: 'current-admin' },
+          zones: [{ id: 'general', capacity: 0 }],
           platform: { gym_id: 'gym-a', gym_name: 'Gimnasio A', support: false, superadmin: false },
           settings: { name: 'Gimnasio A', timezone: 'America/La_Paz' },
         },
@@ -445,7 +446,7 @@ for (const section of ['members', 'network', 'system', 'password']) {
       assert.equal(findElement(tree, (el) => el.type === 'PlatformMembers').props.currentUserId, 'current-admin');
     }
     if (section === 'network') assert.match(elementText(tree), /HTTPS|https:/);
-    if (section === 'system') assert.match(elementText(tree), /respaldo/i);
+    if (section === 'system') { assert.doesNotMatch(elementText(tree), /Respaldos/); assert.throws(() => findElement(tree, el => el.type === 'PlatformBackups')); }
     if (section === 'password') {
       const values = new FormData();
       values.set('current', 'Anterior123');
@@ -591,4 +592,16 @@ test('Plataforma: el superadministrador envía un aviso a los gimnasios elegidos
   assert.match(elementText(tree), /Retirado/);
   const remaining = findElement(tree, (el) => el.type === 'li' && elementText(el).includes('Retirar'));
   assert.doesNotMatch(elementText(remaining), /Retirado/);
+});
+
+
+test('Plataforma: el superadministrador abre los respaldos de un gimnasio desde su panel', async t => {
+  const f = platformFixture(t, { mode: 'platform', protocol: 1, user: { ...account, global_role: 'superadmin' }, gyms: [gymA, gymB] });
+  let tree = await f.h.settle();
+  findElement(tree, el => el.type === 'button' && elementText(el) === 'Respaldos').props.onClick();
+  tree = await f.h.settle();
+  const backups = findElement(tree, el => el.type === 'PlatformBackups');
+  assert.equal(backups.props.gymId, gymA.id);
+  assert.equal(backups.props.canRestore, true);
+  assert.equal(f.calls.some(call => call.path.endsWith('/support')), false);
 });

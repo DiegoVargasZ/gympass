@@ -23,12 +23,14 @@ export default function PlatformBackups({
   onRestored,
   canRestore = false,
   global = false,
+  gymId,
 }: {
   gymName: string;
   suspended?: boolean;
   onRestored?: () => Promise<void>;
   canRestore?: boolean;
   global?: boolean;
+  gymId?: string;
 }) {
   const [data, setData] = useState<Backups | null>(null);
   const [restore, setRestore] = useState<Copy | null>(null);
@@ -37,7 +39,7 @@ export default function PlatformBackups({
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const sequence = useRef(0);
-  const endpoint = global ? 'platform/backups' : 'backups';
+  const endpoint = global ? 'platform/backups' : gymId ? 'platform/gyms/' + encodeURIComponent(gymId) + '/backups' : 'backups';
   const refresh = async () => {
     const current = ++sequence.current;
     try {
@@ -98,7 +100,7 @@ export default function PlatformBackups({
               disabled={busy}
               onClick={() =>
                 void perform(async () => {
-                  const copy = await api<Copy>('backups', 'POST');
+                  const copy = await api<Copy>(endpoint, 'POST');
                   await refresh();
                   setNotice('Respaldo creado: ' + copy.id);
                 })
@@ -178,7 +180,7 @@ export default function PlatformBackups({
                             disabled={busy || suspended}
                             onClick={() =>
                               void perform(async () => {
-                                const preview = await api<Copy>('backups/' + encodeURIComponent(copy.id) + '/inspect');
+                                const preview = await api<Copy>(endpoint + '/' + encodeURIComponent(copy.id) + '/inspect');
                                 setRestore(preview);
                               })
                             }
@@ -210,7 +212,7 @@ export default function PlatformBackups({
               setBusy(true);
               setNotice('');
               try {
-                const copy = await uploadBackup<Copy>(file);
+                const copy = await uploadBackup<Copy>(file, endpoint + '/import');
                 setImportOpen(false);
                 await refresh();
                 if (canRestore && !suspended) setRestore(copy);
@@ -239,7 +241,7 @@ export default function PlatformBackups({
             onSubmit={async (form) => {
               if (form.get('confirm') !== 'RESTAURAR') throw Error('Escribe RESTAURAR para confirmar.');
               const result = await api<{ safety: string; restart: boolean }>(
-                'backups/' + encodeURIComponent(restore.id) + '/restore',
+                endpoint + '/' + encodeURIComponent(restore.id) + '/restore',
                 'POST',
                 { confirm: 'RESTAURAR', password: form.get('password') },
               );

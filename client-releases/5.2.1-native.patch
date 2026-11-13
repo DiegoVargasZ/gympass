@@ -1,0 +1,1238 @@
+diff --git a/desktop/package.json b/desktop/package.json
+index f055c44..dfa4b2d 100644
+--- a/desktop/package.json
++++ b/desktop/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "gympass-desktop",
+   "productName": "GymPASS",
+-  "version": "5.2.0",
++  "version": "5.2.1",
+   "description": "Entradas, salidas y tiempos de permanencia para gimnasios",
+   "author": "GymPASS",
+   "license": "UNLICENSED",
+diff --git a/mobile/README.md b/mobile/README.md
+index 4d061d5..74bb6a0 100644
+--- a/mobile/README.md
++++ b/mobile/README.md
+@@ -1,8 +1,8 @@
+-# GymPASS Android 5.2.0
++# GymPASS Android 5.2.1
+ 
+ La gestión para administradores incluye la interfaz en el APK y guarda socios, caja, productos, planes, credenciales, accesos, imágenes, configuración e informes en SQLite. La primera vinculación necesita Internet; después se puede abrir la gestión sin red y sincronizar automáticamente al reconectar o volver a la aplicación. Se conservan siete días de autorización local y los conflictos requieren revisión sin sobrescribir los pendientes.
+ 
+-Las cuentas centrales, las contraseñas, el personal y los respaldos del servidor siguen necesitando Internet. Las cuentas de recepción conservan el lector y sus consultas. Instala esta versión sobre la anterior para mantener los datos; no borres la aplicación. Versión 5.2.0 y compilación Android 5200.
++Las cuentas centrales, las contraseñas, el personal y los respaldos del servidor siguen necesitando Internet. Las cuentas de recepción conservan el lector y sus consultas. Instala esta versión sobre la anterior para mantener los datos; no borres la aplicación. Versión 5.2.1 y compilación Android 5210.
+ 
+ La compilación `scripts/build-android.ps1` prepara la interfaz con `../scripts/build-mobile-web.mjs` antes de generar y firmar el APK. Los recursos se sirven únicamente a la vista local y las operaciones se atienden en la sesión SQLite vinculada.
+ 
+@@ -120,3 +120,5 @@ npm run export:android
+ ```
+ 
+ Las exportaciones verifican el bundle JavaScript y los recursos; no sustituyen la compilación nativa firmada ni las pruebas del dispositivo.
++
++Los respaldos los administra exclusivamente el superadministrador desde el panel central. La aplicación del gimnasio no permite consultarlos ni modificarlos.
+diff --git a/mobile/app.json b/mobile/app.json
+index 7fbbbbd..c766cc2 100644
+--- a/mobile/app.json
++++ b/mobile/app.json
+@@ -6,12 +6,12 @@
+       "ios",
+       "android"
+     ],
+-    "version": "5.2.0",
++    "version": "5.2.1",
+     "orientation": "default",
+     "userInterfaceStyle": "automatic",
+     "ios": {
+       "bundleIdentifier": "local.gympass.controlacceso.mobile",
+-      "buildNumber": "5200",
++      "buildNumber": "5210",
+       "supportsTablet": true,
+       "infoPlist": {
+         "NSLocalNetworkUsageDescription": "GymPASS se conecta con la computadora de la misma red Wi-Fi para registrar accesos.",
+@@ -24,7 +24,7 @@
+     },
+     "android": {
+       "package": "local.gympass.controlacceso.mobile",
+-      "versionCode": 5200,
++      "versionCode": 5210,
+       "permissions": [
+         "android.permission.CAMERA"
+       ],
+diff --git a/mobile/package-lock.json b/mobile/package-lock.json
+index 7699db2..91486b7 100644
+--- a/mobile/package-lock.json
++++ b/mobile/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "5.2.0",
++  "version": "5.2.1",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-mobile",
+-      "version": "5.2.0",
++      "version": "5.2.1",
+       "dependencies": {
+         "@noble/ciphers": "2.4.0",
+         "expo": "~58.0.21",
+@@ -132,7 +132,7 @@
+         "@babel/compat-data": "^7.29.7",
+         "@babel/helper-validator-option": "^7.29.7",
+         "browserslist": "^4.24.0",
+-        "lru-cache": "^5.2.0",
++        "lru-cache": "^5.2.1",
+         "semver": "^6.3.1"
+       },
+       "engines": {
+@@ -1651,7 +1651,7 @@
+       "dependencies": {
+         "@xmldom/xmldom": "^0.8.8",
+         "base64-js": "^1.5.1",
+-        "xmlbuilder": "^15.2.0"
++        "xmlbuilder": "^15.2.1"
+       }
+     },
+     "node_modules/@expo/prebuild-config": {
+@@ -4813,8 +4813,8 @@
+       }
+     },
+     "node_modules/lru-cache": {
+-      "version": "5.2.0",
+-      "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-5.2.0.tgz",
++      "version": "5.2.1",
++      "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-5.2.1.tgz",
+       "integrity": "sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==",
+       "license": "ISC",
+       "dependencies": {
+@@ -5431,7 +5431,7 @@
+         "cli-cursor": "^2.1.0",
+         "cli-spinners": "^2.0.0",
+         "log-symbols": "^2.2.0",
+-        "strip-ansi": "^5.2.0",
++        "strip-ansi": "^5.2.1",
+         "wcwidth": "^1.0.1"
+       },
+       "engines": {
+@@ -5498,8 +5498,8 @@
+       }
+     },
+     "node_modules/ora/node_modules/strip-ansi": {
+-      "version": "5.2.0",
+-      "resolved": "https://registry.npmjs.org/strip-ansi/-/strip-ansi-5.2.0.tgz",
++      "version": "5.2.1",
++      "resolved": "https://registry.npmjs.org/strip-ansi/-/strip-ansi-5.2.1.tgz",
+       "integrity": "sha512-DuRs1gKbBqsMKIZlrffwlug8MHkcnpjs5VPmL1PAh+mA30U0DTotfDZ0d2UUsXpPmPmMMJ6W773MaA3J+lbiWA==",
+       "license": "MIT",
+       "dependencies": {
+@@ -5608,7 +5608,7 @@
+       "dependencies": {
+         "@xmldom/xmldom": "^0.9.10",
+         "base64-js": "^1.5.1",
+-        "xmlbuilder": "^15.2.0"
++        "xmlbuilder": "^15.2.1"
+       },
+       "engines": {
+         "node": ">=10.4.0"
+@@ -5675,8 +5675,8 @@
+       }
+     },
+     "node_modules/pretty-format/node_modules/ansi-styles": {
+-      "version": "5.2.0",
+-      "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-5.2.0.tgz",
++      "version": "5.2.1",
++      "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-5.2.1.tgz",
+       "integrity": "sha512-Cxwpt2SfTzTtXcfOlzGEee8O+c+MmUgGrNiBcXnuWxuFJHe6a5Hz7qwhwe5OgaSYI0IJvkLqWX1ASG+cJOkEiA==",
+       "license": "MIT",
+       "engines": {
+@@ -5828,7 +5828,7 @@
+       "integrity": "sha512-uh8yktufYeRU3W9Omi8+SPyLF9BVN4JmLflSgc9oOcKkSKk/S5JUmmTjKZq/L8GHfQUtCvcu/W6X4xhEfBBAjQ==",
+       "license": "MIT",
+       "dependencies": {
+-        "css-select": "^5.2.0",
++        "css-select": "^5.2.1",
+         "css-tree": "^1.1.3"
+       },
+       "peerDependencies": {
+@@ -6782,8 +6782,8 @@
+       }
+     },
+     "node_modules/xmlbuilder": {
+-      "version": "15.2.0",
+-      "resolved": "https://registry.npmjs.org/xmlbuilder/-/xmlbuilder-15.2.0.tgz",
++      "version": "15.2.1",
++      "resolved": "https://registry.npmjs.org/xmlbuilder/-/xmlbuilder-15.2.1.tgz",
+       "integrity": "sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==",
+       "license": "MIT",
+       "engines": {
+diff --git a/mobile/package.json b/mobile/package.json
+index 47ac1fb..6aa3357 100644
+--- a/mobile/package.json
++++ b/mobile/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-mobile",
+-  "version": "5.2.0",
++  "version": "5.2.1",
+   "private": true,
+   "type": "module",
+   "main": "index.ts",
+diff --git a/mobile/src/GympassApp.tsx b/mobile/src/GympassApp.tsx
+index 70afac2..487a6b9 100644
+--- a/mobile/src/GympassApp.tsx
++++ b/mobile/src/GympassApp.tsx
+@@ -363,7 +363,7 @@ export default function GympassApp({ management }: { management?: Management } =
+             ref={web}
+             source={{ uri: management?.url || DEFAULT_SERVER }}
+             style={{ flex: 1, backgroundColor: palette.surface }}
+-            applicationNameForUserAgent="GymPASS-Android/5.2.0"
++            applicationNameForUserAgent="GymPASS-Android/5.2.1"
+             originWhitelist={['*']}
+             onShouldStartLoadWithRequest={(request) => {
+               if ((management ? request.url.startsWith(management.url) : isGympassUrl(request.url)) || request.url === 'about:blank') return true;
+diff --git a/mobile/src/OfflineApp.tsx b/mobile/src/OfflineApp.tsx
+index 61a237c..5046f82 100644
+--- a/mobile/src/OfflineApp.tsx
++++ b/mobile/src/OfflineApp.tsx
+@@ -57,10 +57,11 @@ export default function OfflineApp() {
+         setTimeout(() => { void logout(ready.session).catch(() => {}).finally(() => { if (mounted.current) setReady(null); }); }, 0);
+         return { data: { ok: true } };
+       }
+-      if (path.startsWith('platform/') || path.startsWith('sync/') || path.startsWith('backups')) {
++      if (path === 'backups' || path.startsWith('backups/')) return { status: 403, data: { error: 'Los respaldos los administra exclusivamente el superadministrador desde la plataforma.' } };
++      if (path.startsWith('platform/') || path.startsWith('sync/')) {
+         try {
+           return { data: await remoteRequest(ready.session.server, path.startsWith('platform/') ? path : `gyms/${ready.session.gym_id}/${path}`, method, body, ready.session.token) };
+-        } catch { return { status: 503, data: { error: 'Abre Cuenta y respaldos del servidor para completar esta operación con Internet. Los datos de gestión del teléfono se conservan.' } }; }
++        } catch { return { status: 503, data: { error: 'Abre Cuenta del servidor para completar esta operación con Internet. Los datos de gestión del teléfono se conservan.' } }; }
+       }
+       return ready.replica.managementRequest(path, method, body);
+     },
+diff --git a/mobile/src/offline.ts b/mobile/src/offline.ts
+index f89cea0..57d0545 100644
+--- a/mobile/src/offline.ts
++++ b/mobile/src/offline.ts
+@@ -340,12 +340,12 @@ export class MobileReplica {
+       }
+       if (first === 'health') return { data: { ok: true, mode: 'mobile', offline: !this.online } };
+       if (first === 'auth' && id === 'status') return { data: { setupRequired: false, user: this.session.user } };
+-      if (first === 'system-info') return { data: { version: '5.2.0', desktop: false, mode: 'mobile' } };
++      if (first === 'system-info') return { data: { version: '5.2.1', desktop: false, mode: 'mobile' } };
+       if (first === 'bootstrap') {
+         let maintain = true; try { this.writable(); } catch { maintain = false; }
+         const data = await s.bootstrap({ compact: url.searchParams.get('compact') === '1', maintain });
+         if (maintain) { this.state.last_clock = Math.max(this.state.last_clock, Date.now()); await this.save(); }
+-        return { data: { ...data, version: '5.2.0', replica: { linked: true }, platform: { gym_id: this.session.gym_id, gym_name: data.settings!.name, support: false, superadmin: false, read_only: !maintain } } };
++        return { data: { ...data, version: '5.2.1', replica: { linked: true }, platform: { gym_id: this.session.gym_id, gym_name: data.settings!.name, support: false, superadmin: false, read_only: !maintain } } };
+       }
+       if (first === 'members' && method === 'GET') return { data: await s.all('SELECT user_id id,email,name,role,active FROM members') };
+       if (first === 'branding' && !id && method === 'GET') return { data: await s.one('SELECT name,brand_color,logo_path FROM settings WHERE id=1') };
+diff --git a/mobile/tests/offline-app.test.ts b/mobile/tests/offline-app.test.ts
+index daf017f..5dc0731 100644
+--- a/mobile/tests/offline-app.test.ts
++++ b/mobile/tests/offline-app.test.ts
+@@ -22,7 +22,7 @@ test('gestión arranca desde la copia autorizada y sincroniza al volver la conex
+   await panel.props.management.request('gyms/gym/people', 'POST', { name: 'Socio' });
+   assert.equal(requests.length, 1);
+   assert.equal((await panel.props.management.request('gyms/other/people', 'POST', {})).status, 403);
+-  assert.equal((await panel.props.management.request('backups', 'POST', {})).status, 503);
++  assert.equal((await panel.props.management.request('backups', 'POST', {})).status, 403);
+   listeners.network(); listeners.foreground('active');
+   assert.equal(synchronized, 2);
+   assert.equal(cleared, 0);
+diff --git a/package-lock.json b/package-lock.json
+index 929e7e6..dc5f408 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "5.2.0",
++  "version": "5.2.1",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "gympass-control-acceso",
+-      "version": "5.2.0",
++      "version": "5.2.1",
+       "dependencies": {
+         "lucide-react": "1.57.0",
+         "qrcode-generator": "2.0.4",
+@@ -123,8 +123,8 @@
+       }
+     },
+     "node_modules/@electron/get": {
+-      "version": "5.2.0",
+-      "resolved": "https://registry.npmjs.org/@electron/get/-/get-5.2.0.tgz",
++      "version": "5.2.1",
++      "resolved": "https://registry.npmjs.org/@electron/get/-/get-5.2.1.tgz",
+       "integrity": "sha512-3kSBtG8ObcTVfXanm5vVJ6UnBLEVmVsRk1M+vGqCuMBV+XLCbJYuWQful+yIy0GQDsSlK0kHEriEHn7SPk4EnA==",
+       "dev": true,
+       "license": "MIT",
+@@ -1422,7 +1422,7 @@
+       "license": "MIT",
+       "dependencies": {
+         "clone-response": "^1.0.2",
+-        "get-stream": "^5.2.0",
++        "get-stream": "^5.2.1",
+         "http-cache-semantics": "^4.0.0",
+         "keyv": "^4.0.0",
+         "lowercase-keys": "^2.0.0",
+@@ -1559,8 +1559,8 @@
+       }
+     },
+     "node_modules/commander": {
+-      "version": "5.2.0",
+-      "resolved": "https://registry.npmjs.org/commander/-/commander-5.2.0.tgz",
++      "version": "5.2.1",
++      "resolved": "https://registry.npmjs.org/commander/-/commander-5.2.1.tgz",
+       "integrity": "sha512-P0CysNDQ7rtVw4QIQtm+MRxV66vKFSvlsQvGYXZWR3qFU0jlMKHZZZgw8e+8DSah4UDKMqnknRDQz+xuQXQ/Zg==",
+       "dev": true,
+       "license": "MIT",
+@@ -2358,8 +2358,8 @@
+       }
+     },
+     "node_modules/get-stream": {
+-      "version": "5.2.0",
+-      "resolved": "https://registry.npmjs.org/get-stream/-/get-stream-5.2.0.tgz",
++      "version": "5.2.1",
++      "resolved": "https://registry.npmjs.org/get-stream/-/get-stream-5.2.1.tgz",
+       "integrity": "sha512-nBF+F1rAZVCu/p7rjzgA+Yb4lfYXrpl7a6VmJrU8wF9I1CKvP/QwPNZHnOlwbTkY6dvtFIzFMSyQXbLoTQPRpA==",
+       "dev": true,
+       "license": "MIT",
+@@ -2623,7 +2623,7 @@
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "quick-lru": "^5.2.0",
++        "quick-lru": "^5.2.1",
+         "resolve-alpn": "^1.0.0"
+       },
+       "engines": {
+@@ -3590,7 +3590,7 @@
+       "dependencies": {
+         "@xmldom/xmldom": "^0.8.8",
+         "base64-js": "^1.5.1",
+-        "xmlbuilder": "^15.2.0"
++        "xmlbuilder": "^15.2.1"
+       },
+       "engines": {
+         "node": ">=10.4.0"
+@@ -3771,8 +3771,8 @@
+       "license": "MIT"
+     },
+     "node_modules/quick-lru": {
+-      "version": "5.2.0",
+-      "resolved": "https://registry.npmjs.org/quick-lru/-/quick-lru-5.2.0.tgz",
++      "version": "5.2.1",
++      "resolved": "https://registry.npmjs.org/quick-lru/-/quick-lru-5.2.1.tgz",
+       "integrity": "sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA==",
+       "dev": true,
+       "license": "MIT",
+@@ -3828,7 +3828,7 @@
+         "inherits": "~2.0.3",
+         "isarray": "~1.0.0",
+         "process-nextick-args": "~2.0.0",
+-        "safe-buffer": "~5.2.0",
++        "safe-buffer": "~5.2.1",
+         "string_decoder": "~1.1.1",
+         "util-deprecate": "~1.0.1"
+       }
+@@ -4139,7 +4139,7 @@
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "safe-buffer": "~5.2.0"
++        "safe-buffer": "~5.2.1"
+       }
+     },
+     "node_modules/string-width": {
+@@ -4571,8 +4571,8 @@
+       }
+     },
+     "node_modules/xmlbuilder": {
+-      "version": "15.2.0",
+-      "resolved": "https://registry.npmjs.org/xmlbuilder/-/xmlbuilder-15.2.0.tgz",
++      "version": "15.2.1",
++      "resolved": "https://registry.npmjs.org/xmlbuilder/-/xmlbuilder-15.2.1.tgz",
+       "integrity": "sha512-yMqGBqtXyeN1e3TGYvgNgDVZ3j84W4cwkOXQswghol6APgZWaff9lnbvN7MHYJOiXsvGPXtjTYJEiC9J2wv9Eg==",
+       "dev": true,
+       "license": "MIT",
+diff --git a/package.json b/package.json
+index f0bc327..a1944b0 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "gympass-control-acceso",
+-  "version": "5.2.0",
++  "version": "5.2.1",
+   "private": true,
+   "engines": {
+     "node": ">=24.0.0"
+diff --git a/scripts/check-offline-sync.mjs b/scripts/check-offline-sync.mjs
+index 8069d4a..278d0bc 100644
+--- a/scripts/check-offline-sync.mjs
++++ b/scripts/check-offline-sync.mjs
+@@ -478,13 +478,20 @@ test("los cambios distintos se combinan y el mismo campo exige revisión sin ree
+   }
+ });
+ 
+-test("administradores descargan sus respaldos; cajeros y otros gimnasios no reciben copias", async (t) => {
++test("solo el superadministrador crea y descarga respaldos de cada gimnasio", async (t) => {
+   const f = await fixture(t);
+   try {
+-    const copy = await f.request(`gyms/${f.gym.id}/backups`, "POST", {});
++    const ownerSession = await f.app.store.login({ email: "owner@example.test", password: "123456" });
++    const copy = await f.request(`platform/gyms/${f.gym.id}/backups`, "POST", {}, ownerSession.token);
+     assert.equal(copy.response.status, 201);
++    for (const path of [`gyms/${f.gym.id}/backups`, `platform/gyms/${f.gym.id}/backups`]) {
++      assert.equal((await f.request(path)).response.status, 403);
++      assert.equal((await f.request(path, "POST", {})).response.status, 403);
++      for (const suffix of [`/${copy.data.id}/inspect`, `/${copy.data.id}/export`]) assert.equal((await f.request(path + suffix)).response.status, 403);
++      assert.equal((await f.request(path + "/import", "POST", {})).response.status, 403);
++    }
+     const exported = await f.request(
+-      `gyms/${f.gym.id}/backups/${copy.data.id}/export`,
++      `platform/gyms/${f.gym.id}/backups/${copy.data.id}/export`, "GET", undefined, ownerSession.token,
+     );
+     assert.equal(exported.response.status, 200);
+     assert.match(
+@@ -549,12 +556,14 @@ test("administradores descargan sus respaldos; cajeros y otros gimnasios no reci
+ test("un respaldo descargado se verifica, se importa y se restaura con una copia previa", async (t) => {
+   const f = await fixture(t);
+   try {
+-    const endpoint = `gyms/${f.gym.id}/backups`;
++    const owner = await f.app.store.login({ email: "owner@example.test", password: "123456" });
++    const privileged = (path, method = "GET", body) => f.request(path, method, body, owner.token);
++    const endpoint = `platform/gyms/${f.gym.id}/backups`;
+     await f.cloud((s) => s.savePerson(person("ANTES")));
+-    const created = await f.request(endpoint, "POST", {});
++    const created = await privileged(endpoint, "POST", {});
+     assert.equal(created.response.status, 201);
+     const id = created.data.id;
+-    const exported = await f.request(`${endpoint}/${id}/export`);
++    const exported = await privileged(`${endpoint}/${id}/export`);
+     assert.equal(exported.response.status, 200);
+     const archive = Buffer.from(await exported.response.arrayBuffer());
+     await f.cloud(async (s, ctx) => {
+@@ -562,7 +571,7 @@ test("un respaldo descargado se verifica, se importa y se restaura con una copia
+       const original = join(ctx.backups.directory, id);
+       renameSync(original, original + "-fuera-de-lista");
+     });
+-    const upload = (body, token = f.admin.token) => fetch(f.app.url + "/api/" + endpoint + "/import", {
++    const upload = (body, token = owner.token) => fetch(f.app.url + "/api/" + endpoint + "/import", {
+       method: "POST", body,
+       headers: {
+         Origin: f.app.url, "Content-Type": "application/octet-stream", "X-Requested-With": "GymPASS",
+@@ -579,7 +588,7 @@ test("un respaldo descargado se verifica, se importa y se restaura con una copia
+     assert.equal(rejected.status, 409);
+     assert.match((await rejected.json()).error, /otro gimnasio/);
+     assert.equal((await upload(archive.subarray(0, archive.length - 1))).status, 400);
+-    assert.equal((await f.request(endpoint)).data.copies.length, 0);
++    assert.equal((await privileged(endpoint)).data.copies.length, 0);
+     assert.ok(readdirSync(f.app.tenants.root).every((name) => !name.startsWith(".backup-upload-")));
+     const imported = await upload(archive);
+     assert.equal(imported.status, 201);
+@@ -587,9 +596,8 @@ test("un respaldo descargado se verifica, se importa y se restaura con una copia
+     assert.equal(preview.id, id);
+     assert.equal(preview.people, 1);
+     assert.equal((await upload(archive)).status, 201);
+-    assert.equal((await f.request(endpoint)).data.copies.length, 1);
++    assert.equal((await privileged(endpoint)).data.copies.length, 1);
+     assert.equal(await f.cloud(async (_s, ctx) => ctx.db.raw.prepare("SELECT COUNT(*) n FROM people").get().n), 2);
+-    const owner = await f.app.store.login({ email: "owner@example.test", password: "123456" });
+     const support = await f.app.store.createSupport(owner.token, f.gym.id, "Recuperación de prueba");
+     const restore = (password) => fetch(f.app.url + "/api/" + endpoint + "/" + id + "/restore", {
+       method: "POST", body: JSON.stringify({ confirm: "RESTAURAR", password }),
+@@ -604,7 +612,7 @@ test("un respaldo descargado se verifica, se importa y se restaura con una copia
+     const { safety } = await restored.json();
+     assert.ok(safety);
+     assert.equal(await f.cloud(async (_s, ctx) => ctx.db.raw.prepare("SELECT COUNT(*) n FROM people").get().n), 1);
+-    assert.equal((await f.request(`${endpoint}/${safety}/inspect`)).data.people, 2);
++    assert.equal((await privileged(`${endpoint}/${safety}/inspect`)).data.people, 2);
+   } finally {
+     await f.app.close();
+   }
+diff --git a/server/index.ts b/server/index.ts
+index 8a25715..ae96a60 100644
+--- a/server/index.ts
++++ b/server/index.ts
+@@ -460,6 +460,7 @@ async function api(req: IncomingMessage, res: ServerResponse, alreadyLocked = fa
+       throw new ApiError(404, 'Ruta no encontrada.');
+     }
+     if (!actor) throw new ApiError(401, 'Inicia sesión para continuar.');
++    if (path[0] === 'backups') throw new ApiError(403, 'Los respaldos los administra exclusivamente el superadministrador desde la plataforma.');
+     const s = new Service(db, actor, credentialCodec);
+     const localAdministration = () => {
+       s.require('admin');
+diff --git a/server/platform-gym-api.ts b/server/platform-gym-api.ts
+index fb07b7d..1739d6b 100644
+--- a/server/platform-gym-api.ts
++++ b/server/platform-gym-api.ts
+@@ -13,6 +13,58 @@ import { json, readJson } from './platform-http.ts';
+ import { authorizedDatabase } from './authorized-database.ts';
+ import { posRequest } from './pos-api.ts';
+ 
++export async function gymBackupApi(req: IncomingMessage, res: ServerResponse, path: string[], ctx: TenantContext, user: import('./platform-store.ts').PlatformUser, store: PlatformStore, manager: TenantManager, reauthorize: () => void, body: Record<string, any> = {}) {
++  if (user.global_role !== 'superadmin') throw new ApiError(403, 'Los respaldos los administra exclusivamente el superadministrador.');
++  reauthorize();
++  const method = req.method || 'GET', id = path[1], action = path[2];
++  const send = (data: unknown, status = 200) => { reauthorize(); return json(res, data, status); };
++    if (method === 'GET') {
++      if (!id) {
++        const status = ctx.backups.status();
++        return send({ ...status, directory: undefined, settings: { ...status.settings, directory: undefined } });
++      }
++      manager.verifyBackup(ctx, id);
++      if (action === 'inspect') return send(ctx.backups.inspect(id));
++      if (action === 'export') {
++        const copy = ctx.backups.exportCopy(id);
++        store.audit(user.id, 'backup.downloaded', ctx.id, id);
++        reauthorize();
++        res.writeHead(200, {
++          'Content-Type': 'application/octet-stream',
++          'Content-Disposition': `attachment; filename="${copy.filename}"`,
++          'Cache-Control': 'no-store',
++        });
++        return res.end(copy.bytes);
++      }
++    }
++    if (method === 'POST' && !id) {
++      const copy = ctx.backups.create();
++      store.audit(user.id, 'backup.created', ctx.id, copy.id);
++      return send(copy, 201);
++    }
++    if (method === 'POST' && action === 'restore') {
++      if (user.global_role !== 'superadmin')
++        throw new ApiError(403, 'La restauración la realiza el superadministrador.');
++      if (body.confirm !== 'RESTAURAR') throw new ApiError(400, 'Escribe RESTAURAR para continuar.');
++      const owner = store.raw
++        .prepare('SELECT password_hash FROM platform_users WHERE id=? AND active=1')
++        .get(user.id);
++      if (
++        !owner ||
++        typeof body.password !== 'string' ||
++        !(await verifyPassword(body.password, String(owner.password_hash)))
++      )
++        throw new ApiError(403, 'Confirma tu contraseña de superadministrador.');
++      reauthorize();
++      manager.verifyBackup(ctx, id);
++      const result = ctx.backups.restore(id);
++      ctx.reload = true;
++      store.audit(user.id, 'backup.restored', ctx.id, id);
++      return send({ ...result, restart: false });
++    }
++    throw new ApiError(400, 'Operación de respaldo no disponible en plataforma.');
++}
++
+ export async function gymApi(
+   req: IncomingMessage,
+   res: ServerResponse,
+@@ -96,53 +148,7 @@ export async function gymApi(
+     reauthorize();
+     return res.end(bytes);
+   }
+-  if (first === 'backups') {
+-    s.require('admin');
+-    if (method === 'GET') {
+-      if (!id) {
+-        const status = ctx.backups.status();
+-        return send({ ...status, directory: undefined, settings: { ...status.settings, directory: undefined } });
+-      }
+-      manager.verifyBackup(ctx, id);
+-      if (action === 'inspect') return send(ctx.backups.inspect(id));
+-      if (action === 'export') {
+-        const copy = ctx.backups.exportCopy(id);
+-        store.audit(auth.user.id, 'backup.downloaded', ctx.id, id);
+-        res.writeHead(200, {
+-          'Content-Type': 'application/octet-stream',
+-          'Content-Disposition': `attachment; filename="${copy.filename}"`,
+-          'Cache-Control': 'no-store',
+-        });
+-        return res.end(copy.bytes);
+-      }
+-    }
+-    if (method === 'POST' && !id) {
+-      const copy = ctx.backups.create();
+-      store.audit(auth.user.id, 'backup.created', ctx.id, copy.id);
+-      return send(copy, 201);
+-    }
+-    if (method === 'POST' && action === 'restore') {
+-      if (auth.user.global_role !== 'superadmin' || !auth.support)
+-        throw new ApiError(403, 'La restauración la realiza el superadministrador.');
+-      if (body.confirm !== 'RESTAURAR') throw new ApiError(400, 'Escribe RESTAURAR para continuar.');
+-      const owner = store.raw
+-        .prepare('SELECT password_hash FROM platform_users WHERE id=? AND active=1')
+-        .get(auth.user.id);
+-      if (
+-        !owner ||
+-        typeof body.password !== 'string' ||
+-        !(await verifyPassword(body.password, String(owner.password_hash)))
+-      )
+-        throw new ApiError(403, 'Confirma tu contraseña de superadministrador.');
+-      reauthorize();
+-      manager.verifyBackup(ctx, id);
+-      const result = ctx.backups.restore(id);
+-      ctx.reload = true;
+-      store.audit(auth.user.id, 'backup.restored', ctx.id, id);
+-      return send({ ...result, restart: false });
+-    }
+-    throw new ApiError(400, 'Operación de respaldo no disponible en plataforma.');
+-  }
++  if (first === 'backups') return gymBackupApi(req, res, path, ctx, auth.user, store, manager, reauthorize, body);
+   if (['activation', 'network', 'system'].includes(first) || first === 'auth')
+     throw new ApiError(404, 'Esta operación pertenece al modo local.');
+   if (method === 'GET') {
+diff --git a/server/platform.ts b/server/platform.ts
+index 4a31417..e794378 100644
+--- a/server/platform.ts
++++ b/server/platform.ts
+@@ -6,7 +6,7 @@ import { ZodError } from 'zod';
+ import { PlatformStore } from './platform-store.ts';
+ import { createPlatformApi } from './platform-api.ts';
+ import { TenantManager } from './tenant-manager.ts';
+-import { gymApi } from './platform-gym-api.ts';
++import { gymApi, gymBackupApi } from './platform-gym-api.ts';
+ import { ApiError, Service, hash } from '../lib/service.ts';
+ import { reasons } from '../lib/domain.ts';
+ import { json, cookieValue, requestToken, readJson } from './platform-http.ts';
+@@ -154,6 +154,41 @@ export async function startPlatform(options: Options) {
+           store.audit(session.user.id, 'platform.backup', undefined, copy.id);
+           return json(res, copy, 201);
+         }
++        const gymBackup = /^\/api\/platform\/gyms\/([a-f\d-]{36})\/backups(?:\/([^/]+)(?:\/(inspect|export|restore))?)?$/.exec(url.pathname);
++        if (gymBackup) {
++          const token = requestToken(req);
++          await store.requireWebSession(token);
++          const importing = method === 'POST' && gymBackup[2] === 'import';
++          const operational = method !== 'GET' && !(method === 'POST' && !gymBackup[2]);
++          const authorize = () => {
++            const current = store.authenticateSync(token);
++            if (!current || current.mobileGymId || current.kioskGymId) throw new ApiError(401, 'Inicia sesión de nuevo.');
++            if (current.user.global_role !== 'superadmin') throw new ApiError(403, 'Los respaldos los administra exclusivamente el superadministrador.');
++            const gym = store.getGym(gymBackup[1]);
++            if (!gym) throw new ApiError(404, 'Gimnasio no encontrado.');
++            if (gym.status === 'provisioning') throw new ApiError(409, 'El gimnasio todavía se está preparando.');
++            if (operational && (gym.status !== 'active' || gym.archived || gym.deleted)) throw new ApiError(409, 'Reactiva el gimnasio antes de importar o restaurar un respaldo.');
++            return { gym, user: current.user };
++          };
++          const selected = authorize();
++          if (importing) {
++            if (backupUploadInProgress) throw new ApiError(429, 'Ya se está subiendo un respaldo.');
++            backupUploadInProgress = true;
++            try {
++              const copy = await withBackupUpload(req, tenants.root, async file => await tenants.withTenant(selected.gym, async ctx => {
++                const current = authorize(); if (res.destroyed) return;
++                const copy = ctx.backups.importFile(file, ctx.id);
++                store.audit(current.user.id, 'backup.imported', ctx.id, copy.id); return copy;
++              }));
++              if (copy) return json(res, copy, 201); return;
++            } finally { backupUploadInProgress = false; }
++          }
++          const body = method === 'GET' ? {} : await readJson(req);
++          return await tenants.withTenant(selected.gym, async ctx => {
++            const current = authorize();
++            return gymBackupApi(req, res, ['backups', gymBackup[2] || '', gymBackup[3] || ''], ctx, current.user, store, tenants, () => { authorize(); }, body);
++          });
++        }
+         if (await platformApi(req, res, url)) return;
+         const match = url.pathname.match(/^\/api\/gyms\/([a-f\d-]{36})\/(.+)$/i);
+         if (!match) throw new ApiError(404, 'Ruta no encontrada.');
+@@ -239,7 +274,7 @@ export async function startPlatform(options: Options) {
+         );
+         const auth = await store.authorize(token, gymId, support, operationalWrite, kioskRoute);
+         if (method === 'POST' && path.join('/') === 'backups/import') {
+-          if (auth.actor.role !== 'admin') throw new ApiError(403, 'Solo un administrador puede importar un respaldo.');
++          if (auth.user.global_role !== 'superadmin') throw new ApiError(403, 'Solo el superadministrador puede importar un respaldo.');
+           if (backupUploadInProgress) throw new ApiError(429, 'Ya se está subiendo un respaldo. Inténtalo en unos instantes.');
+           backupUploadInProgress = true;
+           let copy;
+@@ -247,7 +282,7 @@ export async function startPlatform(options: Options) {
+             copy = await withBackupUpload(req, tenants.root, async (file) =>
+               await tenants.withTenant(auth.gym, async (ctx) => {
+                 const current = store.authorizeSync(token, gymId, support, true);
+-                if (current.actor.role !== 'admin') throw new ApiError(403, 'Solo un administrador puede importar un respaldo.');
++                if (current.user.global_role !== 'superadmin') throw new ApiError(403, 'Solo el superadministrador puede importar un respaldo.');
+                 if (res.destroyed) return;
+                 const copy = ctx.backups.importFile(file, ctx.id);
+                 store.audit(current.user.id, 'backup.imported', gymId, copy.id);
+diff --git a/src/App.tsx b/src/App.tsx
+index f43c228..7c12d2b 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -308,7 +308,7 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
+                 ? 'La licencia por meses venció.'
+                 : 'La prueba de 30 días terminó.'}{' '}
+               Tus datos siguen disponibles para consulta. Activa o renueva la licencia en{' '}
+-              <a href="#settings?tab=system">Sistema y respaldos</a> para registrar nuevos movimientos.
++              <a href="#settings?tab=system">Sistema</a> para registrar nuevos movimientos.
+             </p>
+           )}
+           {data.activation?.state === 'trial' && (
+diff --git a/src/AppDownloads.tsx b/src/AppDownloads.tsx
+index ed4f44e..e00eee5 100644
+--- a/src/AppDownloads.tsx
++++ b/src/AppDownloads.tsx
+@@ -1,8 +1,8 @@
+ import { Download, Monitor, Smartphone } from 'lucide-react';
+ import './styles/app-downloads.css';
+ 
+-const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.2.0/';
+-const androidApk = release + 'GymPASS-Android-5.2.0.apk';
++const release = 'https://github.com/DiegoVargasZ/gympass/releases/download/v5.2.1/';
++const androidApk = release + 'GymPASS-Android-5.2.1.apk';
+ 
+ export default function AppDownloads() {
+   if (
+@@ -22,20 +22,20 @@ export default function AppDownloads() {
+           <Smartphone size={24} aria-hidden="true" />
+           <span>
+             <strong>Móvil Android</strong>
+-            <small>Descargar APK · v5.2.0</small>
++            <small>Descargar APK · v5.2.1</small>
+           </span>
+           <Download size={16} aria-hidden="true" />
+         </a>
+         <a
+           className="app-download"
+-          href={release + 'GymPASS-Setup-5.2.0.exe'}
++          href={release + 'GymPASS-Setup-5.2.1.exe'}
+           target="_blank"
+           rel="noopener noreferrer"
+         >
+           <Monitor size={24} aria-hidden="true" />
+           <span>
+             <strong>Escritorio Windows</strong>
+-            <small>Descargar instalador · v5.2.0</small>
++            <small>Descargar instalador · v5.2.1</small>
+           </span>
+           <Download size={16} aria-hidden="true" />
+         </a>
+diff --git a/src/Platform.tsx b/src/Platform.tsx
+index 7577b97..edd7032 100644
+--- a/src/Platform.tsx
++++ b/src/Platform.tsx
+@@ -65,7 +65,7 @@ type Audit = {
+ };
+ type Editor =
+   | { kind: 'create' | 'backup' | 'announcements' }
+-  | { kind: 'edit' | 'members' | 'support'; gym: Gym }
++  | { kind: 'edit' | 'members' | 'support' | 'gym-backups'; gym: Gym }
+   | { kind: 'billing'; gym: { id: string; name: string } };
+ const statuses = { active: 'Activo', suspended: 'Suspendido', provisioning: 'En preparación' };
+ 
+@@ -647,6 +647,7 @@ export default function Platform() {
+                     </span>
+                   </div>
+                   <div className="platform-actions">
++                    {superadmin && <button className="btn secondary" disabled={gym.status === 'provisioning'} onClick={() => setEditor({ kind: 'gym-backups', gym })}>Respaldos</button>}
+                     {superadmin && gym.deleted ? (
+                       <>
+                         <button className="btn secondary" onClick={() => setEditor({ kind: 'billing', gym })}>
+@@ -855,6 +856,11 @@ export default function Platform() {
+           <PlatformMembers gymId={editor.gym.id} superadmin currentUserId={status.user.id} />
+         </Modal>
+       )}
++      {editor?.kind === 'gym-backups' && (
++        <Modal title={'Respaldos de ' + editor.gym.name} wide onClose={() => setEditor(null)}>
++          <PlatformBackups gymId={editor.gym.id} gymName={editor.gym.name} canRestore suspended={editor.gym.status !== 'active' || editor.gym.archived || editor.gym.deleted} />
++        </Modal>
++      )}
+       {editor?.kind === 'support' && (
+         <Modal title={'Soporte · ' + editor.gym.name} onClose={() => setEditor(null)}>
+           <p>
+diff --git a/src/PlatformBackups.tsx b/src/PlatformBackups.tsx
+index 6ff0fc0..6e395b3 100644
+--- a/src/PlatformBackups.tsx
++++ b/src/PlatformBackups.tsx
+@@ -23,12 +23,14 @@ export default function PlatformBackups({
+   onRestored,
+   canRestore = false,
+   global = false,
++  gymId,
+ }: {
+   gymName: string;
+   suspended?: boolean;
+   onRestored?: () => Promise<void>;
+   canRestore?: boolean;
+   global?: boolean;
++  gymId?: string;
+ }) {
+   const [data, setData] = useState<Backups | null>(null);
+   const [restore, setRestore] = useState<Copy | null>(null);
+@@ -37,7 +39,7 @@ export default function PlatformBackups({
+   const [error, setError] = useState('');
+   const [notice, setNotice] = useState('');
+   const sequence = useRef(0);
+-  const endpoint = global ? 'platform/backups' : 'backups';
++  const endpoint = global ? 'platform/backups' : gymId ? 'platform/gyms/' + encodeURIComponent(gymId) + '/backups' : 'backups';
+   const refresh = async () => {
+     const current = ++sequence.current;
+     try {
+@@ -98,7 +100,7 @@ export default function PlatformBackups({
+               disabled={busy}
+               onClick={() =>
+                 void perform(async () => {
+-                  const copy = await api<Copy>('backups', 'POST');
++                  const copy = await api<Copy>(endpoint, 'POST');
+                   await refresh();
+                   setNotice('Respaldo creado: ' + copy.id);
+                 })
+@@ -178,7 +180,7 @@ export default function PlatformBackups({
+                             disabled={busy || suspended}
+                             onClick={() =>
+                               void perform(async () => {
+-                                const preview = await api<Copy>('backups/' + encodeURIComponent(copy.id) + '/inspect');
++                                const preview = await api<Copy>(endpoint + '/' + encodeURIComponent(copy.id) + '/inspect');
+                                 setRestore(preview);
+                               })
+                             }
+@@ -210,7 +212,7 @@ export default function PlatformBackups({
+               setBusy(true);
+               setNotice('');
+               try {
+-                const copy = await uploadBackup<Copy>(file);
++                const copy = await uploadBackup<Copy>(file, endpoint + '/import');
+                 setImportOpen(false);
+                 await refresh();
+                 if (canRestore && !suspended) setRestore(copy);
+@@ -239,7 +241,7 @@ export default function PlatformBackups({
+             onSubmit={async (form) => {
+               if (form.get('confirm') !== 'RESTAURAR') throw Error('Escribe RESTAURAR para confirmar.');
+               const result = await api<{ safety: string; restart: boolean }>(
+-                'backups/' + encodeURIComponent(restore.id) + '/restore',
++                endpoint + '/' + encodeURIComponent(restore.id) + '/restore',
+                 'POST',
+                 { confirm: 'RESTAURAR', password: form.get('password') },
+               );
+diff --git a/src/Settings.tsx b/src/Settings.tsx
+index 9eb2e4f..ae7fd07 100644
+--- a/src/Settings.tsx
++++ b/src/Settings.tsx
+@@ -25,7 +25,6 @@ import Network from './Network';
+ import SystemSettings from './SystemSettings';
+ import RecoveryKey from './RecoveryKey';
+ import PlatformMembers from './PlatformMembers';
+-import PlatformBackups from './PlatformBackups';
+ import CloudSync from './CloudSync';
+ import ConnectionSettings from './ConnectionSettings';
+ import './styles/app-downloads.css';
+@@ -56,7 +55,7 @@ const timezones = [
+ const groups: { id: TaskGroup; label: string }[] = [
+   { id: 'organization', label: 'Mi gimnasio' },
+   { id: 'account', label: 'Tu cuenta' },
+-  { id: 'equipment', label: 'Equipos y copias de seguridad' },
++  { id: 'equipment', label: 'Equipos y sistema' },
+ ];
+ 
+ export default function Settings({ data, admin, saved, notify, members, devices, audit }: Props) {
+@@ -137,16 +136,16 @@ export default function Settings({ data, admin, saved, notify, members, devices,
+     },
+     {
+       id: 'system',
+-      label: platform ? 'Respaldos' : 'Sistema y respaldos',
++      label: 'Sistema',
+       description: platform
+         ? 'Copias y restauraciones administradas desde la plataforma.'
+-        : 'Licencia, copias de seguridad, actualizaciones y borrado de datos.',
++        : 'Licencia, actualizaciones y mantenimiento.',
+       group: 'equipment',
+       icon: HardDrive,
+       adminOnly: true,
+     },
+   ];
+-  const tasks = allTasks.filter((task) => !task.adminOnly || admin);
++  const tasks = allTasks.filter((task) => (!task.adminOnly || admin) && (task.id !== 'system' || !platform));
+   const requested = new URLSearchParams(location.hash.split('?')[1]).get('tab');
+   const active = tasks.find((task) => task.id === (requested === 'general' ? 'organization' : requested)) || tasks[0];
+   useEffect(() => {
+@@ -452,18 +451,9 @@ export default function Settings({ data, admin, saved, notify, members, devices,
+               ) : (
+                 <Network notify={notify} admin={admin} />
+               ))}
+-            {admin &&
+-              active.id === 'system' &&
+-              (platform ? (
+-                <PlatformBackups
+-                  gymName={platform.gym_name}
+-                  suspended={platform.read_only}
+-                  onRestored={saved}
+-                  canRestore={platform.superadmin && platform.support}
+-                />
+-              ) : (
+-                <SystemSettings notify={notify} timezone={data.settings.timezone} owner={data.owner} />
+-              ))}
++            {admin && !platform && active.id === 'system' && (
++              <SystemSettings notify={notify} timezone={data.settings.timezone} owner={data.owner} />
++            )}
+             {admin &&
+               active.id === 'members' &&
+               (platform ? (
+diff --git a/src/SystemSettings.tsx b/src/SystemSettings.tsx
+index dd32116..0418d4f 100644
+--- a/src/SystemSettings.tsx
++++ b/src/SystemSettings.tsx
+@@ -17,11 +17,13 @@ export default function SystemSettings({
+   notify,
+   timezone,
+   owner,
++  manageBackups = false,
+ }: {
+   notify: Notify;
+   timezone: string;
+   /** Solo el administrador principal administra la activación. */
+   owner: boolean;
++  manageBackups?: boolean;
+ }) {
+   const [status, setStatus] = useState<Status | null>(null),
+     [info, setInfo] = useState<{ version: string; desktop: boolean } | null>(null),
+@@ -35,6 +37,7 @@ export default function SystemSettings({
+   const importInput = useRef<HTMLInputElement>(null);
+   const actionPending = useRef(false);
+   async function load() {
++    if (!manageBackups) return;
+     try {
+       setStatus(await api<Status>('backups'));
+       setError('');
+@@ -91,12 +94,12 @@ export default function SystemSettings({
+         <div className="system-actions">
+           <button
+             className="btn secondary"
+-            disabled={busy || !info?.desktop || !status || !!restored}
++            disabled={busy || !info?.desktop || (manageBackups && !status) || !!restored}
+             onClick={() =>
+               void run(async () => {
+                 await api('system/update', 'POST', {});
+                 await load();
+-                notify('Respaldo creado. Elige el instalador en la ventana de Windows.');
++                notify('Elige el instalador en la ventana de Windows.');
+               })
+             }
+           >
+@@ -138,13 +141,13 @@ export default function SystemSettings({
+               </div>
+               <p className="helper">
+                 Si la licencia está por vencer, pídele a quien instaló GymPASS que canjee la clave desde esta
+-                computadora. Los respaldos y las actualizaciones sí los puedes administrar desde aquí.
++                computadora. Las actualizaciones se administran desde aquí.
+               </p>
+             </section>
+           )}
+         </div>
+       )}
+-      {error ? (
++      {manageBackups && (error ? (
+         <div role="alert" className="error-message system-load-error">
+           <p>{error}</p>
+           <button className="btn secondary" onClick={() => void load()}>
+@@ -419,13 +422,13 @@ export default function SystemSettings({
+             )}
+           </section>
+         </>
+-      )}
++      ))}
+       {!restored && (
+         <div className="settings-system-tools settings-reset-tools">
+           <SystemTools notify={notify} section="reset" />
+         </div>
+       )}
+-      {preview && (
++      {manageBackups && preview && (
+         <RestoreWizard
+           preview={preview}
+           timezone={timezone}
+diff --git a/src/api.ts b/src/api.ts
+index 6ca1d8b..da8bf6c 100644
+--- a/src/api.ts
++++ b/src/api.ts
+@@ -90,10 +90,10 @@ export async function download(path: string, name: string) {
+   link.click();
+   setTimeout(() => URL.revokeObjectURL(url), 1000);
+ }
+-export async function uploadBackup<T>(file: File): Promise<T> {
++export async function uploadBackup<T>(file: File, path = 'backups/import'): Promise<T> {
+   const revision = sessionRevision;
+   const generation = getPlatformGeneration();
+-  const response = await platformFetch('backups/import', {
++  const response = await platformFetch(path, {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/octet-stream', 'X-Requested-With': 'GymPASS' },
+     body: file,
+diff --git a/src/mobile-main.tsx b/src/mobile-main.tsx
+index 812bcb8..337a6c5 100644
+--- a/src/mobile-main.tsx
++++ b/src/mobile-main.tsx
+@@ -27,7 +27,7 @@ function MobileStatus() {
+   }, []);
+   return <div id="mobile-sync-status" role="status" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 25, padding: '8px 12px', background: 'var(--surface)', borderTop: '1px solid var(--border-strong)', color: 'var(--ink)', fontSize: 12 }}>
+     {status ? status.revoked ? 'Acceso revocado. Los pendientes se conservan.' : status.conflict ? 'Cambios guardados. Hay un conflicto para revisar.' : `${status.online ? 'Conectado' : 'Sin Internet'} · ${status.pending ? status.pending + ' cambios guardados en este teléfono' : 'Sin cambios pendientes'} · Sincronización automática` : 'Abriendo la copia del teléfono…'}
+-    {status?.server && <a href={status.server} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 4 }}>Cuenta y respaldos del servidor</a>}
++    {status?.server && <a href={status.server} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 4 }}>Cuenta del servidor</a>}
+   </div>;
+ }
+ 
+diff --git a/tests/activation-http.test.ts b/tests/activation-http.test.ts
+index 8ac473a..bf17b0d 100644
+--- a/tests/activation-http.test.ts
++++ b/tests/activation-http.test.ts
+@@ -97,7 +97,7 @@ test('HTTP: la prueba vencida bloquea operaciones y la clave corta las reactiva'
+   assert.equal((await request('people', 'POST', person)).status, 402);
+   assert.equal((await request('access', 'POST', {})).status, 402);
+   assert.equal((await request('device-access', 'POST', {})).status, 402);
+-  assert.equal((await request('backups')).status, 200);
++  assert.equal((await request('backups')).status, 403);
+   assert.equal((await request('activation', 'POST', { code: 'wrong' })).status, 400);
+   const monthly = activationCode(machineId(), activationSecret, { months: 3, issuedAt: Date.now() });
+   const temporary = await request('activation', 'POST', { code: monthly });
+diff --git a/tests/backup-access-ui.test.ts b/tests/backup-access-ui.test.ts
+new file mode 100644
+index 0000000..1862e60
+--- /dev/null
++++ b/tests/backup-access-ui.test.ts
+@@ -0,0 +1,20 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { componentHarness, componentStubs, elementText } from './component-harness.ts';
++
++test('Sistema no ofrece ni consulta respaldos para el administrador local', async t => {
++  const h = componentHarness(); t.after(() => h.cleanup());
++  const requests: string[] = [];
++  const { default: SystemSettings } = h.load('../src/SystemSettings.tsx', {
++    'lucide-react': componentStubs,
++    './ui': { ...componentStubs, Badge: 'Badge', Field: 'Field', Form: 'Form', Modal: 'Modal', Skeleton: 'Skeleton', stamp: () => '' },
++    './SystemTools': { default: 'SystemTools' },
++    './styles/backup-transfer.css': {},
++    './api': { api: async (path: string) => { requests.push(path); return { version: '5.2.1', desktop: true }; } },
++  });
++  h.render(() => SystemSettings({ owner: true, timezone: 'America/La_Paz', notify() {} }));
++  const tree = await h.settle();
++  assert.deepEqual(requests, ['system-info']);
++  assert.doesNotMatch(elementText(tree), /Respaldos|Crear respaldo|Importar|Restaurar/);
++  assert.match(elementText(tree), /Actualizar GymPASS/);
++});
+diff --git a/tests/backup-settings-ui.test.ts b/tests/backup-settings-ui.test.ts
+index d1fbb6d..ee60e6b 100644
+--- a/tests/backup-settings-ui.test.ts
++++ b/tests/backup-settings-ui.test.ts
+@@ -80,7 +80,7 @@ async function fixture(t: TestContext, owner = true) {
+     },
+   });
+   h.render(() =>
+-    SystemSettings({
++    SystemSettings({ manageBackups: true,
+       timezone: 'America/La_Paz',
+       owner,
+       notify: (message: string, error?: boolean) => notices.push({ message, error }),
+diff --git a/tests/batch-http.test.ts b/tests/batch-http.test.ts
+index 7abc1e8..1fb681b 100644
+--- a/tests/batch-http.test.ts
++++ b/tests/batch-http.test.ts
+@@ -201,9 +201,9 @@ test('HTTP: lote de 50, códigos recuperables, reintento, sesión y roles', asyn
+   assert.equal((await request('invitation-batches?state=archived')).data.length, 1);
+   assert.equal((await request('network/camera-config')).data.mode, 'automatic');
+   const copy = await request('backups', 'POST', {});
+-  assert.equal(copy.status, 201);
+-  assert.equal((await request(`backups/${copy.data.id}/inspect`)).data.invitations, 54);
+-  assert.equal((await request('backups/settings', 'PATCH', { enabled: true, interval_hours: 6, keep: 7 })).status, 200);
++  assert.equal(copy.status, 403);
++  assert.equal((await request('backups/denied/inspect')).status, 403);
++  assert.equal((await request('backups/settings', 'PATCH', { enabled: true, interval_hours: 6, keep: 7 })).status, 403);
+   await request('members', 'POST', {
+     name: 'Consulta',
+     email: 'viewer@example.test',
+@@ -231,11 +231,11 @@ test('HTTP: lote de 50, códigos recuperables, reintento, sesión y roles', asyn
+   assert.equal((await request(backgroundPath)).status, 401);
+   cookie = adminCookie;
+   await request('auth/login', 'POST', { email: 'admin@example.test', password: 'FiestasPrueba2026' });
+-  assert.equal((await request(`backups/${copy.data.id}/restore`, 'POST', { confirm: 'wrong' })).status, 400);
+-  assert.equal((await request(`backups/${copy.data.id}/restore`, 'POST', { confirm: 'RESTAURAR' })).status, 200);
++  assert.equal((await request(`backups/denied/restore`, 'POST', { confirm: 'wrong' })).status, 403);
++  assert.equal((await request(`backups/denied/restore`, 'POST', { confirm: 'RESTAURAR' })).status, 403);
+   assert.equal(
+     (await request('access', 'POST', { ...entryBody, request_id: crypto.randomUUID() })).status,
+-    503,
+-    'restaurar detiene las escrituras hasta reiniciar',
++    200,
++    'rechazar la restauracion no bloquea Recepcion',
+   );
+ });
+diff --git a/tests/platform-client.test.ts b/tests/platform-client.test.ts
+index 51891aa..f09ccc6 100644
+--- a/tests/platform-client.test.ts
++++ b/tests/platform-client.test.ts
+@@ -207,11 +207,11 @@ function platformFixture(t: test.TestContext, initial: any) {
+     './App': { default: 'OperationalApp' },
+     './CloudSync': { default: 'CloudSync' },
+     './PlatformBackups': { default: 'PlatformBackups' },
+-    './PlatformAnnouncements': { default: 'PlatformAnnouncements' },
+     './PlatformKiosk': { default: 'PlatformKiosk' },
+     './AppDownloads': { default: 'AppDownloads' },
+     './BrandLogo': { default: 'BrandLogo' },
+     './PlatformMembers': { default: 'PlatformMembers' },
++    './PlatformAnnouncements': { default: 'PlatformAnnouncements' },
+     './PlatformBilling': { default: 'PlatformBilling', PlatformBillingSummary: 'PlatformBillingSummary' },
+     './styles/platform.css': {},
+     './platform-context': {
+@@ -417,13 +417,14 @@ for (const section of ['members', 'network', 'system', 'password']) {
+       './SystemSettings': { default: 'LocalSystem' },
+       './RecoveryKey': { default: 'LocalRecovery' },
+       './PlatformMembers': { default: 'PlatformMembers' },
++      './PlatformAnnouncements': { default: 'PlatformAnnouncements' },
+       './PlatformBackups': { default: 'PlatformBackups' },
+-    './PlatformAnnouncements': { default: 'PlatformAnnouncements' },
+     });
+     const tree = h.render(() =>
+       Settings({
+         data: {
+           user: { id: 'current-admin' },
++          zones: [{ id: 'general', capacity: 0 }],
+           platform: { gym_id: 'gym-a', gym_name: 'Gimnasio A', support: false, superadmin: false },
+           settings: { name: 'Gimnasio A', timezone: 'America/La_Paz' },
+         },
+@@ -445,7 +446,7 @@ for (const section of ['members', 'network', 'system', 'password']) {
+       assert.equal(findElement(tree, (el) => el.type === 'PlatformMembers').props.currentUserId, 'current-admin');
+     }
+     if (section === 'network') assert.match(elementText(tree), /HTTPS|https:/);
+-    if (section === 'system') assert.match(elementText(tree), /respaldo/i);
++    if (section === 'system') { assert.doesNotMatch(elementText(tree), /Respaldos/); assert.throws(() => findElement(tree, el => el.type === 'PlatformBackups')); }
+     if (section === 'password') {
+       const values = new FormData();
+       values.set('current', 'Anterior123');
+@@ -513,3 +514,94 @@ test('Plataforma: restaurar un respaldo exige confirmación y contraseña centra
+   tree = await h.settle();
+   assert.match(elementText(tree), /Datos restaurados. Copia previa: safety-a/);
+ });
++
++test('Plataforma: el superadministrador envía un aviso a los gimnasios elegidos y lo retira', async (t) => {
++  const requests: { path: string; method?: string; body?: any }[] = [];
++  const sent: any[] = [];
++  const h = componentHarness({
++    location: { origin: 'https://gym.example.test', pathname: '/' },
++    confirm: () => true,
++  });
++  t.after(() => h.cleanup());
++  const { default: PlatformAnnouncements } = h.load('../src/PlatformAnnouncements.tsx', {
++    'lucide-react': componentStubs,
++    './ui': { ...componentStubs, Skeleton: 'Skeleton', Empty: 'Empty', Form: 'Form', Field: 'Field' },
++    './api': {
++      api: async (path: string, method?: string, body?: any) => {
++        requests.push({ path, method, body });
++        if (method === 'POST') {
++          sent.push({ id: 'aviso-1', ...body, created_at: 0, expires_at: null, revoked_at: null, author: 'Dueño' });
++          return { announcement: sent.at(-1) };
++        }
++        if (method === 'DELETE') {
++          sent[0] = { ...sent[0], revoked_at: 1 };
++          return { announcement: sent[0] };
++        }
++        return { announcements: sent };
++      },
++    },
++  });
++  const gyms = [
++    { id: 'gym-a', name: 'Centro' },
++    { id: 'gym-b', name: 'Norte' },
++  ];
++  h.render(() => PlatformAnnouncements({ gyms }));
++  let tree = await h.settle();
++  assert.ok(findElement(tree, (el) => el.type === 'Empty'));
++
++  // Sin elegir destinatarios el aviso va a todos los gimnasios.
++  const values = new FormData();
++  values.set('title', 'Mantenimiento el domingo');
++  values.set('body', 'El servicio se detendrá de 02:00 a 04:00.');
++  values.set('severity', 'warning');
++  values.set('days', '3');
++  const form = () => findElement(h.render(() => PlatformAnnouncements({ gyms })), (el) => el.type === 'Form');
++  await findElement(tree, (el) => el.type === 'Form').props.onSubmit(values);
++  tree = await h.settle();
++  const created = requests.find((request) => request.method === 'POST');
++  assert.equal(created?.path, 'platform/announcements');
++  assert.equal(created?.body.title, 'Mantenimiento el domingo');
++  assert.equal(created?.body.body, 'El servicio se detendrá de 02:00 a 04:00.');
++  assert.equal(created?.body.severity, 'warning');
++  assert.equal(created?.body.days, '3');
++  assert.equal(created?.body.gym_ids.length, 0, 'Sin destinatarios elegidos el aviso va a todos');
++  assert.match(elementText(tree), /todos los gimnasios/i);
++  assert.match(elementText(tree), /Importante/);
++
++  // Elegir gimnasios exige marcar al menos uno.
++  findElement(tree, (el) => el.type === 'select' && el.props.value === 'all').props.onChange({
++    target: { value: 'selected' },
++  });
++  tree = await h.settle();
++  await assert.rejects(form().props.onSubmit(values), /al menos un gimnasio/);
++  findElement(tree, (el) => el.type === 'input' && el.props.type === 'checkbox').props.onChange({
++    target: { checked: true },
++  });
++  tree = await h.settle();
++  await form().props.onSubmit(values);
++  tree = await h.settle();
++  assert.deepEqual([...requests.filter((request) => request.method === 'POST').at(-1)?.body.gym_ids], ['gym-a']);
++
++  findElement(tree, (el) => el.type === 'button' && elementText(el).includes('Retirar')).props.onClick();
++  tree = await h.settle();
++  const removed = requests.filter((request) => request.method === 'DELETE');
++  assert.equal(removed.length, 1);
++  assert.equal(removed[0].path, 'platform/announcements/aviso-1');
++  // Retirar recarga la lista: el aviso queda marcado y solo el que sigue vigente conserva el botón.
++  assert.equal(requests.at(-1)?.method, undefined);
++  assert.match(elementText(tree), /Retirado/);
++  const remaining = findElement(tree, (el) => el.type === 'li' && elementText(el).includes('Retirar'));
++  assert.doesNotMatch(elementText(remaining), /Retirado/);
++});
++
++
++test('Plataforma: el superadministrador abre los respaldos de un gimnasio desde su panel', async t => {
++  const f = platformFixture(t, { mode: 'platform', protocol: 1, user: { ...account, global_role: 'superadmin' }, gyms: [gymA, gymB] });
++  let tree = await f.h.settle();
++  findElement(tree, el => el.type === 'button' && elementText(el) === 'Respaldos').props.onClick();
++  tree = await f.h.settle();
++  const backups = findElement(tree, el => el.type === 'PlatformBackups');
++  assert.equal(backups.props.gymId, gymA.id);
++  assert.equal(backups.props.canRestore, true);
++  assert.equal(f.calls.some(call => call.path.endsWith('/support')), false);
++});
+diff --git a/tests/release-version.test.ts b/tests/release-version.test.ts
+index 9e023fc..1d7a94a 100644
+--- a/tests/release-version.test.ts
++++ b/tests/release-version.test.ts
+@@ -2,14 +2,14 @@
+ import { test } from 'node:test';
+ import { readFile } from 'node:fs/promises';
+ 
+-test('web, Android y Windows usan 5.2.0', async () => {
++test('web, Android y Windows usan 5.2.1', async () => {
+   for (const path of ['package.json', 'desktop/package.json', 'desktop-runtime/package.json']) {
+     const manifest = JSON.parse(await readFile(new URL('../' + path, import.meta.url), 'utf8'));
+-    assert.equal(manifest.version, '5.2.0', path);
++    assert.equal(manifest.version, '5.2.1', path);
+   }
+   const app = JSON.parse(await readFile(new URL('../mobile/app.json', import.meta.url), 'utf8'));
+-  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '5.2.0');
+-  assert.equal(app.expo.version, '5.2.0');
+-  assert.equal(app.expo.android.versionCode, 5200);
+-  assert.equal(app.expo.ios.buildNumber, '5200');
++  assert.equal(JSON.parse(await readFile(new URL('../mobile/package.json', import.meta.url), 'utf8')).version, '5.2.1');
++  assert.equal(app.expo.version, '5.2.1');
++  assert.equal(app.expo.android.versionCode, 5210);
++  assert.equal(app.expo.ios.buildNumber, '5210');
+ });
+diff --git a/tests/reset-http.test.ts b/tests/reset-http.test.ts
+index 06294b4..83e933a 100644
+--- a/tests/reset-http.test.ts
++++ b/tests/reset-http.test.ts
+@@ -209,7 +209,6 @@ test(
+     assert.match(reset.body.backup, /^gympass-\d{13}-[a-f\d-]{36}$/);
+     assert.deepEqual(readFileSync(join(backupDirectory, reset.body.backup, 'branding', uploaded.body.path)), image);
+     const inspected = await request('backups/' + reset.body.backup + '/inspect');
+-    assert.equal(inspected.status, 200);
+-    assert.equal(inspected.body.people, 1);
++    assert.equal(inspected.status, 403);
+   },
+ );

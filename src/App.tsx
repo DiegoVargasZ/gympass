@@ -308,7 +308,7 @@ export default function App({ onLogout }: { onLogout?: () => void } = {}) {
                 ? 'La licencia por meses venció.'
                 : 'La prueba de 30 días terminó.'}{' '}
               Tus datos siguen disponibles para consulta. Activa o renueva la licencia en{' '}
-              <a href="#settings?tab=system">Sistema y respaldos</a> para registrar nuevos movimientos.
+              <a href="#settings?tab=system">Sistema</a> para registrar nuevos movimientos.
             </p>
           )}
           {data.activation?.state === 'trial' && (

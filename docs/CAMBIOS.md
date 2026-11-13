@@ -1,5 +1,12 @@
 # Cambios
 
+## 5.2.1
+
+- Respaldos exclusivos del superadministrador; los administradores de gimnasio no ven el apartado ni pueden usar sus API en la web, Android o Windows.
+- Botón Respaldos por gimnasio en el panel del superadministrador, con creación, descarga, importación y restauración con contraseña, auditoría y verificación del gimnasio de origen.
+- Se conservan las copias existentes y las protecciones automáticas antes de actualizar o recuperar datos.
+- Página e instaladores actualizados a 5.2.1; Android conserva paquete y certificado y usa el código 5210.
+
 ## 5.2.0
 
 - Android usa la gestión incluida como aplicación principal; se retiran la barra «Gestión / Lector sin conexión» y el selector de tema independiente.
