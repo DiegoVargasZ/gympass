@@ -6,7 +6,7 @@ import { ZodError } from 'zod';
 import { PlatformStore } from './platform-store.ts';
 import { createPlatformApi } from './platform-api.ts';
 import { TenantManager } from './tenant-manager.ts';
-import { gymApi, gymBackupApi } from './platform-gym-api.ts';
+import { gymApi, gymBackupApi, downloadGymBackup } from './platform-gym-api.ts';
 import { ApiError, Service, hash } from '../lib/service.ts';
 import { reasons } from '../lib/domain.ts';
 import { json, cookieValue, requestToken, readJson } from './platform-http.ts';
@@ -19,6 +19,7 @@ import { replicationApi } from './replication-api.ts';
 import { applicationVersion } from './backups.ts';
 import { withBackupUpload } from './backup-transfer.ts';
 import { serveCredentialShare } from './credential-shares.ts';
+import { sendStream } from './stream-transfer.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 type Options = {
@@ -57,6 +58,16 @@ export async function startPlatform(options: Options) {
   let backupUploadInProgress = false;
   let realtime: ReturnType<typeof createRealtime> | undefined;
   const server = createServer(async (req, res) => {
+    // Keep the former two-minute body deadline except for authenticated backup uploads.
+    let bodyTimer = setTimeout(() => { if (!req.complete) req.destroy(); }, 120000);
+    const clearBodyTimer = () => clearTimeout(bodyTimer);
+    req.once('end', clearBodyTimer);
+    res.once('finish', clearBodyTimer);
+    res.once('close', clearBodyTimer);
+    const allowBackupUpload = () => {
+      clearBodyTimer();
+      bodyTimer = setTimeout(() => { if (!req.complete) req.destroy(); }, 30 * 60000);
+    };
     res.once('finish', () => {
       if (res.statusCode >= 400 || ['GET', 'HEAD'].includes(req.method || 'GET')) return;
       let route: string;
@@ -138,12 +149,16 @@ export async function startPlatform(options: Options) {
           const session = await store.requireWebSession(token);
           if (session.user.global_role !== 'superadmin') throw new ApiError(403, 'Se requiere superadministrador.');
           if (!platformBackup[1]) return json(res, { copies: platformCopies(tenants.root) });
-          const copy = exportPlatformCopy(tenants.root, platformBackup[1]);
-          const current = store.authenticateSync(token);
-          if (!current || current.kioskGymId || current.user.global_role !== 'superadmin') throw new ApiError(401, 'Inicia sesión de nuevo.');
-          store.audit(current.user.id, 'platform.backup_download', undefined, platformBackup[1]);
-          res.writeHead(200, { 'Content-Type': 'application/gzip', 'Content-Disposition': `attachment; filename="${copy.filename}"`, 'Cache-Control': 'no-store' });
-          return res.end(copy.bytes);
+          return await tenants.withHeavyOperation(async () => {
+            const copy = await exportPlatformCopy(tenants.root, platformBackup[1]);
+            const authorize = () => {
+              const current = store.authenticateSync(token);
+              if (!current || current.mobileGymId || current.kioskGymId || current.user.global_role !== 'superadmin') throw new ApiError(401, 'Inicia sesión de nuevo.');
+            };
+            authorize();
+            store.audit(session.user.id, 'platform.backup_download', undefined, platformBackup[1]);
+            await sendStream(res, copy.chunks, { 'Content-Type': 'application/gzip', 'Content-Disposition': `attachment; filename="${copy.filename}"` }, authorize, 'archive-gzip');
+          });
         }
         if (url.pathname === '/api/platform/backups' && method === 'POST') {
           const requestSession = requestToken(req);
@@ -170,7 +185,8 @@ export async function startPlatform(options: Options) {
               throw new ApiError(401, 'Las credenciales cambiaron. Inicia sesión de nuevo.');
           };
           authorize();
-          const copy = await tenants.snapshotPlatform(store.raw, authorize);
+          const copy = await tenants.withHeavyOperation(() => tenants.snapshotPlatform(store.raw, authorize));
+          authorize();
           store.audit(session.user.id, 'platform.backup', undefined, copy.id);
           return json(res, copy, 201);
         }
@@ -191,15 +207,19 @@ export async function startPlatform(options: Options) {
             return { gym, user: current.user };
           };
           const selected = authorize();
+          if (method === 'GET' && gymBackup[3] === 'export')
+            return await downloadGymBackup(res, tenants, store, selected.gym, gymBackup[2], selected.user.id, () => { authorize(); });
           if (importing) {
+            allowBackupUpload();
             if (backupUploadInProgress) throw new ApiError(429, 'Ya se está subiendo un respaldo.');
             backupUploadInProgress = true;
             try {
-              const copy = await withBackupUpload(req, tenants.root, async file => await tenants.withTenant(selected.gym, async ctx => {
+              const copy = await tenants.withHeavyOperation(() => withBackupUpload(req, tenants.root, async file => await tenants.withTenant(selected.gym, async ctx => {
                 const current = authorize(); if (res.destroyed) return;
-                const copy = ctx.backups.importFile(file, ctx.id);
+                const copy = await ctx.backups.importFileAsync(file, ctx.id);
+                authorize();
                 store.audit(current.user.id, 'backup.imported', ctx.id, copy.id); return copy;
-              }));
+              })));
               if (copy) return json(res, copy, 201); return;
             } finally { backupUploadInProgress = false; }
           }
@@ -293,22 +313,33 @@ export async function startPlatform(options: Options) {
           req.headers['x-gympass-support'] || (imageGet ? cookieValue(req, 'gympass_support') : '') || '',
         );
         const auth = await store.authorize(token, gymId, support, operationalWrite, kioskRoute);
+        if (method === 'GET' && path[0] === 'backups' && path[2] === 'export') {
+          const authorizeBackup = () => {
+            const current = store.authorizeSync(token, gymId, support);
+            if (current.user.global_role !== 'superadmin') throw new ApiError(403, 'Los respaldos los administra exclusivamente el superadministrador.');
+          };
+          authorizeBackup();
+          return await downloadGymBackup(res, tenants, store, auth.gym, path[1], auth.user.id, authorizeBackup);
+        }
         if (method === 'POST' && path.join('/') === 'backups/import') {
           if (auth.user.global_role !== 'superadmin') throw new ApiError(403, 'Solo el superadministrador puede importar un respaldo.');
+          allowBackupUpload();
           if (backupUploadInProgress) throw new ApiError(429, 'Ya se está subiendo un respaldo. Inténtalo en unos instantes.');
           backupUploadInProgress = true;
           let copy;
           try {
-            copy = await withBackupUpload(req, tenants.root, async (file) =>
+            copy = await tenants.withHeavyOperation(() => withBackupUpload(req, tenants.root, async (file) =>
               await tenants.withTenant(auth.gym, async (ctx) => {
                 const current = store.authorizeSync(token, gymId, support, true);
                 if (current.user.global_role !== 'superadmin') throw new ApiError(403, 'Solo el superadministrador puede importar un respaldo.');
                 if (res.destroyed) return;
-                const copy = ctx.backups.importFile(file, ctx.id);
+                const copy = await ctx.backups.importFileAsync(file, ctx.id);
+                const verified = store.authorizeSync(token, gymId, support, true);
+                if (verified.user.global_role !== 'superadmin') throw new ApiError(403, 'Solo el superadministrador puede importar un respaldo.');
                 store.audit(current.user.id, 'backup.imported', gymId, copy.id);
                 return copy;
               }),
-            );
+            ));
           } finally {
             backupUploadInProgress = false;
           }
@@ -368,10 +399,14 @@ export async function startPlatform(options: Options) {
       res.end(content);
     } catch (error) {
       if (res.headersSent) {
-        res.end();
+        // A failed stream must be visibly incomplete, never a successful truncated archive.
+        res.destroy();
         return;
       }
-      if (error instanceof ApiError) return json(res, { error: error.message }, error.status);
+      if (error instanceof ApiError) {
+        if (error.status === 429) res.setHeader('Retry-After', '5');
+        return json(res, { error: error.message }, error.status);
+      }
       if (error instanceof ZodError)
         return json(
           res,
@@ -386,7 +421,7 @@ export async function startPlatform(options: Options) {
     }
   });
   realtime = createRealtime(server, store, origin);
-  server.requestTimeout = 120000;
+  server.requestTimeout = 30 * 60000;
   server.headersTimeout = 15000;
   try {
     await new Promise<void>((done, reject) => {
@@ -410,7 +445,7 @@ export async function startPlatform(options: Options) {
         new Date(),
         (gym) => realtime?.publish(gym, ['access', 'alerts']),
       )
-      .then(() => tenants.automaticPlatformBackup(store.raw))
+      .then(() => tenants.withHeavyOperation(() => tenants.automaticPlatformBackup(store.raw)))
       .catch((error) => console.error('Respaldo de plataforma:', error.message))
       .finally(() => {
         maintenanceWork = null;

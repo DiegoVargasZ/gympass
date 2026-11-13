@@ -33,9 +33,17 @@ test('la entrega conserva exactamente los recursos actuales y anteriores con sus
   }
   for (const name of readdirSync(new URL('../dist/assets/', import.meta.url))) assert.ok(retained.has('assets/' + name.replace(/\.(br|gz)$/, '')), name);
   const downloads = readFileSync(new URL('../src/AppDownloads.tsx', import.meta.url), 'utf8');
-  assert.ok(downloads.includes(`/download/v${manifest.version}/`));
-  assert.ok(downloads.includes(`GymPASS-Android-${manifest.version}.apk`));
-  assert.ok(downloads.includes(`GymPASS-Setup-${manifest.version}.exe`));
+  // Server-only patches keep the last verified native installers; never point at nonexistent binaries.
+  const nativeVersion = /\/download\/v(\d+\.\d+\.\d+)\//.exec(downloads)?.[1];
+  assert.ok(nativeVersion, 'Las descargas deben apuntar a una entrega nativa identificable.');
+  const native = JSON.parse(readFileSync(new URL(`../client-releases/${nativeVersion}.json`, import.meta.url), 'utf8'));
+  assert.equal(native.published, true);
+  assert.equal(native.version, nativeVersion);
+  for (const filename of [`GymPASS-Android-${nativeVersion}.apk`, `GymPASS-Setup-${nativeVersion}.exe`]) {
+    assert.ok(downloads.includes(filename));
+    assert.match(native.files[filename].sha256, /^[a-f\d]{64}$/);
+    assert.ok(native.files[filename].bytes > 0);
+  }
   // La versión portable se sigue publicando, pero el inicio de sesión solo ofrece el instalador.
   assert.ok(!downloads.includes('GymPASS-Portable-'));
 });

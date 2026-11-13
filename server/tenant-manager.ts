@@ -4,19 +4,18 @@ import {
   existsSync,
   readFileSync,
   writeFileSync,
-  cpSync,
   readdirSync,
   lstatSync,
   rmSync,
   renameSync,
 } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { resolve, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SqliteDatabase } from './database.ts';
 import { Backups, prepareDataStartup, safeBackupDirectory } from './backups.ts';
 import { credentialVault } from './credential-vault.ts';
 import { ApiError, Service, type CredentialCodec } from '../lib/service.ts';
+import { backupJob } from './backup-jobs.ts';
 
 type Tenant = { id: string; name: string };
 export type TenantContext = {
@@ -29,20 +28,6 @@ export type TenantContext = {
   touched: number;
 };
 const migrations = fileURLToPath(new URL('./migrations', import.meta.url));
-function treeFiles(directory: string, prefix = ''): string[] {
-  const result: string[] = [];
-  for (const entry of readdirSync(directory)) {
-    const path = join(directory, entry),
-      info = lstatSync(path),
-      name = prefix + entry;
-    if (info.isSymbolicLink()) throw new ApiError(409, 'No se admiten enlaces de archivos en una copia de plataforma.');
-    if (info.isDirectory()) result.push(...treeFiles(path, name + '/'));
-    else if (info.isFile()) result.push(name);
-    else throw new ApiError(409, 'La copia contiene un archivo no compatible.');
-  }
-  return result;
-}
-
 export class TenantManager {
   root: string;
   private contexts = new Map<string, TenantContext>();
@@ -50,6 +35,25 @@ export class TenantManager {
   private maxOpen: number;
   private closed = false;
   private gate: Promise<void> = Promise.resolve();
+  private heavyOperation = false;
+  private heavyReleased: Promise<void> = Promise.resolve();
+  private releaseHeavy: (() => void) | undefined;
+  private heavyWaiters = 0;
+
+  /** Reserve before reading a large body; one tenant cannot fill RAM with parallel transfers. */
+  async withHeavyOperation<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.heavyOperation && this.heavyWaiters < 4) {
+      this.heavyWaiters++;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([this.heavyReleased, new Promise<void>(done => { timer = setTimeout(done, 100); })]);
+      } finally { if (timer) clearTimeout(timer); this.heavyWaiters--; }
+    }
+    if (this.heavyOperation) throw new ApiError(429, 'Hay una transferencia grande en curso. Reintenta en unos segundos.');
+    this.heavyOperation = true;
+    this.heavyReleased = new Promise<void>(done => { this.releaseHeavy = done; });
+    try { return await operation(); } finally { this.heavyOperation = false; this.releaseHeavy?.(); }
+  }
 
   constructor(root: string, options: { maxOpen?: number } = {}) {
     this.root = safeBackupDirectory(resolve(root), true);
@@ -223,7 +227,8 @@ export class TenantManager {
         const service = new Service(ctx.db, { id: 'system', email: 'system', name: 'Sistema', role: 'admin' });
         await service.closeStaleSessions(at);
         await service.closeExpiredVisits(at);
-        ctx.backups.check();
+        // Platform snapshots already contain every gym. Do not duplicate the daily schedule.
+        // Existing individual copies and explicit manual/pre-restore copies are preserved.
         if (ctx.db.raw.prepare('SELECT total_changes() n').get()!.n !== before) onChanged?.(gym.id);
       }).catch((error) => console.error('Mantenimiento de gimnasio:', gym.id, error.message));
     }
@@ -239,49 +244,22 @@ export class TenantManager {
       await oldGate;
       await Promise.allSettled([...this.queues.values()]);
       authorize();
-      // All copying below is synchronous, so central writes cannot interleave.
+      // Capture the central registry before yielding; tenant queues stay paused for a coherent capture.
       const directory = safeBackupDirectory(
         join(this.root, 'platform-backups', `platform-${Date.now()}-${crypto.randomUUID()}`),
         true,
       );
       raw.prepare('VACUUM INTO ?').run(join(directory, 'platform.sqlite'));
-      const sources = join(this.root, 'tenants');
-      if (existsSync(sources)) {
-        for (const id of readdirSync(sources)) {
-          const source = this.directory(id);
-          const destination = join(directory, 'tenants', id);
-          mkdirSync(destination, { recursive: true });
-          const ctx = this.contexts.get(id);
-          const db = ctx?.db.raw || new DatabaseSync(this.databasePath({ id, name: '' }), { readOnly: true });
-          try {
-            db.prepare('VACUUM INTO ?').run(join(destination, 'gympass.sqlite'));
-          } finally {
-            if (!ctx) db.close();
-          }
-          for (const asset of ['credentials.key', 'photos', 'branding', 'backgrounds', 'tenant.json']) {
-            const path = join(source, asset);
-            if (existsSync(path)) {
-              const info = lstatSync(path);
-              if (info.isSymbolicLink()) throw new ApiError(409, 'No se respaldan enlaces de archivos.');
-              if (info.isDirectory()) treeFiles(path);
-              cpSync(path, join(destination, asset), { recursive: true });
-            }
-          }
-        }
+      const sourceRoot = join(this.root, 'tenants');
+      const sources = existsSync(sourceRoot) ? readdirSync(sourceRoot).map(id => ({
+        id, database: this.databasePath({ id, name: '' }),
+      })) : [];
+      try {
+        return await backupJob<{ id: string; created_at: number }>('platform', { root: this.root, directory, sources });
+      } catch (error) {
+        if (resolve(directory).startsWith(resolve(this.root, 'platform-backups') + sep)) rmSync(directory, { recursive: true, force: true });
+        throw error;
       }
-      const files = Object.fromEntries(
-        treeFiles(directory).map((file) => [
-          file,
-          createHash('sha256')
-            .update(readFileSync(join(directory, file)))
-            .digest('hex'),
-        ]),
-      );
-      writeFileSync(join(directory, 'complete.json'), JSON.stringify({ format: 1, created_at: Date.now(), files }), {
-        flag: 'wx',
-        mode: 0o600,
-      });
-      return { id: directory.split(/[\\/]/).at(-1)!, created_at: Date.now() };
     } finally {
       release();
     }

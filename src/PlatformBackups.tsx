@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Download, HardDrive, RefreshCw, Upload } from 'lucide-react';
-import { maxBackupTransferBytes } from '../lib/backup-limits';
+import { maxBackupTransferBytes, backupTransferLimitLabel } from '../lib/backup-limits';
 import { api, download, uploadBackup } from './api';
 import { Empty, Field, Form, Modal, Skeleton } from './ui';
 
@@ -199,7 +199,7 @@ export default function PlatformBackups({
       {importOpen && (
         <Modal title="Usar respaldo descargado" onClose={() => { if (!busy) setImportOpen(false); }}>
           <p>Selecciona un archivo .gympassbackup de este gimnasio. Se verificará antes de añadirlo a la lista de respaldos.</p>
-          <p className="helper">Importar conserva los datos actuales. El archivo puede pesar hasta 256 MiB.</p>
+          <p className="helper">Importar conserva los datos actuales. El archivo puede pesar hasta {backupTransferLimitLabel}.</p>
           <Form
             label="Importar y verificar"
             onCancel={() => { if (!busy) setImportOpen(false); }}
@@ -208,7 +208,7 @@ export default function PlatformBackups({
               if (!file || typeof file === 'string' || !/\.gympassbackup$/i.test(file.name))
                 throw Error('Selecciona un archivo .gympassbackup.');
               if (!file.size || file.size > maxBackupTransferBytes)
-                throw Error('El archivo debe contener un respaldo de hasta 256 MiB.');
+                throw Error('El archivo debe contener un respaldo de hasta ' + backupTransferLimitLabel + '.');
               setBusy(true);
               setNotice('');
               try {

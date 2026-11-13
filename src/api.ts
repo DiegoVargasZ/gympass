@@ -25,11 +25,10 @@ export async function api<T = any>(path: string, method = 'GET', body?: unknown,
   const revision = sessionRevision;
   const contextGeneration = getPlatformGeneration();
   const requestBody = body === undefined && !['GET', 'HEAD'].includes(method.toUpperCase()) ? {} : body;
+  const backupOperation = path.startsWith('backups') || path === 'platform/backups' || /^platform\/gyms\/[^/]+\/backups(?:\/|$)/.test(path);
   const timeout = AbortSignal.timeout(
-    path === 'network/check' ||
-      path.startsWith('backups') ||
+    backupOperation ? 30 * 60000 : path === 'network/check' ||
       path.startsWith('cloud-sync/') ||
-      path === 'platform/backups' ||
       path === 'system/update' ||
       path === 'system/reset'
       ? 120000
@@ -97,7 +96,7 @@ export async function uploadBackup<T>(file: File, path = 'backups/import'): Prom
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream', 'X-Requested-With': 'GymPASS' },
     body: file,
-    signal: AbortSignal.timeout(120000),
+    signal: AbortSignal.timeout(30 * 60000),
   });
   const data = await response.json().catch(() => null);
   assertPlatformGeneration(generation);

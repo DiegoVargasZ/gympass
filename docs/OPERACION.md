@@ -38,6 +38,12 @@ Para recuperar una copia descargada, el superadministrador abre **Respaldos → 
 
 Para restaurar la plataforma, extrae el `.tar.gz` en un directorio nuevo y utiliza `scripts/platform-restore.ts`. Conserva las claves y fotos junto a las bases. No modifiques ni elimines migraciones publicadas ni reduzcas `schema_version`.
 
+Desde el servidor 5.3.1, la plataforma crea una copia completa diaria y conserva 14. Ese calendario sustituye la creación diaria adicional de copias individuales de cada gimnasio. Las copias individuales existentes, manuales y previas a restauraciones se conservan. Los recursos que no cambiaron se pueden compartir mediante enlaces físicos entre respaldos inmutables; los archivos activos se mantienen independientes de esos respaldos. En sistemas sin soporte de enlaces físicos se copia el archivo.
+
+Las descargas y la importación web admiten hasta 4 GiB y procesan los archivos por partes. El servidor reserva espacio para recibir y extraer la copia, conserva un margen libre y limpia temporales ante desconexiones o errores. Las subidas autorizadas tienen un plazo máximo de 30 minutos; el proxy del hosting puede imponer un límite menor. La descarga de un respaldo individual no ocupa la cola de la base activa del gimnasio. Crear una copia global todavía pausa las operaciones de gimnasios durante la captura coherente; los hashes y las copias pesadas se ejecutan en un trabajador separado y el servidor sigue atendiendo salud/autenticación.
+
+Hay un cupo global para transferencias pesadas. Una respuesta 429 con `Retry-After: 5` pide reintentar; no borra los cambios offline ni crea cobros duplicados. El almacenamiento externo automático no está configurado por esta entrega: descarga una copia a otro equipo/cuenta, protégela y comprueba que puedes restaurarla. Los respaldos descargados siguen siendo archivos privados sin cifrado integral.
+
 ## Aplicaciones y trabajo sin conexión
 
 Instala Android y Windows 5.3.0 desde las entregas oficiales. Actualiza Android sobre la instalación existente para conservar cuenta y pendientes. Se mantiene el paquete y la firma. La primera vinculación necesita Internet; la autorización sin conexión dura siete días desde la última sincronización.
@@ -69,6 +75,8 @@ En **Informes**, consulta los ingresos por productos, el costo de los productos 
 Los productos y ventas anteriores sin costo muestran **Sin registrar**. Registrar un costo ahora sirve para las ventas nuevas; los reportes anteriores mantienen ese costo desconocido e indican las unidades pendientes y los importes parciales. Un costo cero indica expresamente que la unidad no tuvo costo.
 
 La gestión sin conexión guarda los mismos costos e históricos. Actualiza las aplicaciones a 5.3.0 para usar estos campos; las versiones anteriores siguen sincronizando sus datos sin borrar los costos registrados en la web.
+
+El servidor 5.3.1 mantiene ese mismo protocolo y funciona con los instaladores 5.3.0 publicados. Cuando no cambió la información, comprueba la revisión y renueva permisos sin recorrer todas las filas ni leer imágenes. Cuando hay cambios, envía la instantánea completa por flujo: esta entrega no introduce un protocolo nuevo de diferencias entre filas. Las descargas utilizan una lectura SQLite coherente sin impedir entradas y cobros simultáneos; se limita su duración para no retener el WAL indefinidamente.
 
 ## Apariencia compartida
 

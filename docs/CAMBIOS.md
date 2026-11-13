@@ -1,5 +1,15 @@
 # Cambios
 
+## 5.3.1
+
+- El servidor comprueba una revisión persistente antes de cargar tablas o imágenes: los sondeos sin cambios renuevan la autorización sin reconstruir la copia completa.
+- Las respuestas de sincronización se generan por partes, con compresión por flujo y memoria acotada. Una transacción de lectura y recursos fijados conservan una instantánea coherente sin retener la cola de recepción durante la descarga.
+- Los lectores móviles seleccionan el historial limitado desde SQL. La validación de lotes entrantes consulta el esquema sin cargar todas las filas.
+- Respaldos descargables y archivos importados de hasta 4 GiB por flujo; verificación, extracción y copias de gimnasios fuera del hilo HTTP. Se comprueba espacio disponible durante la recepción y se conservan controles de identidad, hashes y contraseña de restauración.
+- La plataforma mantiene un único calendario diario de copias completas, con retención de 14. Conserva las copias individuales anteriores y las manuales; los recursos iguales entre copias nuevas reutilizan almacenamiento mediante enlaces físicos cuando el sistema lo admite.
+- Una transferencia pesada activa por proceso y espera breve acotada; las demás reciben 429 con reintento. Se conservan los pendientes offline y el protocolo de Android/Windows 5.3.0 y anteriores compatibles. Esta entrega actualiza web/servidor; los instaladores publicados siguen en 5.3.0.
+- Pruebas específicas para revisión sin lecturas completas, revocación, transferencia lenta concurrente, historial móvil, respaldo superior a 256 MiB e importación con identidad validada. Véase la [verificación de 5.3.1](VERIFICACION-5.3.1.md).
+
 ## 5.3.0
 
 - Productos con costo de compra y precio de venta por unidad. El formulario muestra la ganancia bruta esperada y avisa cuando se vende por debajo del costo. El código/SKU deja de aparecer en formularios, búsquedas y listados.

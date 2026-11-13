@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import { mkdtemp, open, rm } from 'node:fs/promises';
+import { mkdtemp, open, rm, statfs } from 'node:fs/promises';
 import {
   closeSync,
   lstatSync,
@@ -15,7 +15,8 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { ApiError } from '../lib/service.ts';
-import { maxBackupTransferBytes } from '../lib/backup-limits.ts';
+import { maxBackupTransferBytes, maxBufferedBackupBytes, backupTransferLimitLabel } from '../lib/backup-limits.ts';
+import { fileChunks } from './file-chunks.ts';
 import {
   canonicalBackupFile,
   inspectBackup,
@@ -57,7 +58,7 @@ export function exportBackupCopy(
     }));
   const header = Buffer.from(JSON.stringify({ format: 1, manifest, entries }));
   const size = magic.length + 4 + header.length + entries.reduce((sum, entry) => sum + entry.size, 0);
-  if (header.length > maxHeaderBytes || size > maxBackupTransferBytes)
+  if (header.length > maxHeaderBytes || size > maxBufferedBackupBytes)
     throw new ApiError(413, 'La copia supera el límite de exportación de 256 MiB.');
   const length = Buffer.alloc(4);
   length.writeUInt32BE(header.length);
@@ -73,12 +74,36 @@ export function exportBackupCopy(
   return { bytes: Buffer.concat(chunks, size), filename: id + '.gympassbackup' };
 }
 
+/** The caller verifies the immutable copy in a worker before preparing this bounded stream. */
+export function streamBackupCopy(directory: string, id: string, maxSchema: number) {
+  const root = safeBackupDirectory(join(directory, id));
+  const manifest = validateBackupManifest(JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8')), id, maxSchema);
+  const entries = Object.keys(manifest.files).sort().map(path => {
+    const info = lstatSync(join(root, ...canonicalBackupFile(path).split('/')));
+    if (!info.isFile() || info.isSymbolicLink()) throw new ApiError(409, 'El respaldo contiene un archivo inválido.');
+    return { path, size: info.size };
+  });
+  const header = Buffer.from(JSON.stringify({ format: 1, manifest, entries }));
+  const size = magic.length + 4 + header.length + entries.reduce((sum, entry) => sum + entry.size, 0);
+  if (header.length > maxHeaderBytes || size > maxBackupTransferBytes)
+    throw new ApiError(413, 'La copia supera el límite de transferencia de ' + backupTransferLimitLabel + '.');
+  const chunks = async function* () {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(header.length);
+    yield magic; yield length; yield header;
+    for (const entry of entries) {
+      yield* fileChunks(join(root, ...entry.path.split('/')), entry.size, manifest.files[entry.path]);
+    }
+  };
+  return { chunks: chunks(), size, filename: id + '.gympassbackup' };
+}
+
 export function importBackupCopy(
   directory: string,
   input: Uint8Array,
   maxSchema: number,
 ): ReturnType<typeof inspectBackup> {
-  if (!(input instanceof Uint8Array) || input.byteLength > maxBackupTransferBytes)
+  if (!(input instanceof Uint8Array) || input.byteLength > maxBufferedBackupBytes)
     throw new ApiError(413, 'La copia supera el límite de importación de 256 MiB.');
   const bytes = Buffer.from(input.buffer, input.byteOffset, input.byteLength);
   return importBackup(directory, bytes.length, (start, length) => bytes.subarray(start, start + length), maxSchema);
@@ -87,7 +112,7 @@ export function importBackupCopy(
 export function importBackupFile(directory: string, file: string, maxSchema: number, owner: string) {
   const info = lstatSync(file);
   if (!info.isFile() || info.isSymbolicLink() || info.size > maxBackupTransferBytes)
-    throw new ApiError(413, 'El archivo no es un respaldo de hasta 256 MiB.');
+    throw new ApiError(413, 'El archivo no es un respaldo de hasta ' + backupTransferLimitLabel + '.');
   const source = openSync(file, 'r');
   try {
     return importBackup(directory, info.size, (position, length) => {
@@ -196,8 +221,14 @@ export async function withBackupUpload<T>(req: IncomingMessage, directory: strin
     throw new ApiError(415, 'Selecciona un archivo .gympassbackup.');
   const declared = req.headers['content-length'];
   if (declared && (Number(declared) > maxBackupTransferBytes || Number(declared) <= 0))
-    throw new ApiError(413, 'El archivo debe contener un respaldo de hasta 256 MiB.');
+    throw new ApiError(413, 'El archivo debe contener un respaldo de hasta ' + backupTransferLimitLabel + '.');
   const root = safeBackupDirectory(directory);
+  const ensureSpace = async (bytes: number) => {
+    const disk = await statfs(root);
+    if (disk.bavail * disk.bsize < bytes + 64 * 1024 * 1024)
+      throw new ApiError(507, 'No hay espacio suficiente para recibir y verificar el respaldo.');
+  };
+  await ensureSpace(declared ? Number(declared) * 2 : 64 * 1024 * 1024);
   const temp = await mkdtemp(join(root, '.backup-upload-'));
   try {
     const path = join(temp, 'archive');
@@ -206,7 +237,8 @@ export async function withBackupUpload<T>(req: IncomingMessage, directory: strin
     try {
       for await (const chunk of req.iterator({ destroyOnReturn: false })) {
         size += chunk.length;
-        if (size > maxBackupTransferBytes) throw new ApiError(413, 'La copia supera el límite de 256 MiB.');
+        if (size > maxBackupTransferBytes) throw new ApiError(413, 'La copia supera el límite de ' + backupTransferLimitLabel + '.');
+        if (Math.floor(size / (16 * 1024 * 1024)) !== Math.floor((size - chunk.length) / (16 * 1024 * 1024))) await ensureSpace(size);
         await file.writeFile(chunk);
       }
     } finally {
@@ -214,6 +246,7 @@ export async function withBackupUpload<T>(req: IncomingMessage, directory: strin
     }
     if (!size || !req.complete || (declared && size !== Number(declared)))
       throw new ApiError(400, 'El respaldo no se recibió completo.');
+    await ensureSpace(size);
     return await consume(path);
   } finally {
     if (dirname(resolve(temp)) === root) await rm(temp, { recursive: true, force: true });

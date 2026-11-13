@@ -21,6 +21,7 @@ import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } fr
 import { ApiError } from '../lib/service.ts';
 import { replaceFileSync } from './atomic-file.ts';
 import { exportBackupCopy, importBackupCopy, importBackupFile, sameBackup } from './backup-transfer.ts';
+import { backupJob } from './backup-jobs.ts';
 
 export const applicationVersion: string = JSON.parse(
   readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
@@ -47,7 +48,7 @@ export type Manifest = {
   kind: Kind;
   files: Record<string, string>;
 };
-const digest = (path: string) => {
+export const digestBackupFile = (path: string) => {
   const source = openSync(path, 'r');
   const buffer = Buffer.allocUnsafe(128 * 1024);
   const hash = createHash('sha256');
@@ -59,6 +60,7 @@ const digest = (path: string) => {
     closeSync(source);
   }
 };
+const digest = digestBackupFile;
 function safeTree(root: string, relative = ''): string[] {
   if (!relative) safeBackupDirectory(root);
   const result: string[] = [];
@@ -502,6 +504,19 @@ export class Backups {
       throw error;
     }
   }
+  async createAsync(kind: Kind = 'manual'): Promise<Manifest> {
+    try {
+      const result = await backupJob<Manifest>('create', { source: this.source, directory: this.directory, kind });
+      this.error = '';
+      return result;
+    } catch (error) { this.error = (error as Error).message; throw error; }
+  }
+  inspectAsync(id: string, owner?: string) {
+    return backupJob<ReturnType<typeof inspectBackup>>('inspect', { directory: this.directory, id, maxSchema: this.maxSchema(), owner });
+  }
+  importFileAsync(file: string, owner: string) {
+    return backupJob<ReturnType<typeof inspectBackup>>('import', { directory: this.directory, file, owner, maxSchema: this.maxSchema() });
+  }
   check() {
     const now = Date.now(),
       config = this.settings(),
@@ -562,6 +577,15 @@ export class Backups {
       id,
       transaction: crypto.randomUUID(),
       directory: this.directory,
+    });
+    return { preview, safety: safety.id };
+  }
+  async restoreAsync(id: string, owner: string, authorize: () => void) {
+    const preview = await this.inspectAsync(id, owner);
+    const safety = await this.createAsync('before-restore');
+    authorize();
+    atomicJson(join(dirname(this.source), 'restore-plan.json'), {
+      id, transaction: crypto.randomUUID(), directory: this.directory,
     });
     return { preview, safety: safety.id };
   }

@@ -26,6 +26,7 @@ import {
 } from "../lib/replication.ts";
 import type { TenantContext } from "./tenant-manager.ts";
 import type { PlatformStore, GymAuthorization } from "./platform-store.ts";
+import { replaceFileSync } from './atomic-file.ts';
 
 type Device = {
   id: string;
@@ -40,7 +41,16 @@ type Device = {
 const digest = (value: string | Uint8Array) =>
   createHash("sha256").update(value).digest("hex");
 const lease = 7 * 86400000;
+function replaceAsset(path: string, bytes: Uint8Array) {
+  const temporary = path + '.' + crypto.randomUUID() + '.tmp';
+  try {
+    writeFileSync(temporary, bytes, { flag: 'wx', mode: 0o600 });
+    replaceFileSync(temporary, path);
+  } finally { if (existsSync(temporary)) unlinkSync(temporary); }
+}
+const initialized = new WeakSet<DatabaseSync>();
 export function initializeReplication(raw: DatabaseSync) {
+  if (initialized.has(raw)) return;
   raw.exec(`CREATE TABLE IF NOT EXISTS sync_devices(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,name TEXT NOT NULL,kind TEXT NOT NULL CHECK(kind IN('desktop','mobile')),token_hash TEXT NOT NULL UNIQUE,password_revision TEXT,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,last_sync_at INTEGER,revoked_at INTEGER);
     CREATE TABLE IF NOT EXISTS sync_batches(device_id TEXT NOT NULL,batch_id TEXT NOT NULL,payload_hash TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN('applied','conflict','archived')),conflict TEXT,patch_json TEXT NOT NULL,created_at INTEGER NOT NULL,PRIMARY KEY(device_id,batch_id));
     CREATE TABLE IF NOT EXISTS sync_leases(device_id TEXT NOT NULL,revision TEXT NOT NULL,issued_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,PRIMARY KEY(device_id,revision,issued_at));`);
@@ -52,13 +62,22 @@ export function initializeReplication(raw: DatabaseSync) {
     raw.exec("ALTER TABLE sync_devices ADD COLUMN password_revision TEXT");
   if (!(raw.prepare("PRAGMA table_info(sync_devices)").all() as any[]).some(column => column.name === "management"))
     raw.exec("ALTER TABLE sync_devices ADD COLUMN management INTEGER NOT NULL DEFAULT 0 CHECK(management IN(0,1))");
+  // Only business changes invalidate a copy. Renewing device grants must not do so.
+  raw.exec(`CREATE TABLE IF NOT EXISTS sync_revision(id INTEGER PRIMARY KEY CHECK(id=1),epoch TEXT NOT NULL,version INTEGER NOT NULL);
+    INSERT OR IGNORE INTO sync_revision VALUES(1,'${crypto.randomUUID()}',0);`);
+  for (const table of syncTables)
+    for (const action of ['INSERT', 'UPDATE', 'DELETE'])
+      raw.exec(`CREATE TRIGGER IF NOT EXISTS sync_revision_${table}_${action} AFTER ${action} ON "${table}"
+        BEGIN UPDATE sync_revision SET version=version+1 WHERE id=1; END;`);
+  initialized.add(raw);
 }
 export function authorizeReplica(
   store: PlatformStore,
   ctx: TenantContext,
   token: string,
+  initialize = true,
 ): { device: Device; auth: GymAuthorization } {
-  initializeReplication(ctx.db.raw);
+  if (initialize) initializeReplication(ctx.db.raw);
   const device = ctx.db.raw
     .prepare(
       "SELECT * FROM sync_devices WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?",
@@ -184,6 +203,55 @@ export function replicaTables(
       return { name, columns, rows, ...(kind === "desktop" ? { sql: String(raw.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name)!.sql) } : {}) };
     });
 }
+
+/** Schema inspection must never load history when validating a small incoming patch. */
+export function replicaSchema(raw: DatabaseSync, kind: 'desktop' | 'mobile'): SyncTable[] {
+  return syncTables.filter(name => kind === 'desktop' || mobileSyncTables.has(name)).map(name => ({
+    name,
+    columns: (raw.prepare(`PRAGMA table_info("${name}")`).all() as any[]).map(({ name, type, pk }) => ({ name, type, pk })),
+    rows: [],
+    ...(kind === 'desktop' ? { sql: String(raw.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name)!.sql) } : {}),
+  }));
+}
+
+/** Hash file metadata, never the photo contents, when checking an existing revision. */
+export function replicaRevision(ctx: TenantContext, device: Device, productCosts = true) {
+  initializeReplication(ctx.db.raw);
+  const files: unknown[] = [];
+  const walk = (name: string) => {
+    const path = join(ctx.root, name);
+    if (!existsSync(path)) return;
+    const info = lstatSync(path);
+    if (info.isSymbolicLink()) throw new ApiError(409, 'No se sincronizan enlaces de archivos.');
+    if (info.isDirectory()) for (const child of readdirSync(path).sort()) walk(name + '/' + child);
+    else files.push([name, info.size, info.mtimeMs]);
+  };
+  if (device.kind === 'desktop' || device.management)
+    for (const name of ['credentials.key', 'photos', 'branding', 'backgrounds']) walk(name);
+  return digest(JSON.stringify([
+    ctx.db.raw.prepare('SELECT epoch,version FROM sync_revision WHERE id=1').get(),
+    ctx.db.raw.prepare('PRAGMA schema_version').get(),
+    device.kind, !!device.management, productCosts, files,
+  ]));
+}
+
+export async function replicaMetadata(ctx: TenantContext, device: Device, auth: GymAuthorization, productCosts = true) {
+  const revision = replicaRevision(ctx, device, productCosts);
+  const now = Date.now();
+  const previous = ctx.db.raw.prepare(
+    'SELECT issued_at FROM sync_leases WHERE device_id=? AND revision=? AND expires_at>? ORDER BY issued_at DESC LIMIT 1',
+  ).get(device.id, revision, now + 6 * 86400000) as { issued_at: number } | undefined;
+  const issued = previous ? Number(previous.issued_at) : now;
+  ctx.db.raw.prepare('UPDATE sync_devices SET last_sync_at=?,expires_at=? WHERE id=?').run(now, now + 90 * 86400000, device.id);
+  ctx.db.raw.prepare('INSERT OR REPLACE INTO sync_leases VALUES(?,?,?,?)').run(device.id, revision, issued, issued + lease);
+  ctx.db.raw.prepare('DELETE FROM sync_leases WHERE expires_at<?').run(now);
+  return {
+    protocol: 1 as const, gym_id: ctx.id, installation_id: await hash(ctx.id), revision,
+    issued_at: issued, expires_at: issued + lease, kind: device.kind,
+    ...(device.management ? { scope: 'management' as const } : {}),
+    user: { ...auth.actor, role: auth.actor.role as 'admin' | 'operator' },
+  };
+}
 export function replicaAssets(root: string) {
   const assets: Record<string, string> = {};
   const walk = (name: string) => {
@@ -208,6 +276,7 @@ export async function replicaSnapshot(
   auth: GymAuthorization,
   productCosts = true,
 ): Promise<SyncSnapshot> {
+  const metadata = await replicaMetadata(ctx, device, auth, productCosts);
   const currentTables = replicaTables(ctx.db.raw, device.management ? "desktop" : device.kind);
   const tables = productCosts ? currentTables : currentTables.map(legacyProductCostTable);
   const assets =
@@ -219,32 +288,8 @@ export async function replicaSnapshot(
       )
       .all() as any[]
   ).map((row) => String(row.sql));
-  const revision = digest(JSON.stringify([tables, assets]));
-  const now = Date.now();
-  const previous = ctx.db.raw
-    .prepare(
-      "SELECT issued_at FROM sync_leases WHERE device_id=? AND revision=? AND expires_at>? ORDER BY issued_at DESC LIMIT 1",
-    )
-    .get(device.id, revision, now + 6 * 86400000) as
-    { issued_at: number } | undefined;
-  const issued = previous ? Number(previous.issued_at) : now;
-  ctx.db.raw
-    .prepare("UPDATE sync_devices SET last_sync_at=?,expires_at=? WHERE id=?")
-    .run(now, now + 90 * 86400000, device.id);
-  ctx.db.raw
-    .prepare("INSERT OR REPLACE INTO sync_leases VALUES(?,?,?,?)")
-    .run(device.id, revision, issued, issued + lease);
-  ctx.db.raw.prepare("DELETE FROM sync_leases WHERE expires_at<?").run(now);
   return {
-    protocol: 1,
-    gym_id: ctx.id,
-    installation_id: await hash(ctx.id),
-    revision,
-    issued_at: issued,
-    expires_at: issued + lease,
-    kind: device.kind,
-    ...(device.management ? { scope: "management" as const } : {}),
-    user: { ...auth.actor, role: auth.actor.role as "admin" | "operator" },
+    ...metadata,
     tables,
     triggers,
     ...(assets ? { assets } : {}),
@@ -352,7 +397,7 @@ export function mergeReplica(
       );
     return { status: "conflict", conflict: message };
   }
-  const schema = replicaTables(raw, device.management ? "desktop" : device.kind);
+  const schema = replicaSchema(raw, device.management ? "desktop" : device.kind);
   const seen = new Set<string>();
   for (const change of patch.changes) {
     const table = schema.find((t) => t.name === change.table),
@@ -564,12 +609,15 @@ export function mergeReplica(
     }
     validateMergedReplica(raw, patch, device, eventIds);
     for (const trigger of triggers) raw.exec(trigger.sql);
+    // Merge suppresses business triggers to avoid replaying side effects. Invalidate once explicitly.
+    raw.prepare('UPDATE sync_revision SET version=version+1 WHERE id=1').run();
     if (raw.prepare("PRAGMA foreign_key_check").all().length)
       conflict("Los cambios contienen referencias que ya no existen.");
     for (const asset of assets) {
       if (asset.bytes) {
         mkdirSync(dirname(asset.path), { recursive: true });
-        writeFileSync(asset.path, asset.bytes);
+        // Replace the inode so a streaming snapshot's pinned asset cannot be modified in place.
+        replaceAsset(asset.path, asset.bytes);
       } else if (existsSync(asset.path)) unlinkSync(asset.path);
     }
     raw
@@ -587,7 +635,7 @@ export function mergeReplica(
   } catch (error) {
     raw.exec("ROLLBACK");
     for (const asset of assets) {
-      if (asset.previous) writeFileSync(asset.path, asset.previous);
+      if (asset.previous) replaceAsset(asset.path, asset.previous);
       else if (existsSync(asset.path)) unlinkSync(asset.path);
     }
     if (

@@ -8,9 +8,11 @@ import {
   authorizeReplica,
   pairReplica,
   mergeReplica,
-  replicaSnapshot,
+  replicaMetadata,
+  replicaRevision,
   initializeReplication,
 } from "./replication.ts";
+import { prepareReplicaSnapshot } from './replication-stream.ts';
 
 export async function replicationApi(
   req: IncomingMessage,
@@ -146,8 +148,21 @@ export async function replicationApi(
   await manager.withTenant(gym, async (ctx) => {
     authorizeReplica(store, ctx, token);
   });
-  const body = method === "GET" ? {} : await readJson(req, 64 * 1024 * 1024);
-  return manager.withTenant(gym, async (ctx) => {
+  const productCosts = req.headers['x-gympass-product-costs'] === '1';
+  if (action === 'snapshot' && method === 'GET') {
+    const unchanged = await manager.withTenant(gym, async ctx => {
+      const { device, auth } = authorizeReplica(store, ctx, token);
+      if (url.searchParams.get('revision') !== replicaRevision(ctx, device, productCosts)) return false;
+      const metadata = await replicaMetadata(ctx, device, auth, productCosts);
+      authorizeReplica(store, ctx, token);
+      json(res, { ...metadata, unchanged: true });
+      return true;
+    });
+    if (unchanged) return;
+  }
+  return manager.withHeavyOperation(async () => {
+    const body = method === "GET" ? {} : await readJson(req, 64 * 1024 * 1024);
+    const response = await manager.withTenant(gym, async (ctx) => {
     const { device, auth } = authorizeReplica(store, ctx, token);
     if (action === 'photo' && method === 'GET') {
       const person = ctx.db.raw.prepare('SELECT photo_path FROM people WHERE id=? AND deleted_at IS NULL')
@@ -161,19 +176,7 @@ export async function replicationApi(
         data_uri: `data:image/${String(person.photo_path).endsWith('.webp') ? 'webp' : 'png'};base64,${bytes.toString('base64')}` });
     }
     if (action === "snapshot" && method === "GET") {
-      const snapshot = await replicaSnapshot(ctx, device, auth, req.headers['x-gympass-product-costs'] === '1');
-      authorizeReplica(store, ctx, token);
-      if (url.searchParams.get("revision") === snapshot.revision)
-        return json(res, {
-          unchanged: true,
-          revision: snapshot.revision,
-          gym_id: snapshot.gym_id,
-          installation_id: snapshot.installation_id,
-          issued_at: snapshot.issued_at,
-          expires_at: snapshot.expires_at,
-          user: snapshot.user,
-        });
-      return json(res, snapshot);
+      return prepareReplicaSnapshot(ctx, res, device, auth, store, token, productCosts);
     }
     if (action === "push" && method === "POST") {
       const result = mergeReplica(ctx, device, auth, body as any);
@@ -192,14 +195,11 @@ export async function replicationApi(
               .get(change.after.request_key);
             if (row) ids[String(change.after.id)] = Number(row.id);
           }
-      return json(res, {
-        ...result,
-        event_ids: ids,
-        ...(result.status === "conflict"
-          ? {}
-          : { snapshot: await replicaSnapshot(ctx, device, auth, req.headers['x-gympass-product-costs'] === '1') }),
-      });
+      if (result.status === 'conflict') return json(res, { ...result, event_ids: ids });
+      return prepareReplicaSnapshot(ctx, res, device, auth, store, token, productCosts, { ...result, event_ids: ids });
     }
     throw new ApiError(404, "Operación de sincronización no disponible.");
+    });
+    if (typeof response === 'function') await response();
   });
 }

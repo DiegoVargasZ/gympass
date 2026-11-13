@@ -13,6 +13,30 @@ import type { TenantContext, TenantManager } from './tenant-manager.ts';
 import { json, readJson } from './platform-http.ts';
 import { authorizedDatabase } from './authorized-database.ts';
 import { posRequest } from './pos-api.ts';
+import { streamBackupCopy } from './backup-transfer.ts';
+import { sendStream } from './stream-transfer.ts';
+import { backupJob } from './backup-jobs.ts';
+
+/** Download immutable copies without occupying the live gym's database queue. */
+export async function downloadGymBackup(
+  res: ServerResponse, manager: TenantManager, store: PlatformStore,
+  gym: { id: string; name: string }, id: string, userId: string, authorize: () => void,
+) {
+  return manager.withHeavyOperation(async () => {
+    const target = await manager.withTenant(gym, async ctx => {
+      authorize();
+      return { directory: ctx.backups.directory, maxSchema: Number(ctx.db.raw.prepare('SELECT MAX(version) n FROM schema_version').get()?.n || 0) };
+    });
+    await backupJob('inspect', { ...target, id, owner: gym.id });
+    authorize();
+    const copy = streamBackupCopy(target.directory, id, target.maxSchema);
+    store.audit(userId, 'backup.downloaded', gym.id, id);
+    await sendStream(res, copy.chunks, {
+      'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename="${copy.filename}"`,
+      'Content-Length': String(copy.size),
+    }, authorize);
+  });
+}
 
 export async function gymBackupApi(req: IncomingMessage, res: ServerResponse, path: string[], ctx: TenantContext, user: import('./platform-store.ts').PlatformUser, store: PlatformStore, manager: TenantManager, reauthorize: () => void, body: Record<string, any> = {}) {
   if (user.global_role !== 'superadmin') throw new ApiError(403, 'Los respaldos los administra exclusivamente el superadministrador.');
@@ -24,24 +48,15 @@ export async function gymBackupApi(req: IncomingMessage, res: ServerResponse, pa
         const status = ctx.backups.status();
         return send({ ...status, directory: undefined, settings: { ...status.settings, directory: undefined } });
       }
-      manager.verifyBackup(ctx, id);
-      if (action === 'inspect') return send(ctx.backups.inspect(id));
-      if (action === 'export') {
-        const copy = ctx.backups.exportCopy(id);
-        store.audit(user.id, 'backup.downloaded', ctx.id, id);
-        reauthorize();
-        res.writeHead(200, {
-          'Content-Type': 'application/octet-stream',
-          'Content-Disposition': `attachment; filename="${copy.filename}"`,
-          'Cache-Control': 'no-store',
-        });
-        return res.end(copy.bytes);
-      }
+      if (action === 'inspect') return manager.withHeavyOperation(async () => send(await ctx.backups.inspectAsync(id, ctx.id)));
     }
     if (method === 'POST' && !id) {
-      const copy = ctx.backups.create();
-      store.audit(user.id, 'backup.created', ctx.id, copy.id);
-      return send(copy, 201);
+      return manager.withHeavyOperation(async () => {
+        const copy = await ctx.backups.createAsync();
+        reauthorize();
+        store.audit(user.id, 'backup.created', ctx.id, copy.id);
+        return send(copy, 201);
+      });
     }
     if (method === 'POST' && action === 'restore') {
       if (user.global_role !== 'superadmin')
@@ -57,11 +72,18 @@ export async function gymBackupApi(req: IncomingMessage, res: ServerResponse, pa
       )
         throw new ApiError(403, 'Confirma tu contraseña de superadministrador.');
       reauthorize();
-      manager.verifyBackup(ctx, id);
-      const result = ctx.backups.restore(id);
-      ctx.reload = true;
-      store.audit(user.id, 'backup.restored', ctx.id, id);
-      return send({ ...result, restart: false });
+      const authorizeRestore = () => {
+        reauthorize();
+        if (store.raw.prepare('SELECT password_hash FROM platform_users WHERE id=? AND active=1').get(user.id)?.password_hash !== owner.password_hash)
+          throw new ApiError(401, 'Las credenciales cambiaron. Inicia sesión de nuevo.');
+      };
+      return manager.withHeavyOperation(async () => {
+        const result = await ctx.backups.restoreAsync(id, ctx.id, authorizeRestore);
+        reauthorize();
+        ctx.reload = true;
+        store.audit(user.id, 'backup.restored', ctx.id, id);
+        return send({ ...result, restart: false });
+      });
     }
     throw new ApiError(400, 'Operación de respaldo no disponible en plataforma.');
 }
