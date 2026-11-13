@@ -249,12 +249,12 @@ export class TenantManager {
         join(this.root, 'platform-backups', `platform-${Date.now()}-${crypto.randomUUID()}`),
         true,
       );
-      raw.prepare('VACUUM INTO ?').run(join(directory, 'platform.sqlite'));
-      const sourceRoot = join(this.root, 'tenants');
-      const sources = existsSync(sourceRoot) ? readdirSync(sourceRoot).map(id => ({
-        id, database: this.databasePath({ id, name: '' }),
-      })) : [];
       try {
+        raw.prepare('VACUUM INTO ?').run(join(directory, 'platform.sqlite'));
+        const sourceRoot = join(this.root, 'tenants');
+        const sources = existsSync(sourceRoot) ? readdirSync(sourceRoot).map(id => ({
+          id, database: this.databasePath({ id, name: '' }),
+        })) : [];
         return await backupJob<{ id: string; created_at: number }>('platform', { root: this.root, directory, sources });
       } catch (error) {
         if (resolve(directory).startsWith(resolve(this.root, 'platform-backups') + sep)) rmSync(directory, { recursive: true, force: true });

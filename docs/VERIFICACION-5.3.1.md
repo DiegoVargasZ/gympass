@@ -16,7 +16,7 @@ Fecha: 13 de noviembre de 2026. Alcance: web y servidor, sincronización y respa
 
 ## Pruebas
 
-`npm run verify` completó compilación, comprobación de tipos, 69 comprobaciones de integración y 114 pruebas: **183 aprobadas, cero fallos**. Se verifican los manifiestos y huellas de la web actual y de 5.3.0 retenida, además de que los enlaces de instaladores corresponden a una entrega nativa publicada.
+`npm run verify` completa compilación, comprobación de tipos, 69 comprobaciones de integración y 115 pruebas: **184 aprobadas, cero fallos**. Se verifican los manifiestos y huellas de la web actual y de 5.3.0 retenida, además de que los enlaces de instaladores corresponden a una entrega nativa publicada.
 
 Las pruebas de regresión cubren reintentos con respuesta perdida, pagos y QR idempotentes, conflictos offline, costos históricos, clientes anteriores, revocación, permisos de respaldo, importación y restauración. Las nuevas pruebas de `tests/sync-backup-resources.test.ts` comprueban además:
 
@@ -26,6 +26,8 @@ Las pruebas de regresión cubren reintentos con respuesta perdida, pagos y QR id
 4. Escritura en el mismo gimnasio durante una descarga pausada; la respuesta conserva la instantánea anterior coherente.
 5. Recorte móvil desde SQL y conservación de una entrada vigente fuera de los últimos 10.000 movimientos.
 6. Reutilización de recursos entre copias inmutables sin compartir el archivo activo y sin duplicar el calendario diario.
+
+La prueba adicional de descarga nativa comprueba que los respaldos centrales se guardan mediante el navegador, sin materializar el archivo completo en un Blob de JavaScript. La ruta conserva la autenticación por cookie y el nombre que entrega el servidor.
 
 ## Medición local con el historial del informe
 

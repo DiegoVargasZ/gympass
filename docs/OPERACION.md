@@ -42,6 +42,8 @@ Desde el servidor 5.3.1, la plataforma crea una copia completa diaria y conserva
 
 Las descargas y la importación web admiten hasta 4 GiB y procesan los archivos por partes. El servidor reserva espacio para recibir y extraer la copia, conserva un margen libre y limpia temporales ante desconexiones o errores. Las subidas autorizadas tienen un plazo máximo de 30 minutos; el proxy del hosting puede imponer un límite menor. La descarga de un respaldo individual no ocupa la cola de la base activa del gimnasio. Crear una copia global todavía pausa las operaciones de gimnasios durante la captura coherente; los hashes y las copias pesadas se ejecutan en un trabajador separado y el servidor sigue atendiendo salud/autenticación.
 
+La descarga central se entrega al gestor del navegador para guardarla en disco sin cargar un Blob completo en JavaScript. Se abre en otra pestaña para conservar el panel y mostrar un error legible si la sesión dejó de ser válida; el nombre lo proporciona el servidor.
+
 Hay un cupo global para transferencias pesadas. Una respuesta 429 con `Retry-After: 5` pide reintentar; no borra los cambios offline ni crea cobros duplicados. El almacenamiento externo automático no está configurado por esta entrega: descarga una copia a otro equipo/cuenta, protégela y comprueba que puedes restaurarla. Los respaldos descargados siguen siendo archivos privados sin cifrado integral.
 
 ## Aplicaciones y trabajo sin conexión

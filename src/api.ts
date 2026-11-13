@@ -1,4 +1,4 @@
-import { assertPlatformGeneration, getPlatformGeneration, platformFetch } from './platform-context.ts';
+import { apiUrl, assertPlatformGeneration, getPlatformGeneration, platformFetch } from './platform-context.ts';
 
 /** The request never reached the server, so retrying it later is safe. */
 export class NetworkError extends Error {
@@ -75,6 +75,17 @@ export async function api<T = any>(path: string, method = 'GET', body?: unknown,
 }
 export async function download(path: string, name: string) {
   const generation = getPlatformGeneration();
+  if (/^platform\/(?:backups\/[^/]+|gyms\/[^/]+\/backups\/[^/]+)\/export$/.test(path)) {
+    // Let the browser stream private backup attachments to disk, without a multi-gigabyte Blob.
+    // The same-origin request carries the session cookie; errors remain readable in the new tab.
+    const link = document.createElement('a');
+    link.href = apiUrl(path);
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    assertPlatformGeneration(generation);
+    link.click();
+    return;
+  }
   const r = await platformFetch(path);
   if (!r.ok) {
     const data = await r.json();
