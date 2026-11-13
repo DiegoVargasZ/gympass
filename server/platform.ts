@@ -18,6 +18,7 @@ import { platformCopies, exportPlatformCopy } from './platform-backup-export.ts'
 import { replicationApi } from './replication-api.ts';
 import { applicationVersion } from './backups.ts';
 import { withBackupUpload } from './backup-transfer.ts';
+import { serveCredentialShare } from './credential-shares.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 type Options = {
@@ -88,6 +89,25 @@ export async function startPlatform(options: Options) {
       const url = new URL(req.url || '/', 'http://localhost');
       const method = req.method || 'GET';
       const writing = !['GET', 'HEAD'].includes(method);
+      // Public credential links: no session, only an unguessable token that expires.
+      const shared = /^\/c\/([a-f\d-]{36})\/([A-Za-z\d_-]{32})(\.png)?$/i.exec(url.pathname);
+      if (shared && (method === 'GET' || method === 'HEAD')) {
+        const reply = async () => {
+          const gym = store.requireOperationalGym(shared[1]);
+          await tenants.withTenant(gym, (ctx) =>
+            serveCredentialShare(req, res, ctx, gym.id, shared[2], !!shared[3], origin || `http://${req.headers.host}`),
+          );
+        };
+        try {
+          await reply();
+        } catch {
+          if (!res.headersSent) {
+            res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+            res.end('No disponible.');
+          }
+        }
+        return;
+      }
       if (url.pathname.startsWith('/api/')) {
         const expected = origin || `http://${req.headers.host}`;
         if (writing) {

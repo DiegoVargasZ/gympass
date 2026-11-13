@@ -23,13 +23,16 @@ export function canShareCredential(file: File) {
   }
 }
 
-export function credentialMessage(name: string, organization: string) {
+/** Con `link` el mensaje lleva la dirección privada de la tarjeta; sin él, la tarjeta va adjunta. */
+export function credentialMessage(name: string, organization: string, link?: string) {
+  if (link)
+    return `Hola ${name}, esta es tu credencial de ${organization}: ${link}\nEs personal: preséntala en recepción. El enlace vence en 7 días.`;
   return `Hola ${name}, te comparto tu credencial de ${organization}. La tarjeta QR va adjunta en este chat.`;
 }
 
-export function credentialWhatsappUrl(phone: string | undefined, name: string, organization: string) {
+export function credentialWhatsappUrl(phone: string | undefined, name: string, organization: string, link?: string) {
   const digits = (phone || '').replace(/\D/g, '');
   if (!/^[1-9]\d{7,14}$/.test(digits)) return null;
-  const message = credentialMessage(name, organization);
+  const message = credentialMessage(name, organization, link);
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }

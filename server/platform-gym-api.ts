@@ -4,6 +4,7 @@ import { kindLabels, reasons } from '../lib/domain.ts';
 import { InvitationBatches } from '../lib/invitation-batches.ts';
 import { invitationBackground } from './invitation-backgrounds.ts';
 import { loadMedia, saveMedia } from './media.ts';
+import { createCredentialShare } from './credential-shares.ts';
 import { applicationVersion } from './backups.ts';
 import { correctSessionTimes } from './session-corrections.ts';
 import { verifyPassword } from './auth.ts';
@@ -84,6 +85,7 @@ export async function gymApi(
     id = path[1],
     action = path[2];
   const imageUpload = method === 'PUT' && ((first === 'people' && action === 'photo') || first === 'branding');
+  const shareUpload = method === 'PUT' && first === 'credentials' && !!id && action === 'share';
   const background = ['invitation-batches', 'visits'].includes(first) && !!id && action === 'background';
   // Retired screens retain read-only historical access for reporting accounts.
   const historical = ['attendance', 'workdays', 'payroll', 'periods', 'calendar', 'visits', 'invitation-batches', 'invitation-templates'].includes(first);
@@ -92,7 +94,7 @@ export async function gymApi(
     s.requireReports();
     if (method !== 'GET') throw new ApiError(410, 'Este módulo fue retirado. Sus datos históricos se conservan en modo de consulta.');
   }
-  const body = method === 'GET' || imageUpload ? {} : await readJson(req);
+  const body = method === 'GET' || imageUpload || shareUpload ? {} : await readJson(req);
   reauthorize();
   const send = (value: unknown, status = 200) => json(res, value, status);
   if (first === 'kiosk') {
@@ -127,6 +129,7 @@ export async function gymApi(
   };
   if (background && method === 'GET')
     return send(await invitationBackground(s, ctx.root, first as 'visits' | 'invitation-batches', id, req));
+  if (shareUpload) return send(await createCredentialShare(s, ctx.root, auth.gym.id, id, req));
   if (imageUpload) return send(await saveMedia(s, ctx.root, req, first === 'people' ? id : undefined));
   if (first === 'auth' && id === 'status' && method === 'GET') return send({ setupRequired: false, user: auth.actor });
   if (first === 'system-info' && method === 'GET')
